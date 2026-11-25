@@ -8,13 +8,13 @@
   'use strict';
   var BJ = window.BJ = window.BJ || {};
   var NAME = 'bujeok-gongbang', VER = 1, STORES = ['kv', 'designs', 'assets'];
-  var dbp = null, mem = { kv: {}, designs: {}, assets: {} }, usingMemory = false;
+  var dbp = null, dbh = null, mem = { kv: {}, designs: {}, assets: {} }, usingMemory = false;
 
   function open() {
     if (dbp) return dbp;
     dbp = new Promise(function (resolve) {
       var done = false;
-      function fin(db) { if (!done) { done = true; if (!db) usingMemory = true; resolve(db); } }
+      function fin(db) { if (!done) { done = true; dbh = db || null; if (!db) usingMemory = true; resolve(db); } }
       try {
         var rq = indexedDB.open(NAME, VER);
         rq.onupgradeneeded = function () {
@@ -93,6 +93,28 @@
 
   function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
 
+  /* 창이 닫히기 직전: 기다리지 않고 지금 이 자리에서 쓰기를 내보낸다 (열어 둔 연결로, 한 번의 거래로).
+     list: [[저장소, 열쇠, 값], …]. 연결이 아직 없으면 보통 쓰기로. */
+  function putNow(list) {
+    if (!dbh) {
+      if (usingMemory) { list.forEach(function (p) { mem[p[0]][p[1]] = clone(p[2]); }); return Promise.resolve(); }
+      return Promise.all(list.map(function (p) { return store.put(p[0], p[1], p[2]); }));
+    }
+    return new Promise(function (resolve, reject) {
+      var t, failed = false, names = [];
+      function fail(e) { if (!failed) { failed = true; reject(friendly(e)); } }
+      list.forEach(function (p) { if (names.indexOf(p[0]) < 0) names.push(p[0]); });
+      try {
+        t = dbh.transaction(names, 'readwrite');
+        list.forEach(function (p) { t.objectStore(p[0]).put(p[2], p[1]); });
+        if (t.commit) t.commit();
+      } catch (e) { try { if (t) t.abort(); } catch (e2) {} fail(e); return; }
+      t.oncomplete = function () { resolve(); };
+      t.onerror = function () { fail(t.error); };
+      t.onabort = function () { fail(t.error); };
+    });
+  }
+
   var store = {
     get: function (s, k) { return req(s, 'readonly', function (os) { return os ? os.get(k) : { result: clone(mem[s][k]) }; }); },
     put: function (s, k, v) { return req(s, 'readwrite', function (os) { if (!os) { mem[s][k] = clone(v); return null; } return os.put(v, k); }); },
@@ -112,6 +134,7 @@
       });
     },
     update: update,
+    putNow: putNow,
     memoryOnly: function () { return open().then(function () { return usingMemory; }); },
     /* 브라우저가 공간이 모자랄 때 지우지 않게 부탁 (안 되면 그냥 넘어감) */
     persist: function () { try { if (navigator.storage && navigator.storage.persist) return navigator.storage.persist(); } catch (e) {} return Promise.resolve(false); }

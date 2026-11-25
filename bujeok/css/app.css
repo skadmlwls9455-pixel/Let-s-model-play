@@ -131,6 +131,8 @@ label.btn.file > input[type="file"]::file-selector-button { cursor: pointer; }
 .dragging .card-host .art { filter: none; }
 .selbox { position: absolute; border: 2px dashed var(--accent); border-radius: 6px; pointer-events: none; box-shadow: 0 0 0 2px rgba(255, 255, 255, .6); }
 .cards.kbd .selbox { outline: 2px solid currentColor; outline-offset: 2px; }
+/* 고르지는 않고 키보드만 머문 자리 (Esc 뒤 · 지운 뒤): 점선 상자만 */
+.selbox.focus-only, .cards.kbd .selbox.focus-only { border-style: dotted; outline: none; }
 /* 뒷면 안내: 카드 안, 아래 한 마디 띠(카드 아래 약 16%) 위에만 놓여요. 크기는 카드 너비를 따라가요. */
 .back-hint {
   position: absolute; left: 12%; right: 12%; top: 46%; transform: translateY(-50%);
@@ -149,6 +151,8 @@ label.btn.file > input[type="file"]::file-selector-button { cursor: pointer; }
 }
 .sel-name { font-size: 13px; font-weight: 700; padding: 0 6px; }
 .stage-tip { margin: 10px 0 0; text-align: center; font-size: 12px; color: var(--dim); }
+/* 손잡이 줄이 떠 있는 동안은 안내 글을 접는다 (넓은 화면에서 미리보기 아래가 잘리지 않게) */
+.selbar:not([hidden]) + .stage-tip { display: none; }
 
 /* ── 조절판 ── */
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); min-width: 0; }
@@ -305,7 +309,10 @@ dialog.sheet::backdrop { background: rgba(40, 25, 15, .35); }
   width: max-content; max-width: min(560px, calc(100% - 32px)); margin: 0 auto;
   padding: 10px 16px; border-radius: 12px;
   background: #2E2420; color: #FFF4DC; font-size: 14px; line-height: 1.55; text-align: left; box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+  pointer-events: none;   /* 누를 것이 없는 알림 — 밑에 있는 단추(보관함의 열기 등)를 가로채지 않게 */
 }
+/* 저장 실패 알림이 아래에 떠 있으면 알림 글은 그 위로 */
+body.alerting > .toast { bottom: calc(var(--alert-h, 60px) + 30px); }
 
 /* ── 좁은 화면 ── */
 @media (max-width: 900px) {
@@ -332,6 +339,7 @@ dialog.sheet::backdrop { background: rgba(40, 25, 15, .35); }
       radial-gradient(farthest-side at 100% 50%, rgba(58, 42, 32, .26), rgba(58, 42, 32, 0)) right / 18px 100% no-repeat scroll,
       var(--panel);
   }
+  .tabs { scroll-padding-inline: 12px; }
   .tabs::-webkit-scrollbar { height: 6px; }
   .tabs::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
   .pane { padding: 14px 14px 20px; }
@@ -362,9 +370,10 @@ dialog.sheet::backdrop { background: rgba(40, 25, 15, .35); }
   .brand { min-width: 0; }
   .brand h1 { white-space: normal; }
 }
-/* 저장 실패 알림 — 닫을 때까지 위에 남아요 (머리 줄 표시는 짧게, 자세한 말은 여기) */
+/* 저장 실패 알림 — 닫을 때까지 화면 아래에 남아요 (머리 줄 표시는 짧게, 자세한 말은 여기).
+   위에 두면 좁은 화면에서 보관함 · 새 부적 단추를 가려서 아래로. 알림 글(.toast)은 그 위로 비켜 서요 */
 .save-alert {
-  position: fixed; left: 16px; right: 16px; top: 12px; z-index: 60; margin: 0 auto;
+  position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 45; margin: 0 auto;
   width: max-content; max-width: min(560px, calc(100% - 32px));
   display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 16px;
   background: #FFF4F0; color: #7A1A0E; border: 2px solid var(--err); border-radius: 12px;
@@ -374,4 +383,6 @@ dialog.sheet::backdrop { background: rgba(40, 25, 15, .35); }
 .save-alert .btn { flex: none; }
 /* 보관함: 읽을 수 없는 줄 */
 .archive-list li.bad .meta b { color: var(--err); }
+/* 화면에는 안 보이고 화면 낭독기만 읽는 글 */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

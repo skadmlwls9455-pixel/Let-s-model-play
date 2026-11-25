@@ -40,7 +40,7 @@
         <div class="back-hint" id="backHint">뒷면은 빈 장이에요.<span class="hint-more"><br>고민이 풀린 장면을 직접 그려서 <b>뒷면</b> 칸에서 올리면 여기 들어가요.</span></div>
       </div>
     </div>
-    <div class="selbar" id="selbar" hidden>
+    <div class="selbar" id="selbar" role="group" aria-label="고른 것 손질" hidden>
       <span class="sel-name" id="selName" aria-live="polite"></span>
       <button class="icon-btn" data-act="smaller" title="작게" aria-label="작게">－</button>
       <button class="icon-btn" data-act="bigger" title="크게" aria-label="크게">＋</button>
@@ -51,7 +51,8 @@
       <button class="icon-btn" data-act="reset" title="제자리로" aria-label="제자리로">⟲</button>
       <button class="icon-btn danger" data-act="del" title="지우기" aria-label="지우기">✕</button>
     </div>
-    <p class="stage-tip">카드 위 글자 · 캐릭터 · 장식은 끌어서 옮길 수 있어요. 고른 뒤 ＋ － 로 크기, ↺ ↻ 로 각도. 키보드는 Tab 으로 고르고 화살표로 옮겨요.</p>
+    <p class="stage-tip">카드 위 글자 · 캐릭터 · 장식은 끌어서 옮길 수 있어요. 고른 뒤 ＋ － 로 크기, ↺ ↻ 로 각도. 키보드는 Tab 으로 고르고 화살표로 옮겨요 (Enter: 손질 단추).</p>
+    <p class="sr-only" id="kbdHelp">Tab 으로 다음 것, 화살표로 옮기기 (Shift 를 누르면 크게), ＋ － 로 크기, Delete 로 장식 지우기, Enter 로 손질 단추(돌리기 · 뒤집기 · 하나 더 · 제자리로), Esc 로 고르기 풀기.</p>
   </section>
 
   <!-- 조절판 -->
@@ -234,7 +235,7 @@
     <section class="pane" data-pane="llm" role="tabpanel" id="pane-llm" aria-labelledby="tab-llm">
       <div class="row">
         <label class="lab" for="inWorry">신청자의 고민</label>
-        <textarea id="inWorry" data-bind="worry" rows="5" placeholder="예: 올해 이직 준비 중인데 면접에서 자꾸 떨어져요. 자신감이 바닥이에요."></textarea>
+        <textarea id="inWorry" data-bind="worry" rows="5" maxlength="4000" placeholder="예: 올해 이직 준비 중인데 면접에서 자꾸 떨어져요. 자신감이 바닥이에요."></textarea>
         <p class="note">고민 글은 아래에서 고른 엔진(내 컴퓨터 / 이 브라우저)으로만 가요. 유료 API 는 쓰지 않아요.</p>
       </div>
       <details class="more" id="engineBox">
@@ -260,8 +261,8 @@
       </div>
       <details class="more">
         <summary>이미지 프롬프트 꼬리 (화풍)</summary>
-        <div class="row"><label class="lab" for="inStyle">모든 영어 프롬프트 뒤에 붙일 말</label><textarea id="inStyle" rows="3" spellcheck="false"></textarea></div>
-        <div class="row"><label class="lab" for="inNeg">네거티브 프롬프트</label><textarea id="inNeg" rows="2" spellcheck="false"></textarea></div>
+        <div class="row"><label class="lab" for="inStyle">모든 영어 프롬프트 뒤에 붙일 말</label><textarea id="inStyle" rows="3" maxlength="1500" spellcheck="false"></textarea></div>
+        <div class="row"><label class="lab" for="inNeg">네거티브 프롬프트</label><textarea id="inNeg" rows="2" maxlength="1500" spellcheck="false"></textarea></div>
         <button class="btn small ghost" id="btnCopyRaw" type="button">LLM 에 보내는 글 전체 복사 (다른 곳에 붙여 쓰기)</button>
       </details>
       <div class="llm-line">

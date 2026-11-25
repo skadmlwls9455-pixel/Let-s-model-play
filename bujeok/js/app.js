@@ -20,7 +20,7 @@
 
   function fresh() {
     return {
-      v: 1, id: uid(), name: '', createdAt: Date.now(), updatedAt: Date.now(),
+      v: 2, id: uid(), name: '', createdAt: Date.now(), updatedAt: Date.now(),
       ilju: 0, gender: 'f',
       year: defaultYear(), yearFmt: 'num-hj', yearCustom: '',
       layout: 'split', topText: '건강', bottomText: '부적',
@@ -41,14 +41,20 @@
   var IMG_RE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/=]+$/;
   var FONT_RE = /^data:[\w.+\/-]*;base64,[A-Za-z0-9+\/=]+$/;
   var ID_RE = /^[\w-]{1,40}$/;
-  function str(v, max) { return v == null ? '' : clean(String(v)).slice(0, max || 200); }
-  function numIn(v, a, b, d) { v = +v; return isFinite(v) ? clamp(v, a, b) : d; }
+  /* 저장된 값이 객체면 글자 · 수로 바꾸지 않는다 ({toString: 'x'} 처럼 바꾸다가 멈추는 값이 있어서) */
+  function prim(v) { return v != null && typeof v === 'object' ? undefined : v; }
+  function str(v, max) { v = prim(v); return v == null ? '' : clean(String(v)).slice(0, max || 200); }
+  function numIn(v, a, b, d) { v = prim(v); v = typeof v === 'symbol' ? NaN : +v; return isFinite(v) ? clamp(v, a, b) : d; }
   function oneOf(v, list, d) { return list.indexOf(v) >= 0 ? v : d; }
+  function isHex(v) { return typeof v === 'string' && HEX.test(v); }
+  /* 이름표 찾기는 제 것만 ('toString' · '__proto__' · 'constructor' 같은 물려받은 이름은 없는 것으로) */
+  var hasOwn = Object.prototype.hasOwnProperty;
+  function own(map, k) { return typeof k === 'string' && hasOwn.call(map, k); }
 
   function cleanItem(it) {
-    if (!it || typeof it !== 'object' || !P.P[it.prop]) return null;
+    if (!it || typeof it !== 'object' || !own(P.P, it.prop)) return null;
     var o = { prop: it.prop, s: numIn(it.s, 0.2, 4, 0.7), r: numIn(it.r, -360, 360, 0), flip: !!it.flip };
-    if (it.slot && C.SLOT_NAMES[it.slot]) { o.slot = it.slot; o.dx = numIn(it.dx, -1200, 1200, 0); o.dy = numIn(it.dy, -1200, 1200, 0); }
+    if (own(C.SLOT_NAMES, it.slot)) { o.slot = it.slot; o.dx = numIn(it.dx, -1200, 1200, 0); o.dy = numIn(it.dy, -1200, 1200, 0); }
     else { o.x = numIn(it.x, -1200, 1800, 300); o.y = numIn(it.y, -1200, 2100, 450); }
     if (it.s0 != null) o.s0 = numIn(it.s0, 0.2, 4, 0.8);
     return o;
@@ -83,21 +89,22 @@
     out.name = str(d.name, 40);
     out.createdAt = numIn(d.createdAt, 0, 1e15, f.createdAt);
     out.updatedAt = numIn(d.updatedAt, 0, 1e15, f.updatedAt);
-    out.ilju = G.ilju(d.ilju).index;
+    out.ilju = G.ilju(prim(d.ilju)).index;
     out.gender = d.gender === 'm' ? 'm' : 'f';
     out.year = Math.round(numIn(d.year, 1900, 2200, f.year));
     out.yearFmt = oneOf(d.yearFmt, ['num-hj', 'num-ko', 'hj', 'num', 'animal', 'custom', 'none'], f.yearFmt);
     out.yearCustom = str(d.yearCustom, 30);
-    out.layout = C.LAYOUTS[d.layout] ? d.layout : f.layout;
+    out.layout = own(C.LAYOUTS, d.layout) ? d.layout : f.layout;
     out.topText = d.topText == null ? f.topText : str(d.topText, 24);
     out.bottomText = d.bottomText == null ? f.bottomText : str(d.bottomText, 24);
-    out.font = typeof d.font === 'string' && d.font.length < 80 ? d.font : f.font;
+    /* 글꼴: 목록에 있는 것이거나 내가 올린 글꼴 이름표 (이 브라우저에 없더라도 값은 지켜 둔다 — 다른 창 · 백업에서 들어올 수 있어서) */
+    out.font = typeof d.font === 'string' && (F.find(d.font) || /^custom:[\w-]{1,40}$/.test(d.font)) ? d.font : f.font;
     out.stretch = numIn(d.stretch, 0.6, 2.5, f.stretch);
     out.textWeight = numIn(d.textWeight, 0, 10, f.textWeight);
     var sz = d.sizes || {};
     out.sizes = { year: numIn(sz.year, 0.3, 2, 1), top: numIn(sz.top, 0.3, 2, 1), bottom: numIn(sz.bottom, 0.3, 2, 1) };
-    out.paper = HEX.test(d.paper) ? d.paper : f.paper;
-    out.ink = HEX.test(d.ink) ? d.ink : f.ink;
+    out.paper = isHex(d.paper) ? d.paper : f.paper;
+    out.ink = isHex(d.ink) ? d.ink : f.ink;
     out.rough = numIn(d.rough, 0, 3, f.rough);
     out.paperGrain = !!d.paperGrain;
     out.frame = oneOf(d.frame, ['stamp', 'cloud', 'simple', 'none'], f.frame);
@@ -106,7 +113,7 @@
     out.ground = !!d.ground;
     out.charScale = numIn(d.charScale, 0.3, 3, 1);
     out.charFlip = !!d.charFlip;
-    out.theme = typeof d.theme === 'string' && (C.THEMES[d.theme] || d.theme === '') ? d.theme : '';
+    out.theme = own(C.THEMES, d.theme) ? d.theme : '';
     out.symmetric = d.symmetric == null ? true : !!d.symmetric;
     var seen = {};
     out.items = (Array.isArray(d.items) ? d.items : []).map(cleanItem).filter(function (it) {
@@ -116,6 +123,8 @@
     }).slice(0, 300);
     out.offsets = {};
     ['year', 'top', 'bottom', 'char', 'caption'].forEach(function (k) { var o = d.offsets && d.offsets[k]; if (o && typeof o === 'object') out.offsets[k] = cleanOff(o); });
+    /* 판 1 (처음 판)은 글자 · 캐릭터의 각도를 그리지 않았다 — 그때 눌러 둔 ↺ ↻ 가 이제 와서 갑자기 기울어 보이지 않게 지운다 */
+    if ((numIn(d.v, 0, 100, 1) || 1) < 2) Object.keys(out.offsets).forEach(function (k) { delete out.offsets[k].r; });
     var se = d.seal || {};
     out.seal = { text: str(se.text, 4), where: oneOf(se.where, ['front', 'back', 'both', 'none'], 'back'), style: oneOf(se.style, ['fill', 'line'], 'fill'), pos: {} };
     ['front', 'back'].forEach(function (k) {
@@ -166,7 +175,11 @@
 
   var S = fresh();
   var dirty = false;
-  var ui = { view: 'front', sel: null, selSide: 'front', drawerCat: 'deco', customChars: {}, llm: null, running: null, runSeq: 0, refocusing: false, lastEngine: null };
+  var ui = { view: 'front', sel: null, selSide: 'front', drawerCat: 'deco', customChars: {}, llm: null, running: null, runSeq: 0, refocusing: false, lastEngine: null, drawerAdded: null };
+  /* 마지막 입력이 키보드였나 (키보드 테두리는 키보드로 왔을 때만 — 스크립트로 옮긴 포커스는 :focus-visible 이 늘 참이라 믿을 수 없어서) */
+  var lastInput = 'pointer';
+  document.addEventListener('keydown', function (e) { if (!e.altKey && !e.ctrlKey && !e.metaKey) lastInput = 'key'; }, true);
+  document.addEventListener('pointerdown', function () { lastInput = 'pointer'; }, true);
 
   function getPath(o, path) { return path.split('.').reduce(function (a, k) { return a == null ? undefined : a[k]; }, o); }
   function setPath(o, path, v) {
@@ -230,22 +243,26 @@
 
   function render() {
     var rs = renderState();
-    /* 키보드로 고른 것이 다시 그린 뒤에도 그대로 잡혀 있게 */
-    var ae = document.activeElement, fid = null, fside = null, wasKbd = $('#cards').classList.contains('kbd');
+    /* 키보드로 머문 것이 다시 그린 뒤에도 그 자리에 머물게 (고르기는 건드리지 않는다 — Esc 로 푼 것이 되살아나지 않게) */
+    var ae = document.activeElement, fid = null, fside = null, cards = $('#cards'), wasKbd = cards.classList.contains('kbd');
     if (ae && ae.getAttribute && ae.getAttribute('data-el') && (frontHost.contains(ae) || backHost.contains(ae))) {
       fid = ae.getAttribute('data-el'); fside = frontHost.contains(ae) ? 'front' : 'back';
     }
-    frontHost.innerHTML = C.front(rs, env('f', { interactive: true }));
-    backHost.innerHTML = C.back(rs, env('b', { interactive: true }));
+    ui.refocusing = !!fid;
+    try {
+      frontHost.innerHTML = C.front(rs, env('f', { interactive: true }));
+      backHost.innerHTML = C.back(rs, env('b', { interactive: true }));
+    } finally { ui.refocusing = false; }
     $('#backHint').hidden = !!S.back.image;
     /* 고른 것이 없어졌으면 (안 쓰기 · 비우기 · 지우기) 고르기도 푼다 */
     if (ui.sel && !hostOf(ui.selSide).querySelector('[data-el="' + ui.sel + '"]')) ui.sel = null;
+    $$('[data-el][tabindex]', frontHost).concat($$('[data-el][tabindex]', backHost)).forEach(function (g) { g.setAttribute('aria-describedby', 'kbdHelp'); });
+    if (fid) { refocus(fid, fside); cards.classList.toggle('kbd', wasKbd); }
     updateSel();
     updateWho();
-    if (fid) refocus(fid, fside, wasKbd);
   }
 
-  function refocus(fid, side, wasKbd) {
+  function refocus(fid, side) {
     var host = hostOf(side), el = host.querySelector('[data-el="' + fid + '"][tabindex]');
     if (!el && /^item:/.test(fid)) {
       var all = host.querySelectorAll('[data-el^="item:"][tabindex]');
@@ -254,7 +271,6 @@
     if (!el) return;
     ui.refocusing = true;
     try { el.focus({ preventScroll: true }); } catch (e) {} finally { ui.refocusing = false; }
-    if (!ui.sel && wasKbd) select(el.getAttribute('data-el'), side);
   }
 
   function updateWho() {
@@ -283,16 +299,19 @@
   }
   function saveAlert(msg) {
     var el = $('#saveAlert');
-    if (!msg) { if (el) el.hidden = true; return; }
+    if (!msg) { if (el) el.hidden = true; document.body.classList.toggle('alerting', false); return; }
     if (!el) {
       el = document.createElement('div');
       el.id = 'saveAlert'; el.className = 'save-alert'; el.setAttribute('role', 'alert');
       el.innerHTML = '<p></p><button type="button" class="btn small">닫기</button>';
-      el.querySelector('button').addEventListener('click', function () { el.hidden = true; });
+      el.querySelector('button').addEventListener('click', function () { saveAlert(null); });
       document.body.appendChild(el);
     }
     el.querySelector('p').textContent = msg;
     el.hidden = false;
+    /* 화면 아래에 붙어 있는다 (머리 줄 단추를 가리지 않게) — 알림 글은 그 위로 비켜 선다 */
+    document.body.classList.toggle('alerting', true);
+    document.body.style.setProperty('--alert-h', el.offsetHeight + 'px');
   }
   function markDirty() {
     dirty = true; rev++;
@@ -300,55 +319,142 @@
     setSaveState('저장 중…');
     saveTimer = setTimeout(save, 500);
   }
+
+  /* forks: 따로 저장한 부적의 옛 id → 새 자리. 그 사이 줄 서 있던 저장도 새 자리로 가게 (옛 자리에 옛 판을 다시 쓰지 않게).
+     gen: 창을 떠나며 바로 쓴 판(flushNow)보다 먼저 줄 선 저장은 버린다.
+     remoteAt: 다른 창이 알려 온 저장 시각 (읽어 볼 틈이 없는 flushNow 가 덮어도 되는지 판단할 때) */
+  var forks = {}, gen = 0, remoteAt = {};
+  function forkName(name) { var SUF = ' (이 창에서 고친 판)'; return str(name || '이름 없음', 40 - SUF.length) + SUF; }
+  function retarget(copy) {
+    for (var k = 0, fk = forks[copy.id]; fk && k < 20; k++, fk = forks[copy.id]) {
+      if (copy.name === fk.oldName) copy.name = fk.name;
+      copy.id = fk.id; copy.createdAt = fk.createdAt;
+    }
+    return copy;
+  }
+  function post(m) { if (chan) try { chan.postMessage(m); } catch (e) {} }
+
   function save() {
     clearTimeout(saveTimer);
     if (!dirty) return saving;
-    var doc = S, mine = rev;
+    var doc = S, mine = rev, g = gen;
     doc.updatedAt = Date.now();
-    var copy = JSON.parse(JSON.stringify(doc));
+    var snap = JSON.stringify(doc);
     saving = saving.catch(function () {}).then(function () {
-      var known = base.id === copy.id ? base.at : 0;
+      if (g !== gen) return null;
+      var copy = retarget(JSON.parse(snap)), known = base.id === copy.id ? base.at : 0, gone = false;
       return BJ.store.update('designs', copy.id, function (old) {
         if (old && known && (old.updatedAt || 0) > known) return undefined;   /* 저장된 쪽이 더 새 판 */
+        gone = !old && !!known;   /* 이 창이 저장했던 부적이 없어졌다 (다른 창에서 지웠다) */
         return copy;
       }).then(function (res) {
-        if (res.wrote) return copy;
+        if (res.wrote) {
+          if (gone) toast('다른 창에서 지운 부적이에요 — 이 창에서 고친 것으로 다시 저장했어요', 6000);
+          return copy;
+        }
         /* 다른 창 · 백업에서 더 새로 고친 판이 있다 → 지우지 않고, 이 창에서 고친 것은 따로 저장 */
         var fork = JSON.parse(JSON.stringify(copy));
-        fork.id = uid(); fork.name = (copy.name || '이름 없음') + ' (이 창에서 고친 판)'; fork.createdAt = fork.updatedAt = Date.now();
+        fork.id = uid(); fork.name = forkName(copy.name); fork.createdAt = fork.updatedAt = Date.now();
         return BJ.store.put('designs', fork.id, fork).then(function () {
-          if (S === doc) { S.id = fork.id; S.name = fork.name; S.createdAt = fork.createdAt; S.updatedAt = fork.updatedAt; syncControls(); updateWho(); }
+          forks[copy.id] = { id: fork.id, name: fork.name, oldName: copy.name, createdAt: fork.createdAt };
+          if (S === doc) {
+            S.id = fork.id; S.createdAt = fork.createdAt; S.updatedAt = fork.updatedAt;
+            if (S.name === copy.name) S.name = fork.name;   /* 그사이 이름을 또 고쳤으면 그 이름을 둔다 */
+            syncControls(); updateWho();
+          }
           toast('다른 창이나 백업에서 더 새로 고친 판이 있어서, 이 창에서 고친 것은 “' + fork.name + '”으로 따로 저장했어요.', 7000);
           return fork;
         });
       });
     }).then(function (w) {
-      base = { id: w.id, at: w.updatedAt };
+      if (!w) return;
+      post({ t: 'saved', id: w.id, at: w.updatedAt });
+      if (S !== doc) return;   /* 그사이 다른 부적을 열었으면 '지금 만들던 부적'은 그대로 */
+      if (base.id !== w.id || w.updatedAt >= base.at) base = { id: w.id, at: w.updatedAt };
       return BJ.store.put('kv', 'current', w.id).then(function () {
-        if (S === doc) stored = true;
-        if (S === doc && rev === mine) { dirty = false; setSaved(); }
+        if (S !== doc) return;
+        stored = true;
+        if (rev === mine) { dirty = false; setSaved(); }
         saveAlert(null);
-        if (chan) try { chan.postMessage({ t: 'saved', id: w.id, at: w.updatedAt }); } catch (e) {}
       });
     }).catch(function (e) {
       setSaveState('저장 실패', 'err');
-      saveAlert('저장하지 못했어요 — ' + ((e && e.message) || '이 브라우저에 쓰지 못했어요') + '. 보관함에서 백업 파일을 받아 두세요.');
+      var m = (e && e.message) || '이 브라우저에 쓰지 못했어요';
+      saveAlert('저장하지 못했어요 — ' + m + (/백업/.test(m) ? '' : '. 보관함에서 백업 파일을 받아 두세요.'));
     });
     return saving;
   }
-  /* 창을 닫거나 다른 앱으로 갈 때 남은 것을 바로 쓴다 (beforeunload 의 비동기 저장은 끝까지 간다는 보장이 없어서 미리) */
-  document.addEventListener('visibilitychange', function () { if (document.hidden && dirty) save(); });
-  window.addEventListener('pagehide', function () { if (dirty) save(); });
-  window.addEventListener('beforeunload', function () { if (dirty) save(); });
-  /* 다른 창에서 같은 부적을 저장했으면: 여기서 고친 게 없을 때 그 판을 불러온다 (고친 게 있으면 저장할 때 따로 저장) */
-  if (chan) chan.onmessage = function (ev) {
-    var m = ev.data || {};
-    if (m.t !== 'saved' || m.id !== S.id || dirty || ui.running) return;
+
+  /* 창을 닫거나 다른 앱으로 갈 때: 읽어 볼 틈 없이 지금 바로 쓴다 (닫히는 창에서는 읽고-쓰기가 끝까지 간다는 보장이 없어서).
+     다른 창이 더 새 판을 저장했다고 알려 왔으면 덮지 않고 따로 저장한다. */
+  function flushNow() {
+    clearTimeout(saveTimer);
+    if (!dirty) return;
+    var doc = S, mine = ++rev;
+    gen++;   /* 줄 서 있던 저장은 이 판보다 옛것 */
+    doc.updatedAt = Date.now();
+    var copy = retarget(JSON.parse(JSON.stringify(doc))), known = base.id === copy.id ? base.at : 0;
+    if (known && (remoteAt[copy.id] || 0) > known) {
+      var oldId = copy.id, oldName = copy.name;
+      copy.id = uid(); copy.name = forkName(oldName); copy.createdAt = copy.updatedAt;
+      forks[oldId] = { id: copy.id, name: copy.name, oldName: oldName, createdAt: copy.createdAt };
+    }
+    S.id = copy.id; S.name = copy.name; S.createdAt = copy.createdAt;
+    base = { id: copy.id, at: copy.updatedAt };
+    dirty = false;
+    BJ.store.putNow([['designs', copy.id, copy], ['kv', 'current', copy.id]]).then(function () {
+      post({ t: 'saved', id: copy.id, at: copy.updatedAt });
+      if (S !== doc) return;
+      stored = true;
+      if (rev === mine) { setSaved(); saveAlert(null); }
+    }, function (e) {
+      if (S !== doc) return;
+      dirty = true;
+      setSaveState('저장 실패', 'err');
+      var m = (e && e.message) || '이 브라우저에 쓰지 못했어요';
+      saveAlert('저장하지 못했어요 — ' + m + (/백업/.test(m) ? '' : '. 보관함에서 백업 파일을 받아 두세요.'));
+    });
+  }
+  document.addEventListener('visibilitychange', function () { if (document.hidden) flushNow(); });
+  window.addEventListener('pagehide', flushNow);
+  window.addEventListener('beforeunload', flushNow);
+
+  /* 다른 창에서 온 소식:
+     saved   — 같은 부적을 저장했다: 여기서 고친 게 없으면 그 판을 불러온다 (고친 게 있으면 저장할 때 따로 저장)
+     deleted — 지웠다: 고친 게 없으면 새 부적으로, 있으면 저장할 때 다시 생긴다고 알린다
+     assets  — 내 그림 · 글꼴이 바뀌었다: 다시 읽는다
+     끄는 중(drag)이면 손을 뗀 다음에 */
+  var pendingMsg = null;
+  function onChan(m) {
+    if (!m || typeof m !== 'object') return;
+    if (m.t === 'saved' && typeof m.id === 'string') remoteAt[m.id] = Math.max(remoteAt[m.id] || 0, +m.at || 0);
+    if (m.t === 'assets') {
+      loadAssets().then(function () { buildFontSelect(); buildGrid(); syncCustomChar(); syncControls(); ensureFont(); requestRender(); }).catch(function () {});
+      return;
+    }
+    if (m.id !== S.id) return;
+    if (drag) { pendingMsg = m; return; }
+    if (m.t === 'deleted') {
+      if (dirty || ui.running) {
+        stored = false; base = { id: S.id, at: 0 };
+        if (!dirty) setSaved();
+        toast('다른 창에서 이 부적을 지웠어요 — 여기서 고친 것은 저장하면 다시 생겨요', 7000);
+        return;
+      }
+      switchTo(nextDesign());
+      toast('다른 창에서 이 부적을 지웠어요. 꾸밈은 그대로 둔 새 부적을 열었어요', 6000);
+      return;
+    }
+    if (m.t !== 'saved' || dirty || ui.running) return;
     if (base.id === m.id && m.at <= base.at) return;
     BJ.store.get('designs', m.id).then(function (d) {
-      if (d && !dirty && d.id === S.id) { loadDesign(d, { keepRun: false }); toast('다른 창에서 고친 내용을 불러왔어요'); }
+      if (!d || dirty || drag || ui.running || d.id !== S.id) return;
+      if (!loadDesign(d)) return;
+      syncControls(true);   /* 입력칸에 커서가 있어도 새 값으로 (옛 값에 한 글자 더해 덮어쓰지 않게) */
+      toast('다른 창에서 고친 내용을 불러왔어요');
     }).catch(function () {});
-  };
+  }
+  if (chan) chan.onmessage = function (ev) { onChan(ev.data); };
 
   /* ─────────────── 바꾸기 ─────────────── */
 
@@ -397,7 +503,8 @@
     });
   }
 
-  function syncControls() {
+  /* force: 커서가 있는 칸도 바꾼다 (다른 창에서 고친 판을 불러왔을 때) — 커서 자리는 지킨다 */
+  function syncControls(force) {
     $$('[data-bind]').forEach(function (el) {
       var v = getPath(S, el.getAttribute('data-bind'));
       if (el.classList.contains('seg')) {
@@ -406,6 +513,13 @@
         el.checked = !!v;
       } else if (document.activeElement !== el) {
         el.value = v == null ? '' : v;
+      } else if (force) {
+        var nv = v == null ? '' : String(v);
+        if (el.value === nv) return;
+        var a = null, b = null;
+        try { a = el.selectionStart; b = el.selectionEnd; } catch (e) {}
+        el.value = nv;
+        try { if (a != null) el.setSelectionRange(Math.min(a, nv.length), Math.min(b, nv.length)); } catch (e) {}
       }
     });
     $('#outStretch').textContent = '×' + (+S.stretch).toFixed(2);
@@ -513,7 +627,7 @@
   }
 
   function buildDrawer() {
-    $('#drawerTabs').innerHTML = P.CATS.map(function (c) { return '<button class="chip' + (c.id === ui.drawerCat ? ' on' : '') + '" data-cat="' + c.id + '" type="button">' + c.name + '</button>'; }).join('');
+    $('#drawerTabs').innerHTML = P.CATS.map(function (c) { var on = c.id === ui.drawerCat; return '<button class="chip' + (on ? ' on' : '') + '" data-cat="' + c.id + '" type="button" aria-pressed="' + on + '">' + c.name + '</button>'; }).join('');
     var h = '';
     Object.keys(P.P).forEach(function (k) {
       if (P.P[k].cat !== ui.drawerCat) return;
@@ -526,6 +640,37 @@
 
   var NAMES = { year: '해 (맨 윗줄)', top: '윗줄', bottom: '아랫줄', char: '캐릭터', caption: '뒷면 한 마디', 'seal-front': '낙관', 'seal-back': '낙관', backimg: '뒷면 그림' };
   function backFitS() { return S.back.frame === false ? 1.1 : 0.94; }
+
+  /* 글자 줄의 실제 크기 (틀 · 옆 장식 · 낙관에 막혀 줄어든 뒤의 크기) — card.js 가 그리는 것과 같은 계산 */
+  function fitNow(id) {
+    if (!C.textFit || id === 'char') return null;
+    var side = id === 'caption' ? 'back' : 'front', r = null;
+    try { r = C.textFit(renderState(), side, id, env(side === 'back' ? 'b' : 'f')); } catch (e) { r = null; }
+    return r && r.size > 0 ? r : null;
+  }
+  /* ＋ 로 키워도 막혀서 안 커지면 그 크기는 적어 두지 않는다 (나중에 － 를 여러 번 눌러야 줄어드는 일이 없게).
+     － 는 실제로 줄어들 때까지 (예전에 쌓인, 안 보이는 크기는 건너뛴다) */
+  function scaleText(id, off, f) {
+    var s0 = off.s || 1, before = fitNow(id);
+    off.s = clamp(s0 * f, 0.3, 3);
+    if (!before) return;
+    var after = fitNow(id);
+    if (!after) return;
+    if (f > 1) {
+      if (after.size <= before.size * (1 + (f - 1) * 0.25)) { off.s = s0; blockedToast(); }
+      return;
+    }
+    for (var k = 0; k < 40 && off.s > 0.3 && after.size >= before.size * (1 - (1 - f) * 0.25); k++) {
+      off.s = clamp(off.s * f, 0.3, 3);
+      after = fitNow(id) || after;
+    }
+  }
+  function blockedToast() {
+    var now = Date.now();
+    if (now - (blockedToast.at || 0) < 2500) return;
+    blockedToast.at = now;
+    toast('틀이나 옆 장식 · 낙관에 닿아서 더 커지지 않아요 — 옆 장식을 옮기거나 줄여 보세요');
+  }
 
   function handle(id) {
     if (!id) return null;
@@ -559,9 +704,9 @@
       var o = function () { return (S.offsets[id] = S.offsets[id] || {}); };
       return {
         name: NAMES[id],
-        get: function () { return [o().dx || 0, o().dy || 0]; },
+        get: function () { var c = S.offsets[id] || {}; return [c.dx || 0, c.dy || 0]; },
         set: function (x, y) { var b = textBase(S, id); o().dx = clampAt(b[0], x, BOX.x0, BOX.x1); o().dy = clampAt(b[1], y, BOX.y0, BOX.y1); },
-        scale: function (f) { o().s = clamp((o().s || 1) * f, 0.3, 3); },
+        scale: function (f) { scaleText(id, o(), f); },
         rotate: function (d) { o().r = ((o().r || 0) + d) % 360; },
         flip: id === 'char' ? function () { S.charFlip = !S.charFlip; } : null,
         reset: function () { delete S.offsets[id]; }
@@ -569,12 +714,13 @@
     }
     if (id === 'seal-front' || id === 'seal-back') {
       var side = id.slice(5);
-      var q = function () { return (S.seal.pos[side] = S.seal.pos[side] || C.sealDefault(S, side)); };
+      /* 읽기만 할 때는 적어 두지 않는다 — 눌러만 봐도 지금 틀의 기본 자리가 박혀서, 틀을 바꿔도 낙관이 따라가지 않던 일 */
+      var q = function () { return (S.seal.pos[side] = S.seal.pos[side] || C.sealPos(S, side)); };
       return {
         name: NAMES[id],
-        get: function () { return [q().x, q().y]; },
-        set: function (x, y) { q().x = clamp(x, BOX.x0, BOX.x1); q().y = clamp(y, BOX.y0, BOX.y1); },
-        scale: function (f) { q().s = clamp((q().s || 1) * f, 0.4, 3); },
+        get: function () { var p = C.sealPos(S, side); return [p.x, p.y]; },
+        set: function (x, y) { var p = q(); p.x = clamp(x, BOX.x0, BOX.x1); p.y = clamp(y, BOX.y0, BOX.y1); },
+        scale: function (f) { var p = q(); p.s = clamp((p.s || 1) * f, 0.4, 3); },
         reset: function () { delete S.seal.pos[side]; }
       };
     }
@@ -597,14 +743,8 @@
     updateSel();
   }
 
-  function updateSel() {
-    var h = handle(ui.sel);
-    $$('.selbox').forEach(function (b) { b.hidden = true; });
-    if (!h) { $('#selbar').hidden = true; ui.sel = null; return; }
-    var wrap = $('.card-wrap[data-side="' + ui.selSide + '"]'), host = $('.card-host', wrap);
-    var els = $$('[data-el="' + ui.sel + '"]', host);
-    /* 안 보이는 카드(앞면만 볼 때의 뒷면 등)의 것은 손잡이를 띄우지 않는다 */
-    if (!els.length || wrap.offsetParent === null) { $('#selbar').hidden = true; return; }
+  /* 상자 하나로 감싸기 (cls 가 'focus-only' 면 고르지는 않고 키보드가 머문 자리만) */
+  function drawBox(wrap, els, cls) {
     var r0 = wrap.getBoundingClientRect(), box = null;
     els.forEach(function (el) {
       var r = el.getBoundingClientRect();
@@ -612,11 +752,30 @@
       box = box ? { l: Math.min(box.l, r.left), t: Math.min(box.t, r.top), r: Math.max(box.r, r.right), b: Math.max(box.b, r.bottom) } : { l: r.left, t: r.top, r: r.right, b: r.bottom };
     });
     var sb = $('.selbox', wrap);
-    if (box && wrap.offsetParent !== null) {
-      sb.hidden = false;
-      sb.style.left = (box.l - r0.left - 4) + 'px'; sb.style.top = (box.t - r0.top - 4) + 'px';
-      sb.style.width = (box.r - box.l + 8) + 'px'; sb.style.height = (box.b - box.t + 8) + 'px';
-    }
+    if (!box || !sb) return;
+    sb.hidden = false;
+    sb.classList.toggle('focus-only', cls === 'focus-only');
+    sb.style.left = (box.l - r0.left - 4) + 'px'; sb.style.top = (box.t - r0.top - 4) + 'px';
+    sb.style.width = (box.r - box.l + 8) + 'px'; sb.style.height = (box.b - box.t + 8) + 'px';
+  }
+  /* 고른 것은 없지만 키보드가 카드 위 요소에 머물러 있으면 그 자리를 보여 준다 (Esc 뒤 · 지운 뒤에도 어디 있는지 보이게) */
+  function focusBox() {
+    var ae = document.activeElement, id = ae && ae.getAttribute && ae.getAttribute('data-el');
+    if (!id || !$('#cards').classList.contains('kbd')) return;
+    var wrap = ae.closest('.card-wrap');
+    if (!wrap || wrap.offsetParent === null) return;
+    drawBox(wrap, $$('[data-el="' + id + '"]', $('.card-host', wrap)), 'focus-only');
+  }
+
+  function updateSel() {
+    var h = handle(ui.sel);
+    $$('.selbox').forEach(function (b) { b.hidden = true; b.classList.toggle('focus-only', false); });
+    if (!h) { $('#selbar').hidden = true; ui.sel = null; focusBox(); return; }
+    var wrap = $('.card-wrap[data-side="' + ui.selSide + '"]'), host = $('.card-host', wrap);
+    var els = $$('[data-el="' + ui.sel + '"]', host);
+    /* 안 보이는 카드(앞면만 볼 때의 뒷면 등)의 것은 손잡이를 띄우지 않는다 */
+    if (!els.length || wrap.offsetParent === null) { $('#selbar').hidden = true; return; }
+    drawBox(wrap, els);
     /* 손잡이 줄이 막 나타났으면 이름은 다음 장면에 (화면 낭독기가 첫 이름을 놓치지 않게) */
     var bar = $('#selbar'), nm = $('#selName'), was = bar.hidden;
     bar.hidden = false;
@@ -632,6 +791,7 @@
   function act(a) {
     var h = handle(ui.sel);
     if (!h || $('#selbar').hidden) return;
+    var ae = document.activeElement, fromBar = !!(ae && ae.closest && ae.closest('#selbar')), id0 = ui.sel, side0 = ui.selSide;
     if (a === 'smaller') h.scale(1 / 1.1);
     else if (a === 'bigger') h.scale(1.1);
     else if (a === 'rotL' && h.rotate) h.rotate(-10);
@@ -640,7 +800,13 @@
     else if (a === 'dup' && h.dup) ui.sel = h.dup();
     else if (a === 'del' && h.del) { h.del(); ui.sel = null; }
     else if (a === 'reset') h.reset();
-    syncControls(); requestRender(); markDirty();
+    syncControls(); markDirty();
+    if (a === 'del' && fromBar) {
+      /* 손잡이 줄의 ✕ 로 지웠으면 포커스가 사라진 단추에 남지 않게 — 그 자리의 다음 장식으로 (고르지는 않는다) */
+      render(); refocus(id0, side0);
+      $('#cards').classList.toggle('kbd', lastInput === 'key');
+      updateSel();
+    } else requestRender();
   }
 
   function toSvg(svg, e) {
@@ -667,19 +833,19 @@
       try { host.setPointerCapture(e.pointerId); } catch (err) {}
       e.preventDefault();
     });
-    /* 키보드(Tab)로 들어오면 그것을 고른다 */
+    /* 키보드(Tab)로 들어오면 그것을 고른다. 다시 그린 뒤 스크립트가 포커스를 되돌린 것(refocusing)은 건드리지 않는다 */
     host.addEventListener('focusin', function (e) {
       var g = e.target.closest && e.target.closest('[data-el]');
-      if (!g) return;
-      var kbd = false;
-      try { kbd = g.matches(':focus-visible'); } catch (err) {}
-      $('#cards').classList.toggle('kbd', kbd);
-      if (ui.refocusing) return;
+      if (!g || ui.refocusing) return;
+      $('#cards').classList.toggle('kbd', lastInput === 'key');
       var id = g.getAttribute('data-el');
       if (ui.sel !== id || ui.selSide !== side) select(id, side);
+      else updateSel();
     });
     host.addEventListener('focusout', function (e) {
-      if (!ui.refocusing && !(e.relatedTarget && host.contains(e.relatedTarget))) $('#cards').classList.remove('kbd');
+      if (ui.refocusing || (e.relatedTarget && host.contains(e.relatedTarget))) return;
+      $('#cards').classList.remove('kbd');
+      if (!ui.sel) updateSel();   /* 키보드가 머문 자리 표시도 지운다 */
     });
     host.addEventListener('pointermove', function (e) {
       if (!drag || drag.host !== host) return;
@@ -696,6 +862,9 @@
       drag = null;
       document.body.classList.remove('dragging');
       if (moved) { requestRender(); markDirty(); }
+      /* 끄는 동안 다른 창에서 온 소식은 손을 뗀 다음에 (옮겼으면 저장할 때 따로 저장된다) */
+      var pm = pendingMsg; pendingMsg = null;
+      if (pm) onChan(pm);
     }
     host.addEventListener('pointerup', end);
     host.addEventListener('pointercancel', end);
@@ -875,7 +1044,7 @@
     if (ui.running) { stopRun(); return; }
     var cfg = engineConf(), btn = $('#btnIdeas'), stream = $('#llmStream'), count = countEl();
     var ctl = new AbortController(), engName = (BJ.llm.ENGINES.filter(function (e) { return e.id === cfg.engine; })[0] || {}).name;
-    var runId = ++ui.runSeq, targetId = S.id, writing = false;
+    var runId = ++ui.runSeq, doc = S, writing = false;
     ui.running = ctl;
     btn.textContent = '멈추기';
     setStatus(cfg.engine === 'rules' ? '' : '연결하는 중…');
@@ -888,11 +1057,11 @@
       signal: ctl.signal,
       onStatus: function (t) {
         if (!live()) return;
-        /* '모델 준비 중 (처음 한 번만 받아요): 37%…' → 앞말만 상태 줄에, 나머지는 옆 칸에 */
+        /* '모델 준비 중 (처음 한 번만 받아요) · 37% · 335MB…' → 앞말만 상태 줄(화면 낭독기가 읽는 곳)에, 바뀌는 숫자는 옆 칸에 */
         t = String(t || '');
-        var head = t.split(/[:：]/)[0].trim();
-        setStatus(head);
-        count.textContent = t.length > head.length ? t.slice(head.length).replace(/^[\s:：]+/, '').slice(0, 80) : '';
+        var m = /^(.*?)\s*(?:[:：]|\s·\s)\s*([\s\S]*)$/.exec(t), head = (m ? m[1] : t).replace(/…$/, '').trim() || t.trim();
+        setStatus(head === t.trim() ? head : head + '…');
+        count.textContent = m ? m[2].replace(/^[\s:：·]+/, '').slice(0, 80) : '';
       },
       onToken: function (t, raw) {
         if (!live()) return;
@@ -903,15 +1072,13 @@
     }).then(function (r) {
       if (!live()) return;
       var res = { data: r.data, engine: cfg.engine, engineName: engName + (cfg.model ? ' · ' + cfg.model : ''), at: Date.now() };
-      if (S.id === targetId) {
+      /* 부탁한 그 부적(이 창에서 따로 저장되어 이름표가 바뀌었어도 같은 부적)에만 넣는다.
+         다른 부적을 열면 생성은 멈추니(stopRun) 여기까지 오는 것은 같은 부적뿐 — 다른 부적에 몰래 써 넣지 않는다 */
+      if (S === doc) {
         S.ideas = cleanIdeas(res) || res;
         renderIdeas(); markDirty();
         setStatus('아이디어 ' + ((S.ideas.data.ideas || []).length) + '개를 만들었어요.');
-      } else {
-        /* 그사이 다른 부적으로 바뀌었으면 — 부탁한 부적에만 넣는다 (지운 부적은 되살리지 않는다) */
-        BJ.store.update('designs', targetId, function (d) { if (!d) return undefined; d.ideas = res; d.updatedAt = Date.now(); return d; }).catch(function () {});
-        setStatus('');
-      }
+      } else setStatus('');
       stream.hidden = true;
     }).catch(function (e) {
       if (!live()) return;
@@ -932,7 +1099,12 @@
   function bindLlm() {
     $('#inEngine').innerHTML = BJ.llm.ENGINES.map(function (e) { return '<option value="' + e.id + '">' + e.name + '</option>'; }).join('');
     $('#inEngine').addEventListener('change', function () { llmCfg().engine = this.value; syncEngine(); saveLlm(); });
-    $('#inEngineUrl').addEventListener('change', function () { llmCfg().urls[llmCfg().engine] = this.value.trim(); syncEngine(); saveLlm(); });
+    /* 주소는 고친 모양(http:// 붙이기 · 끝의 /api/chat 떼기)으로 저장하고 칸에도 그대로 보여 준다 — 다시 열어도 같은 주소로 */
+    $('#inEngineUrl').addEventListener('change', function () {
+      var eng = llmCfg().engine, v = this.value.trim();
+      if (v) llmCfg().urls[eng] = BJ.llm.normalizeUrl(eng, v); else delete llmCfg().urls[eng];
+      syncEngine(); saveLlm();
+    });
     $('#inEngineModel').addEventListener('change', function () { llmCfg().models[llmCfg().engine] = this.value.trim(); syncEngine(); saveLlm(); });
     $('#inStyle').addEventListener('change', function () { llmCfg().style = this.value; saveLlm(); renderIdeas(); });
     $('#inNeg').addEventListener('change', function () { llmCfg().neg = this.value; saveLlm(); renderIdeas(); });
@@ -944,8 +1116,10 @@
     };
     $('#btnModels').addEventListener('click', function () {
       var eng = llmCfg().engine;
-      if (eng === 'rules') { setStatus('“LLM 없이”는 모델이 필요 없어요.'); return; }
-      setStatus('모델 목록을 불러오는 중…');
+      /* 생성 중에는 상태 줄을 그 생성에 맡기고, 목록 결과는 알림으로 */
+      function say(t, err) { if (ui.running) toast(t, err ? 6000 : 0); else setStatus(t, err); }
+      if (eng === 'rules') { say('“LLM 없이”는 모델이 필요 없어요.'); return; }
+      if (!ui.running) setStatus('모델 목록을 불러오는 중…');
       BJ.llm.listModels(engineConf()).then(function (list) {
         if (llmCfg().engine !== eng) return;   /* 그사이 엔진을 바꿨으면 버린다 */
         list = (list || []).map(String);
@@ -955,11 +1129,11 @@
           if (eff && eff !== BJ.llm.normalizeUrl('openai', was)) { llmCfg().urls.openai = eff; syncEngine(); saveLlm(); toast('주소 끝에 /v1 을 붙였어요: ' + eff, 4000); }
         }
         $('#modelList').innerHTML = list.map(function (m) { return '<option value="' + esc(m) + '">'; }).join('');
-        if (!list.length) { setStatus(EMPTY[eng] || '모델이 없어요.'); return; }
+        if (!list.length) { say(EMPTY[eng] || '모델이 없어요.'); return; }
         /* 비어 있으면 목록의 첫째(엔진 쪽에서 쓸 만한 순서로 준 것)를 넣는다 */
         if (!llmCfg().models[eng]) { llmCfg().models[eng] = list[0]; syncEngine(); saveLlm(); }
-        setStatus('연결됨 · 모델 ' + list.length + '개: ' + list.slice(0, 6).join(', ') + (list.length > 6 ? ' …' : ''));
-      }).catch(function (e) { if (llmCfg().engine === eng) setStatus((e && e.message) || '모델 목록을 불러오지 못했어요', true); });
+        say('연결됨 · 모델 ' + list.length + '개: ' + list.slice(0, 6).join(', ') + (list.length > 6 ? ' …' : ''));
+      }).catch(function (e) { if (llmCfg().engine === eng) say((e && e.message) || '모델 목록을 불러오지 못했어요', true); });
     });
     $('#btnIdeas').addEventListener('click', runIdeas);
     $('#btnCopyRaw').addEventListener('click', function () {
@@ -974,10 +1148,13 @@
         var x = S.ideas && S.ideas.data.ideas[+b.dataset.cap];
         if (!x) return;
         /* 뒷면 한 마디 칸과 같은 길이까지만 (모델이 길게 써도 카드 글자가 깨알만 해지지 않게) */
-        var max = +$('#inCaption').maxLength > 0 ? +$('#inCaption').maxLength : 20, cap = Array.from(clean(x.caption || '').trim());
-        S.back.caption = cap.slice(0, max).join('').trim();
+        /* 칸의 maxlength 는 UTF-16 단위로 센다 (이모지 하나 = 2) — 같은 셈으로, 글자를 반으로 쪼개지 않고 */
+        var max = +$('#inCaption').maxLength > 0 ? +$('#inCaption').maxLength : 20, full = clean(x.caption || '').trim(), out = '';
+        Array.from(full).some(function (ch) { if ((out + ch).length > max) return true; out += ch; return false; });
+        S.back.caption = out.trim();
+        var cut = out.length < full.length;
         syncControls(); requestRender(); markDirty();
-        toast(cap.length > max ? '한 마디가 ' + max + '자를 넘어서 앞부분만 넣었어요 — ⑤ 뒷면에서 다듬어 주세요' : '뒷면 한 마디에 넣었어요', cap.length > max ? 5000 : 0);
+        toast(cut ? '한 마디가 칸보다 길어서 앞부분만 넣었어요 — ⑤ 뒷면에서 다듬어 주세요' : '뒷면 한 마디에 넣었어요', cut ? 5000 : 0);
       } else if (b.id === 'btnCopyAll') copyText(ideasAsText());
     });
   }
@@ -993,14 +1170,17 @@
     var all = t.join(''), main = '', hanja = '';
     Array.from(all).forEach(function (ch) { if (HANJA_RE.test(ch)) hanja += ch; else main += ch; });
     if (side !== 'back') S.items.forEach(function (it) { if (SEAL_CHARS[it.prop]) hanja += SEAL_CHARS[it.prop]; });
-    return { main: main.replace(/\s/g, '') || '가', hanja: hanja };
+    /* 빼는 것은 SVG 가 접어 버리는 ASCII 빈칸뿐 — U+3000 같은 다른 빈칸은 폭이 글꼴마다 달라서 받아 둔다 (띄어쓰기는 fonts.js 가 넣는다) */
+    return { main: main.replace(/[\t\n\r ]/g, '') || '가', hanja: hanja };
   }
 
   /* → { svg, failed } — failed: 글꼴 일부를 받지 못해 컴퓨터 글꼴로 대신 그려진다 */
   function exportParts(side, opts) {
     opts = opts || {};
     var u = usedChars(side);
-    return F.embedCSS(S.font, u.main, u.hanja).then(function (fc) {
+    /* 빈 뒷면 틀(그림판용)에는 글자가 없다 — 글꼴을 받지 않는다 */
+    var fonts = opts.blankBack ? Promise.resolve({ css: '', failed: false }) : F.embedCSS(S.font, u.main, u.hanja);
+    return fonts.then(function (fc) {
       var rs = renderState();
       if (opts.blankBack) rs = Object.assign({}, rs, { back: Object.assign({}, rs.back, { caption: '' }), seal: Object.assign({}, rs.seal, { where: 'none' }) });
       var e = env(side === 'front' ? 'xf' : 'xb', { fontCSS: fc.css, backImage: opts.blankBack ? null : S.back.image });
@@ -1052,11 +1232,10 @@
   }
 
   function backTemplate() {
-    var failed = false;
-    exportParts('back', { blankBack: true }).then(function (r) { failed = r.failed; return BJ.exporter.toCanvas(r.svg, 3); })
+    exportParts('back', { blankBack: true }).then(function (r) { return BJ.exporter.toCanvas(r.svg, 3); })
       .then(BJ.exporter.canvasBlob).then(function (b) {
         BJ.exporter.download(b, '빈_뒷면_1800x2700.png');
-        toast('빈 뒷면을 받았어요. 그림판 앱에서 이 위에 그리면 크기가 딱 맞아요.' + (failed ? ' (글꼴을 받지 못해 낙관 글자는 컴퓨터 글꼴로 그려졌어요)' : ''), 4000);
+        toast('빈 뒷면을 받았어요. 그림판 앱에서 이 위에 그리면 크기가 딱 맞아요.', 4000);
       })
       .catch(function (e) { toast((e && e.message) || '빈 뒷면을 만들지 못했어요'); });
   }
@@ -1067,13 +1246,13 @@
   function peek(v) {
     v = v && typeof v === 'object' ? v : {};
     return {
-      name: str(v.name, 40), ilju: G.ilju(v.ilju).index, gender: v.gender === 'm' ? 'm' : 'f', mode: v.charMode === 'line' ? 'line' : 'color',
-      ink: HEX.test(v.ink) ? v.ink : '#C93B22', paper: HEX.test(v.paper) ? v.paper : '#F2BE35',
+      name: str(v.name, 40), ilju: G.ilju(prim(v.ilju)).index, gender: v.gender === 'm' ? 'm' : 'f', mode: v.charMode === 'line' ? 'line' : 'color',
+      ink: isHex(v.ink) ? v.ink : '#C93B22', paper: isHex(v.paper) ? v.paper : '#F2BE35',
       text: str(v.topText, 24) + ' ' + str(v.bottomText, 24), at: numIn(v.updatedAt, 0, 1e15, 0), worry: !!v.worry, img: !!(v.back && v.back.image)
     };
   }
-  function archiveRow(r) {
-    var d = peek(r.value), info = G.ilju(d.ilju), when = new Date(d.at || Date.now()), key = esc(r.key);
+  function archiveRow(r, d) {
+    var info = G.ilju(d.ilju), when = new Date(d.at || Date.now()), key = esc(r.key);
     return '<li class="' + (r.key === S.id ? 'cur' : '') + '"><div class="thumb">' + BJ.chars.svg(d.ilju, d.gender, { mode: d.mode, ink: d.ink, paper: d.paper }) + '</div>' +
       '<div class="meta"><b title="' + esc(d.name || '이름 없음') + '">' + esc(d.name || '이름 없음') + '</b><span>' + info.ko + '일주 ' + (d.gender === 'm' ? '남' : '여') + ' · ' + esc(d.text) + '</span>' +
       '<span class="dim">' + when.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + (d.worry ? ' · 고민 있음' : '') + (d.img ? ' · 뒷면 그림' : '') + '</span></div>' +
@@ -1090,9 +1269,12 @@
   function openArchive() {
     var dlg = $('#archive');
     return save().catch(function () {}).then(function () { return BJ.store.all('designs'); }).then(function (rows) {
-      rows.sort(function (a, b) { return peek(b.value).at - peek(a.value).at; });
-      var h = rows.map(function (r) {
-        try { return archiveRow(r); } catch (e) {
+      /* 줄마다 미리 한 번만 읽어 두고 그 값으로 줄 세운다 (깨진 줄 하나가 정렬을 멈춰 세우지 않게) */
+      var list = rows.map(function (r) { var p = null; try { p = peek(r.value); } catch (e) {} return { r: r, p: p }; });
+      list.sort(function (a, b) { return (b.p ? b.p.at : 0) - (a.p ? a.p.at : 0); });
+      var h = list.map(function (x) {
+        var r = x.r;
+        try { if (!x.p) throw new Error('bad'); return archiveRow(r, x.p); } catch (e) {
           return '<li class="bad"><div class="meta"><b>읽을 수 없는 부적</b><span class="dim">저장된 값이 깨져 있어요</span></div>' +
             '<div class="acts"><button class="btn small ghost danger" data-del="' + esc(r.key) + '" type="button">지우기</button></div></li>';
         }
@@ -1108,24 +1290,45 @@
   }
   function closeArchive() { var d = $('#archive'); if (d.close) d.close(); else d.removeAttribute('open'); }
 
+  /* 저장된 부적을 편집 화면으로. 그리다가 멈추면 (값이 깨진 부적) 보던 부적으로 돌아가고 false */
   function loadDesign(d) {
+    var prev = { S: S, dirty: dirty, stored: stored, base: base, sel: ui.sel }, next;
+    try { next = migrate(d); } catch (e) { toast('이 부적을 열지 못했어요 — 저장된 값이 깨져 있어요', 6000); return false; }
     stopRun(true);
     clearTimeout(saveTimer);
-    S = migrate(d);
-    dirty = false; stored = true;
-    base = { id: S.id, at: S.updatedAt };
+    S = next;
+    /* 저장된 그 자리(id)를 그대로 쓸 수 있을 때만 '저장됨' (깨진 id 라 새로 붙였으면 아직 저장 안 된 부적) */
+    stored = !!(d && typeof d === 'object' && d.id === S.id);
+    dirty = false;
+    base = { id: S.id, at: stored ? S.updatedAt : 0 };
     ui.sel = null;
-    BJ.store.put('kv', 'current', S.id).catch(function () {});
-    afterLoad();
+    saveAlert(null);
+    try { afterLoad(); } catch (e) {
+      S = prev.S; dirty = prev.dirty; stored = prev.stored; base = prev.base; ui.sel = prev.sel;
+      try { afterLoad(); } catch (e2) {}
+      if (dirty) markDirty();
+      toast('이 부적을 그리지 못했어요 — 저장된 값이 깨져 있어요', 6000);
+      return false;
+    }
+    if (stored) BJ.store.put('kv', 'current', S.id).catch(function () {});
+    return true;
   }
 
   function afterLoad() {
-    /* 올린 글꼴이 이 브라우저에 없으면 (지웠거나 읽지 못한 글꼴) 기본 글꼴로 */
-    var fontGone = !fontOk(S.font);
-    if (fontGone) S.font = F.LIST[0].id;
-    syncControls(); buildGrid(); showIljuNow(); syncCustomChar(); renderIdeas(); ensureFont(); render();
+    /* 이 부적에 쓴 내 글꼴이 이 브라우저(목록)에 없으면: 다른 창에서 막 올렸을 수 있어 저장소를 한 번 더 읽어 보고,
+       그래도 없으면 기본 글꼴로 보여 주기만 한다 (부적의 글꼴 값은 그대로 — 몰래 바꿔 저장하지 않는다) */
+    var fontMissing = typeof S.font === 'string' && S.font.indexOf('custom:') === 0 && !fontOk(S.font);
+    buildFontSelect(); syncControls(); buildGrid(); buildDrawer(); showIljuNow(); syncCustomChar(); renderIdeas(); ensureFont(); render();
     if (dirty) setSaveState('저장 중…'); else setSaved();
-    if (fontGone) { toast('저장된 내 글꼴을 이 브라우저에서 찾지 못해서 기본 글꼴로 바꿨어요', 5000); markDirty(); }
+    if (fontMissing) {
+      var fdoc = S;
+      loadAssets().catch(function () {}).then(function () {
+        if (S !== fdoc) return;
+        buildFontSelect(); syncControls();
+        if (fontOk(S.font)) { ensureFont(); requestRender(); return; }
+        toast('이 부적에 쓴 내 글꼴이 이 브라우저에 없어서 기본 글꼴로 보여 줘요 — ② 글자에서 글꼴 파일을 다시 올리거나 다른 글꼴을 골라 주세요', 7000);
+      });
+    }
     /* 예전에 올린 뒷면 그림은 비율을 몰라서 — 한 번 재 둔다 */
     if (S.back.image && !S.back.aspect) {
       var im = new Image(), doc = S;
@@ -1150,6 +1353,7 @@
     clearTimeout(saveTimer);
     S = n; dirty = false; stored = false; ui.sel = null;
     base = { id: S.id, at: 0 };
+    saveAlert(null);
     afterLoad();
   }
   function newDesign() {
@@ -1168,16 +1372,18 @@
       var b = e.target.closest('button');
       if (!b) return;
       if (b.dataset.open) {
-        BJ.store.get('designs', b.dataset.open).then(function (d) {
+        var oid = b.dataset.open;
+        /* 지금 부적에 남은 것(막 도착한 아이디어 등)을 먼저 저장하고 연다 — 같은 부적을 다시 열어도 저장된 새 판으로 */
+        save().catch(function () {}).then(function () { return BJ.store.get('designs', oid); }).then(function (d) {
           if (!d) { toast('그 부적을 찾지 못했어요'); return openArchive(); }
-          if (d.id !== b.dataset.open) d = Object.assign({}, d, { id: b.dataset.open });
-          loadDesign(d); closeArchive();
+          if (d.id !== oid) d = Object.assign({}, d, { id: oid });
+          if (loadDesign(d)) closeArchive();
         }).catch(function (err) { toast((err && err.message) || '열지 못했어요', 5000); });
       } else if (b.dataset.dup) {
         BJ.store.get('designs', b.dataset.dup).then(function (d) {
           if (!d) return;
-          var c = migrate(d);
-          c.id = uid(); c.name = str((c.name || '이름 없음') + ' (복제)', 40); c.createdAt = c.updatedAt = Date.now();
+          var c = migrate(d), SUF = ' (복제)';
+          c.id = uid(); c.name = str(c.name || '이름 없음', 40 - SUF.length) + SUF; c.createdAt = c.updatedAt = Date.now();
           return BJ.store.put('designs', c.id, c).then(openArchive);
         }).catch(function (err) { toast((err && err.message) || '복제하지 못했어요', 5000); });
       } else if (b.dataset.del) {
@@ -1185,6 +1391,7 @@
         var id = b.dataset.del, wasOpen = id === S.id;
         if (wasOpen) { clearTimeout(saveTimer); dirty = false; }
         saving.catch(function () {}).then(function () { return BJ.store.del('designs', id); }).then(function () {
+          post({ t: 'deleted', id: id });   /* 같은 부적을 연 다른 창이 다음 저장 때 되살리지 않게 */
           /* 열려 있던 부적을 지웠으면: 꾸밈은 그대로 둔 새 부적으로 (지운 부적이 다음 저장 때 되살아나지 않게) */
           if (wasOpen && id === S.id) {
             switchTo(nextDesign());
@@ -1237,7 +1444,11 @@
     var ids = BJ.llm.ENGINES.map(function (e) { return e.id; }), out = { engine: oneOf(L.engine, ids, 'ollama'), urls: {}, models: {}, style: STYLE_DEFAULT, neg: NEG_DEFAULT, n: 2 };
     ids.forEach(function (k) {
       var u = L.urls && L.urls[k], m = L.models && L.models[k];
-      if (typeof u === 'string' && /^https?:\/\/[^\s"'<>]{1,200}$/.test(u)) out.urls[k] = u;
+      /* 'localhost:11434' · 'HTTP://…' 처럼 적어 둔 주소도 고친 모양으로 지킨다 (버리면 다시 열 때 기본 주소로 몰래 바뀐다) */
+      if (typeof u === 'string' && u.trim() && (k === 'ollama' || k === 'openai')) {
+        var nu = BJ.llm.normalizeUrl(k, u);
+        if (/^https?:\/\/[^\s"'<>]{1,300}$/i.test(nu)) out.urls[k] = nu;
+      }
       if (typeof m === 'string' && m.length <= 160) out.models[k] = str(m, 160);
     });
     if (typeof L.style === 'string') out.style = str(L.style, 1500);
@@ -1270,13 +1481,16 @@
       }).concat(goodA.map(function (a) {
         return BJ.store.update('assets', a.key, function (old) {
           if (!old) return a.value;
-          if (old.dataURL === a.value.dataURL) return undefined;                       /* 같은 그림 */
-          if ((a.value.updatedAt || 0) > (old.updatedAt || 0) && old.updatedAt) return a.value;   /* 둘 다 시각이 있고 백업이 더 새것 */
-          aKept++; return undefined;                                                  /* 지금 것을 지킨다 */
+          if (old.dataURL === a.value.dataURL && old.mode === a.value.mode) return undefined;   /* 같은 그림 · 같은 처리 */
+          if (old.updatedAt && (a.value.updatedAt || 0) > old.updatedAt) return a.value;       /* 둘 다 시각이 있고 백업이 더 새것 (처리만 바뀐 것도) */
+          aKept++; return undefined;                                                          /* 지금 것을 지킨다 */
         }).then(function (r) { if (r.wrote) aNew++; });
       })));
     }).then(loadAssets).then(function () {
       buildGrid(); buildFontSelect(); syncCustomChar(); requestRender();
+      /* 같은 부적을 연 다른 창들이 새 판 · 새 그림을 다시 읽게 */
+      Object.keys(imported).forEach(function (id) { post({ t: 'saved', id: id, at: imported[id].updatedAt }); });
+      if (aNew) post({ t: 'assets' });
       var msgs = ['부적 ' + nNew + '개를 불러왔어요'];
       if (nOld) msgs.push(nOld + '개는 이미 같거나 더 새 판이 있어서 건너뛰었어요');
       if (bad) msgs.push('읽을 수 없는 부적 ' + bad + '개는 뺐어요');
@@ -1290,16 +1504,24 @@
         if (!dirty || confirm('지금 열린 부적의 더 새 판이 백업에 있어요. 백업 판으로 바꿀까요?\n(취소하면 지금 고친 것은 따로 저장해요)')) {
           loadDesign(mine); msgs.push('열린 부적도 백업의 새 판으로 바꿨어요');
         } else {
-          S.id = uid(); S.name = str((S.name || '이름 없음') + ' (이 창에서 고친 판)', 40); base = { id: S.id, at: 0 }; stored = false;
+          S.id = uid(); S.name = forkName(S.name); base = { id: S.id, at: 0 }; stored = false;
           syncControls(); markDirty();
         }
       }
       toast(msgs.join(' · '), 8000);
       /* 엔진 설정: 고민 글이 가는 주소라서 묻고 바꾼다 */
-      var L = cleanLlm(data.llm), cur = llmCfg();
-      if (L && JSON.stringify(L) !== JSON.stringify(cleanLlm(cur))) {
-        var eng = BJ.llm.ENGINES.filter(function (e) { return e.id === L.engine; })[0], url = L.urls[L.engine] || (eng && eng.url) || '';
-        if (confirm('백업에 그림 아이디어 엔진 설정도 있어요: ' + (eng ? eng.name : L.engine) + (url && L.engine !== 'rules' && L.engine !== 'webllm' ? ' · ' + url : '') +
+      var L = cleanLlm(data.llm), cur = cleanLlm(llmCfg()) || llmCfg();
+      if (L && JSON.stringify(L) !== JSON.stringify(cur)) {
+        /* 바뀌는 연결은 엔진마다 모두 보여 준다 (고른 엔진 말고 다른 엔진의 주소도 함께 바뀌니까) */
+        var eng = BJ.llm.ENGINES.filter(function (e) { return e.id === L.engine; })[0], lines = [];
+        BJ.llm.ENGINES.forEach(function (e) {
+          if (e.id === 'rules') return;
+          var nu = L.urls[e.id] || e.url || '', ou = cur.urls[e.id] || e.url || '', nm = L.models[e.id] || '', om = cur.models[e.id] || '';
+          if (nu === ou && nm === om) return;
+          lines.push('· ' + e.name + (e.id !== 'webllm' ? ' — 주소 ' + nu : '') + (nm ? ' · 모델 ' + nm : ''));
+        });
+        if (confirm('백업에 그림 아이디어 엔진 설정도 있어요 (쓸 엔진: ' + (eng ? eng.name : L.engine) + ').' +
+          (lines.length ? '\n바뀌는 연결:\n' + lines.join('\n') : '') +
           '\n이 설정으로 바꿀까요? 고민 글이 이 주소로 가니, 내가 쓰던 주소인지 꼭 확인해 주세요.')) {
           ui.llm = L; saveLlm(); syncEngine(); renderIdeas();
         }
@@ -1309,14 +1531,17 @@
 
   /* ─────────────── 글꼴 · 그림 자산 ─────────────── */
 
-  function fontOk(v) { return typeof v === 'string' && (v.indexOf('custom:') === 0 ? !!F.custom[v.slice(7)] : !!F.find(v)); }
+  function fontOk(v) { return typeof v === 'string' && (v.indexOf('custom:') === 0 ? own(F.custom, v.slice(7)) : !!F.find(v)); }
 
   function buildFontSelect() {
     var h = F.LIST.map(function (f) { return '<option value="' + esc(f.id) + '">' + esc(f.name) + '</option>'; }).join('');
     var mine = Object.keys(F.custom);
     if (mine.length) h += '<optgroup label="내 글꼴">' + mine.map(function (id) { return '<option value="custom:' + esc(id) + '">' + esc(F.custom[id].name) + '</option>'; }).join('') + '</optgroup>';
+    /* 이 부적의 내 글꼴이 이 브라우저에 없을 때: 값은 지키고, 무엇으로 보이는지 알려 준다 */
+    var missing = typeof S.font === 'string' && S.font.indexOf('custom:') === 0 && !fontOk(S.font);
+    if (missing) h += '<option value="' + esc(S.font) + '" disabled>내 글꼴 (이 브라우저에 없음 · 기본 글꼴로 보여요)</option>';
     $('#inFont').innerHTML = h;
-    $('#inFont').value = fontOk(S.font) ? S.font : F.LIST[0].id;
+    $('#inFont').value = fontOk(S.font) || missing ? S.font : F.LIST[0].id;
   }
 
   function loadAssets() {
@@ -1350,8 +1575,14 @@
     function openTab(t, focus) {
       $$('.tab').forEach(function (x) { var on = x === t; x.classList.toggle('on', on); x.setAttribute('aria-selected', on ? 'true' : 'false'); x.tabIndex = on ? 0 : -1; });
       $$('.pane').forEach(function (p) { p.classList.toggle('on', p.dataset.pane === t.dataset.tab); });
-      try { t.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
-      if (focus) t.focus();
+      /* 탭 줄이 가로로 넘칠 때만, 그 줄 안에서만 옆으로 민다 (페이지는 위아래로 움직이지 않게) — 초점 테두리가 잘리지 않게 12px 여유 */
+      var bar = t.parentNode;
+      if (bar && bar.scrollWidth > bar.clientWidth + 1) {
+        var br = bar.getBoundingClientRect(), tr = t.getBoundingClientRect(), pad = 12;
+        if (tr.left - pad < br.left) bar.scrollLeft -= br.left - (tr.left - pad);
+        else if (tr.right + pad > br.right) bar.scrollLeft += (tr.right + pad) - br.right;
+      }
+      if (focus) { try { t.focus({ preventScroll: true }); } catch (e) { t.focus(); } }
       if (t.dataset.tab === 'back' || t.dataset.tab === 'llm') setView(ui.view === 'front' ? 'both' : ui.view);
     }
     $$('.tab').forEach(function (t) {
@@ -1408,25 +1639,56 @@
       if (!b) return;
       S.items.push({ prop: b.dataset.prop, x: 300, y: 450, s: 0.8, s0: 0.8, r: 0, flip: false });
       setView(ui.view === 'back' ? 'front' : ui.view);
-      select('item:' + (S.items.length - 1), 'front');
+      ui.drawerAdded = 'item:' + (S.items.length - 1);
+      select(ui.drawerAdded, 'front');
       requestRender(); markDirty();
     });
 
     $$('#selbar [data-act]').forEach(function (b) { b.addEventListener('click', function () { act(b.dataset.act); }); });
+    /* 손잡이 줄의 보이는 단추 · 보이는 카드 위의 요소 (Tab 차례) */
+    function barButtons() { return $$('#selbar [data-act]').filter(function (b) { return !b.hidden; }); }
+    function cardEls() {
+      return $$('#cards .card-wrap').filter(function (w) { return w.offsetParent !== null; })
+        .reduce(function (a, w) { return a.concat($$('[data-el][tabindex]', w)); }, []);
+    }
+    function selEl() { return ui.sel ? hostOf(ui.selSide).querySelector('[data-el="' + ui.sel + '"][tabindex]') : null; }
+
     /* 카드 단축키: 포커스가 카드(또는 손잡이 줄)에 있거나 아무 데도 없을 때만.
-       입력칸 · 탭 · 다른 단추에 있을 때의 키는 그 칸의 것 */
+       입력칸 · 탭 · 다른 단추에 있을 때의 키는 그 칸의 것 (서랍에서 막 꺼낸 장식만 예외) */
     document.addEventListener('keydown', function (e) {
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
-      var ae = document.activeElement, inCard = !!(ae && ae.closest && ae.closest('#cards, #selbar'));
-      if (ae && ae !== document.body && ae !== document.documentElement && !inCard) return;
-      if (inCard && ae.closest('#selbar') && (e.key === 'Enter' || e.key === ' ')) return;
-      if (!ui.sel) {
-        /* 키보드로 머문 것을 Enter · Space 로 다시 고르기 */
-        var g = inCard && ae.getAttribute && ae.getAttribute('data-el');
-        if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(g, frontHost.contains(ae) ? 'front' : 'back'); }
+      var ae = document.activeElement;
+      var inCard = !!(ae && ae.closest && ae.closest('#cards')), inBar = !!(ae && ae.closest && ae.closest('#selbar'));
+      var onEl = inCard && !!(ae.getAttribute && ae.getAttribute('data-el'));
+      /* 서랍에서 막 꺼낸 장식: 포커스는 서랍 단추에 둔 채(이어서 더 꺼낼 수 있게) 화살표 · ＋ － · Delete · Esc 는 그 장식에 */
+      var fromDrawer = !!(ae && ae.closest && ae.closest('#drawer .prop') && ui.sel && ui.sel === ui.drawerAdded);
+      var free = !ae || ae === document.body || ae === document.documentElement;
+      if (!free && !inCard && !inBar && !fromDrawer) return;
+
+      /* Tab 은 카드 위 요소 사이를 오간다 (지나가며 고른다). 고른 요소에서 Enter → 그 손잡이 줄(－ ＋ ↺ ↻ ⇋ ⧉ ⟲ ✕)로.
+         손잡이 줄의 마지막 단추에서 Tab → 다음 요소, 첫 단추에서 Shift+Tab · 손잡이 줄에서 Esc → 그 요소로 돌아간다 */
+      if (e.key === 'Tab') {
+        var btns = $('#selbar').hidden ? [] : barButtons(), cur = selEl();
+        if (!inBar || !btns.length || !cur) return;
+        if (e.shiftKey && ae === btns[0]) { e.preventDefault(); cur.focus(); return; }
+        if (!e.shiftKey && ae === btns[btns.length - 1]) {
+          var all = cardEls(), i = all.indexOf(cur);
+          if (i >= 0 && i + 1 < all.length) { e.preventDefault(); all[i + 1].focus(); }
+        }
         return;
       }
-      if ($('#selbar').hidden) return;
+      if (inBar && e.key === 'Escape') { var back = selEl(); if (back) { e.preventDefault(); back.focus(); } return; }
+      if ((inBar || fromDrawer) && (e.key === 'Enter' || e.key === ' ')) return;   /* 단추는 단추대로 */
+      /* 카드 위 요소에서 Enter · Space: 아직 안 골랐으면 고르고, 골라 둔 것이면 손잡이 줄로 (페이지가 내려가지 않게 늘 막는다) */
+      if (onEl && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        var gid = ae.getAttribute('data-el'), gside = frontHost.contains(ae) ? 'front' : 'back';
+        if (ui.sel !== gid || ui.selSide !== gside) { select(gid, gside); return; }
+        var first = $('#selbar').hidden ? null : barButtons()[0];
+        if (first) first.focus();
+        return;
+      }
+      if (!ui.sel || $('#selbar').hidden) return;
       var h = handle(ui.sel);
       if (!h) return;
       if ((e.key === 'Delete' || e.key === 'Backspace') && h.del) { e.preventDefault(); act('del'); }
@@ -1448,7 +1710,7 @@
     function putChar(key, a) { return BJ.store.put('assets', key, a).then(function () { ui.customChars[key] = a; }); }
     function charDone(p, okMsg) {
       return p.then(function () { if (okMsg) toast(okMsg); }, function (e) { toast((e && e.message) || '저장하지 못했어요', 6000); })
-        .then(function () { buildGrid(); syncCustomChar(); requestRender(); });
+        .then(function () { buildGrid(); syncCustomChar(); requestRender(); post({ t: 'assets' }); });
     }
     $('#inCharFile').addEventListener('change', function () {
       var f = this.files[0];
@@ -1494,7 +1756,7 @@
             return BJ.store.put('assets', 'font:' + id, { kind: 'font', id: id, name: name, dataURL: url, updatedAt: Date.now() })
               .catch(function (e) { F.removeCustom(id); throw e; });   /* 저장이 안 되면 목록에서도 뺀다 */
           });
-      }).then(function () { buildFontSelect(); change('font', 'custom:' + id); toast('글꼴을 넣었어요: ' + name); })
+      }).then(function () { post({ t: 'assets' }); buildFontSelect(); change('font', 'custom:' + id); toast('글꼴을 넣었어요: ' + name); })
         .catch(function (e) { toast((e && e.message) || '글꼴을 넣지 못했어요', 6000); });
     });
 
@@ -1532,15 +1794,29 @@
     requestRender();
   }
 
-  /* 폰에서는 미리보기가 위에 붙어 있어서, 포커스 받은 칸이 그 밑에 숨지 않게 스크롤 여백을 맞춘다 */
+  /* 위에 붙어 있는 것의 높이 (폰: 미리보기 · 넓은 화면: 머리 줄과 탭 줄).
+     조절판 안의 칸이 키보드로 포커스를 받았는데 그 밑에 숨었으면 그만큼만 내린다.
+     (문서 전체에 scroll-padding 을 주면, 위에 붙은 미리보기 · 탭 안의 단추로 갈 때도 화면이 튀었다) */
+  var stickyTop = 0;
   function fitScrollPad() {
     var stage = $('.stage'), top = $('.topbar'), tabs = $('.tabs'), px = 0;
     function sticky(el) { return el && getComputedStyle(el).position === 'sticky'; }
     if (window.matchMedia('(max-width: 900px)').matches) { if (sticky(stage)) px = stage.offsetHeight + 12; }
     else px = (sticky(top) ? top.offsetHeight : 0) + (sticky(tabs) ? tabs.offsetHeight : 0) + (sticky(top) || sticky(tabs) ? 12 : 0);
-    document.documentElement.style.scrollPaddingTop = px ? px + 'px' : '';
+    stickyTop = px;
   }
+  document.addEventListener('focusin', function (e) {
+    var t = e.target;
+    if (!stickyTop || lastInput !== 'key' || !t || !t.closest || !t.closest('.panel') || t.closest('.tabs')) return;
+    /* 브라우저가 먼저 스크롤한 다음 장면에 본다 */
+    requestAnimationFrame(function () {
+      if (document.activeElement !== t) return;
+      var r = t.getBoundingClientRect();
+      if (r.top < stickyTop) window.scrollBy(0, r.top - stickyTop);
+    });
+  });
 
+  var curKey = null;
   function init() {
     buildStatic();
     bindControls();
@@ -1559,15 +1835,22 @@
       llmCfg();
       syncEngine();
       buildFontSelect();
-      return typeof r[2] === 'string' ? BJ.store.get('designs', r[2]).catch(function () { return null; }) : null;
+      curKey = typeof r[2] === 'string' ? r[2] : null;
+      return curKey ? BJ.store.get('designs', curKey).catch(function () { return null; }) : null;
     }).then(function (d) {
-      if (d) { S = migrate(d); stored = true; base = { id: S.id, at: S.updatedAt }; }
-      else { S = fresh(); applyTheme('health'); stored = false; base = { id: S.id, at: 0 }; }
+      if (d != null) {
+        S = migrate(d);
+        /* 저장된 값의 id 가 깨졌어도 그 자리(열쇠)가 멀쩡하면 그 자리에 다시 쓴다 (같은 부적이 둘로 늘지 않게) */
+        if (S.id !== curKey && ID_RE.test(curKey)) S.id = curKey;
+        stored = !!(typeof d === 'object' && d.id === curKey && S.id === curKey);
+        base = { id: S.id, at: stored ? S.updatedAt : 0 };
+      } else { S = fresh(); applyTheme('health'); stored = false; base = { id: S.id, at: 0 }; }
       afterLoad();
       archiveNote();
       if (memMode) toast('이 창에서는 저장이 안 돼요 (사생활 보호 창?). 다 만들면 PNG 나 백업 파일로 받아 두세요.', 8000);
     }).catch(function (e) {
-      S = fresh(); applyTheme('health'); afterLoad();
+      S = fresh(); applyTheme('health'); stored = false; base = { id: S.id, at: 0 };
+      try { afterLoad(); } catch (e2) {}
       console.error(e);
     });
   }
