@@ -1,347 +1,501 @@
-/* 일주 캐릭터 120개 (60 일주 × 여 · 남) — 펜으로 슥 그린 선 + 마른 붓으로 어긋나게 얹은 칠.
+/* 일주 캐릭터 120개 (60 일주 × 여 · 남).
  *
- * 화풍: 선은 일정한 굵기에 손떨림 · 끊김을 남기고, 칠은 몸에만 납작하게 (얼굴은 종이 그대로).
- *       칠은 선에서 살짝 어긋나고(판화처럼), 비스듬한 붓 자국으로 종이가 가늘게 비친다. 그라데이션 · 그림자 없음.
- * 조립: 지지(12) → 동물마다 제 몸 모양 (같은 틀을 돌려 쓰지 않는다)
- *       천간(10) → 몸 색 (갑을 푸른 · 병정 붉은 · 무기 황금 · 경신 흰 · 임계 검은) + 곁에 뜬 작은 표시 하나
- *       성별      → 여: 진주 머리띠 / 남: 목에 두른 수건
- * 좌표: 한 마리는 대략 x -100..100, y -125..100 (바닥 ≈ y 90). 대부분 왼쪽을 본다.
+ * 조립 방식 — 같은 일주는 특징을 공유하고, 여 · 남은 작은 소품으로만 갈린다.
+ *   지지(12) → 동물 (머리 · 귀 · 주둥이 · 꼬리), 발밑 물상 (켜면)
+ *   천간(10) → 몸 색 (갑을 푸른 · 병정 붉은 · 무기 황금 · 경신 흰 · 임계 검은), 머리 소품 · 손에 든 것 · 자세 · 표정
+ *   성별      → 여: 리본 · 속눈썹 · 눈 반짝 · 볼터치 / 남: 눈썹 · 목수건 (모자가 없으면 앞머리 한 가닥)
+ *
+ * 깔끔하게: 실루엣은 매끈하게, 안쪽 잔선은 얼굴 · 주둥이 · 배 무늬만. 흔들림은 카드의 필터가 살짝만 준다.
+ * 좌표: 한 마리는 대략 x -100..100, y -125..100 (발바닥 ≈ y 92).
  */
 (function () {
   'use strict';
   var BJ = window.BJ = window.BJ || {};
   var D = BJ.draw, G = BJ.ganji;
-  var r1 = D.r1;
+  var curve = D.curve, shape = D.shape, line = D.line, capsule = D.capsule, circle = D.circle, ellipse = D.ellipse;
 
-  var SW = 3.2;     /* 펜선 굵기 (거의 일정) */
-  var CREAM = '#FFF8EA';
+  var SW = 4.4;            /* 테두리 */
+  var FW = 3.3;            /* 얼굴 · 무늬 */
+  var CREAM = '#FFF4DC';
 
-  /* 천간 색 — 노란 종이 위에서 서로 헷갈리지 않게 */
-  var COLORS = { wood: '#6E9BD6', fire: '#E5532F', earth: '#FFE49A', metal: '#FFFCF4', water: '#2E2826' };
+  /* 천간 색. 선 색이 빨강이라 붉은 · 검은 몸은 얼굴 선을 크림색으로 뒤집는다 */
   function palette(el, mode, ink, paper) {
-    if (mode === 'line') return { body: null, face: paper, ink: ink, paper: paper, eye: ink };
-    return { body: COLORS[el] || COLORS.wood, face: CREAM, ink: ink, paper: paper, eye: ink };
-  }
-
-  /* ── 손떨림: 일주 · 성별마다 정해진 흔들림 (그릴 때마다 바뀌지 않게) ── */
-  function rng(seed) {
-    var s = seed % 2147483647; if (s <= 0) s += 2147483646;
-    return function () { s = s * 16807 % 2147483647; return (s - 1) / 2147483646; };
-  }
-  function jit(rand, pts, amt) {
-    return pts.map(function (p) { return [p[0] + (rand() - 0.5) * amt, p[1] + (rand() - 0.5) * amt]; });
-  }
-
-  function Pen(c) {
-    var rand = rng(c.index * 131 + (c.gender === 'm' ? 7 : 3) + 11), out = [];
-    function dash() {   /* 군데군데 끊긴 선 */
-      var a = 70 + rand() * 90, b = 3 + rand() * 4, e = 40 + rand() * 80, f = 2 + rand() * 4;
-      return ' stroke-dasharray="' + r1(a) + ' ' + r1(b) + ' ' + r1(e) + ' ' + r1(f) + '" stroke-dashoffset="' + r1(rand() * 60) + '"';
+    if (mode === 'line') {
+      return { fill: paper, patch: paper, line: ink, feat: ink, featPatch: ink, blush: null, acc: ink, accLine: ink, item: paper, nose: ink, hi: paper, eyeWhite: paper, mane: ink };
     }
-    var pen = {
-      rand: rand,
-      /* 닫힌 몸 조각: fill = 'body' | 'paper' | 'none' | 색, streak = 붓 자국을 넣을 타원 [cx, cy, rx, ry] */
-      part: function (pts, fill, opt) {
-        opt = opt || {};
-        var p = jit(rand, pts, opt.jit == null ? 2.2 : opt.jit), d = D.curve(p, true, opt.tension);
-        var col = fill === 'body' ? c.p.body : fill === 'paper' ? c.p.face : fill === 'none' ? null : fill;
-        if (col) {
-          var off = fill === 'paper' ? [0, 0] : [r1(2 + rand() * 2.5), r1(1 + rand() * 2)];
-          out.push('<path d="' + d + '" fill="' + col + '" stroke="none"' + (off[0] ? ' transform="translate(' + off[0] + ' ' + off[1] + ')"' : '') + '/>');
-          if (fill === 'body' && opt.streak) streaks(opt.streak, off);
-        }
-        if (opt.line !== false) out.push('<path d="' + d + '" fill="none" stroke="' + c.p.ink + '" stroke-width="' + SW + '"' + dash() + '/>');
-        return pen;
-      },
-      /* 열린 선 */
-      line: function (pts, w, tension) {
-        var d = D.curve(jit(rand, pts, 1.6), false, tension);
-        out.push('<path d="' + d + '" fill="none" stroke="' + c.p.ink + '" stroke-width="' + (w || SW) + '"/>');
-        return pen;
-      },
-      raw: function (s) { out.push(s); return pen; },
-      /* 머리 묶음: 머리는 몸보다 크게 (기준점을 두고 키운다) */
-      open: function (h) { out.push('<g transform="translate(' + h[0] + ' ' + h[1] + ') scale(' + h[2] + ') translate(' + (-h[0]) + ' ' + (-h[1]) + ')">'); return pen; },
-      close: function () { out.push('</g>'); return pen; },
-      dot: function (x, y, r, col) { out.push(D.circle(r1(x + (rand() - 0.5)), r1(y + (rand() - 0.5)), r, col || c.p.eye)); return pen; },
-      done: function () { return out.join(''); }
-    };
-    /* 마른 붓 자국: 칠 위로 종이색 가는 줄이 비스듬히 지나간다 (타원 안에서만 — 몸 밖으로는 나가지 않게) */
-    function streaks(e, off) {
-      if (!c.p.body) return;
-      var n = 4 + Math.floor(rand() * 3), cx = e[0] + +off[0], cy = e[1] + +off[1];
-      for (var i = 0; i < n; i++) {
-        var t = (i + 0.5) / n * 2 - 1 + (rand() - 0.5) * 0.18, x0 = cx + t * e[2];   /* 세로로 살짝 기운 줄 */
-        var h = e[3] * Math.sqrt(Math.max(0, 1 - t * t)) * (0.55 + rand() * 0.4);
-        if (h < 6) continue;
-        var y0 = cy - h + rand() * h * 0.3, y1 = cy + h - rand() * h * 0.4, k = 0.18;
-        out.push('<path d="M' + r1(x0 + (y0 - cy) * k) + ' ' + r1(y0) + 'L' + r1(x0 + (y1 - cy) * k) + ' ' + r1(y1) + '" stroke="' + c.p.paper + '" stroke-width="' + r1(1 + rand() * 1.6) + '" opacity="' + r1(55 + rand() * 40) / 100 + '"/>');
-      }
-    }
-    return pen;
-  }
-
-  /* ── 얼굴: 작은 점 눈, 짧은 선 입 (코 · 입은 거의 생략) ── */
-  function face(pen, c, f) {
-    /* f: { eye:[x,y], eye2:[x,y]?, mouth:[x,y]?, nose:[x,y]? } */
-    var shut = c.stem % 3 === 1;   /* 몇몇은 눈을 감은 듯 짧은 선 */
-    [f.eye, f.eye2].forEach(function (e) {
-      if (!e) return;
-      if (shut) pen.line([[e[0] - 3.5, e[1] + 0.5], [e[0], e[1] + 2.2], [e[0] + 3.5, e[1] + 0.5]], 2.4);
-      else pen.dot(e[0], e[1], 2.6);
-    });
-    if (f.nose) pen.dot(f.nose[0], f.nose[1], 2.1);
-    if (f.mouth) pen.line([[f.mouth[0] - 3, f.mouth[1]], [f.mouth[0], f.mouth[1] + 1.6], [f.mouth[0] + 3, f.mouth[1]]], 2.2);
-    /* 볼: 주색 짧은 빗금 두 개 */
-    if (f.cheek && c.mode !== 'line') {
-      var x = f.cheek[0], y = f.cheek[1];
-      pen.raw('<path d="M' + r1(x - 4) + ' ' + r1(y + 2) + 'l3 -5M' + r1(x + 1) + ' ' + r1(y + 2) + 'l3 -5" stroke="#E86A45" stroke-width="2" opacity=".8"/>');
+    switch (el) {
+      case 'wood':  return { fill: '#80AEEA', patch: CREAM, line: ink, feat: ink, featPatch: ink, blush: '#F4A08E', acc: ink, accLine: ink, item: CREAM, nose: ink, hi: CREAM, eyeWhite: CREAM, mane: ink };
+      case 'fire':  return { fill: '#E2472E', patch: '#FFE4CB', line: '#7A1A0E', feat: CREAM, featPatch: '#7A1A0E', blush: '#FFB89E', acc: CREAM, accLine: '#7A1A0E', item: CREAM, nose: '#7A1A0E', hi: '#E2472E', eyeWhite: CREAM, mane: '#7A1A0E' };
+      case 'earth': return { fill: '#FFD95C', patch: CREAM, line: ink, feat: ink, featPatch: ink, blush: '#F4A08E', acc: ink, accLine: ink, item: CREAM, nose: ink, hi: CREAM, eyeWhite: CREAM, mane: ink };
+      case 'metal': return { fill: '#FFFDF7', patch: '#FFFDF7', line: ink, feat: ink, featPatch: ink, blush: '#F7AE9D', acc: ink, accLine: ink, item: '#FFF0CC', nose: ink, hi: '#FFFDF7', eyeWhite: '#FFFDF7', mane: ink };
+      default:      return { fill: '#2C2624', patch: CREAM, line: ink, feat: CREAM, featPatch: ink, blush: '#E9826F', acc: ink, accLine: ink, item: CREAM, nose: ink, hi: '#2C2624', eyeWhite: CREAM, mane: ink };
     }
   }
 
-  /* ── 성별: 여 = 진주 머리띠, 남 = 목에 두른 수건 ── */
-  function genderMark(pen, c, a) {
-    if (c.gender === 'f') {
-      var t = a.band;
-      pen.open(a.head);   /* [cx, cy, r, from, to] 머리 윤곽을 따라 진주 */
+  /* 매끈한 머리 모양: 위는 둥글고 아래는 살짝 넓적하게 */
+  function head(cx, cy, rx, ry) {
+    return curve([
+      [cx, cy - ry], [cx + rx * 0.74, cy - ry * 0.7], [cx + rx, cy + ry * 0.04], [cx + rx * 0.8, cy + ry * 0.66],
+      [cx, cy + ry * 0.95], [cx - rx * 0.8, cy + ry * 0.66], [cx - rx, cy + ry * 0.04], [cx - rx * 0.74, cy - ry * 0.7]
+    ], true);
+  }
+
+  /* ─────────────── 얼굴 ─────────────── */
+
+  var EXPR = ['bright', 'soft', 'grin', 'gentle', 'proud', 'soft', 'big', 'wink', 'grin', 'calm'];
+
+  function eyes(c, ex, ey, onPatch) {
+    var col = onPatch ? c.p.featPatch : c.p.feat, s = '', fem = c.gender === 'f', e = c.expr;
+    var hiCol = onPatch ? c.p.patch : c.p.hi;
+    function dot(x, y) {
+      return ellipse(x, y, 4.6, 5.6, col) + (fem ? circle(x + 1.6, y - 2, 1.5, hiCol) : '');
+    }
+    function content(x, y) { return line('M' + (x - 6) + ' ' + (y - 1) + 'Q' + x + ' ' + (y + 5.5) + ' ' + (x + 6) + ' ' + (y - 1), col, FW); }
+    function happy(x, y) { return line('M' + (x - 6) + ' ' + (y + 2.5) + 'Q' + x + ' ' + (y - 5) + ' ' + (x + 6) + ' ' + (y + 2.5), col, FW); }
+    function big(x, y) {
+      return circle(x, y, 9.5, c.p.eyeWhite, col, FW * 0.85) + circle(x + (x < 0 ? 1 : -1), y + 1, 5, col) +
+        (fem ? circle(x + 2, y - 1.2, 1.4, c.p.eyeWhite) : '');
+    }
+    var L = -ex, R = ex;
+    if (e === 'big') s += big(L, ey) + big(R, ey);
+    else if (e === 'grin' || e === 'gentle') s += happy(L, ey) + happy(R, ey);
+    else if (e === 'wink') s += dot(L, ey) + line('M' + (R - 5.5) + ' ' + (ey - 3.5) + 'L' + (R + 4.5) + ' ' + ey + 'L' + (R - 5.5) + ' ' + (ey + 3.5), col, FW);
+    else if (e === 'proud') s += content(L, ey) + content(R, ey);
+    else s += dot(L, ey) + dot(R, ey);
+
+    if (fem) {   /* 속눈썹 두 가닥 */
+      [-1, 1].forEach(function (k) {
+        var x = k * ex + k * (e === 'big' ? 8.5 : 5), y = ey - (e === 'big' ? 5 : 3);
+        if (e === 'wink' && k === 1) return;
+        s += line('M' + x + ' ' + y + 'l' + (k * 4.5) + ' -3M' + (x - k * 2.2) + ' ' + (y - 2.6) + 'l' + (k * 3) + ' -4.2', col, FW * 0.7);
+      });
+    } else {     /* 눈썹 */
+      var up = e === 'big' ? 15 : 11, tilt = e === 'big' ? 2.2 : 0.8;
+      [-1, 1].forEach(function (k) {
+        var x = k * ex, y = ey - up;
+        s += line('M' + (x - k * 5.5) + ' ' + (y - tilt) + 'L' + (x + k * 5.5) + ' ' + (y + tilt * 0.3), col, FW * 1.15);
+      });
+    }
+    return s;
+  }
+
+  function mouth(c, y, onPatch, w) {
+    var col = onPatch ? c.p.featPatch : c.p.feat, e = c.expr, bg = onPatch ? c.p.patch : c.p.fill;
+    w = w || 1;
+    if (e === 'grin' || e === 'bright') {
+      return shape('M' + (-7 * w) + ' ' + y + 'Q0 ' + (y + 13) + ' ' + (7 * w) + ' ' + y + 'Z', col, col, FW * 0.6) +
+        D.fillOnly('M' + (-3.6 * w) + ' ' + (y + 6.8) + 'Q0 ' + (y + 3.4) + ' ' + (3.6 * w) + ' ' + (y + 6.8) + 'Q0 ' + (y + 9.6) + ' ' + (-3.6 * w) + ' ' + (y + 6.8) + 'Z', bg);
+    }
+    if (e === 'calm' || e === 'soft') return line('M' + (-6.5 * w) + ' ' + y + 'Q' + (-3.2 * w) + ' ' + (y + 4.6) + ' 0 ' + y + 'Q' + (3.2 * w) + ' ' + (y + 4.6) + ' ' + (6.5 * w) + ' ' + y, col, FW * 0.85);
+    if (e === 'big') return ellipse(0, y + 2, 3.2, 3.8, col);
+    return line('M' + (-5.5 * w) + ' ' + y + 'Q0 ' + (y + 6.5) + ' ' + (5.5 * w) + ' ' + y, col, FW * 0.85);
+  }
+
+  /* 볼터치 (여): 색 모드는 동그란 볼, 선 모드는 짧은 빗금 두 개 */
+  function blush(c, x, y) {
+    if (c.gender !== 'f') return '';
+    if (!c.p.blush) {
+      return [-1, 1].map(function (k) { return line('M' + (k * x - 4) + ' ' + (y + 2.5) + 'l4 -5M' + (k * x + 1) + ' ' + (y + 2.5) + 'l4 -5', c.p.line, FW * 0.6); }).join('');
+    }
+    return ellipse(-x, y, 6.2, 3.8, c.p.blush) + ellipse(x, y, 6.2, 3.8, c.p.blush);
+  }
+
+  /* ─────────────── 몸 · 팔 ─────────────── */
+
+  var BODY = [[-25, 19], [-33, 42], [-32, 69], [-21, 85], [0, 88], [21, 85], [32, 69], [33, 42], [25, 19], [0, 15]];
+
+  function body(c, opt) {
+    opt = opt || {};
+    var s = '', p = c.p, k = c.gender === 'm' ? 1.05 : 1;
+    var pts = BODY.map(function (q) { return [q[0] * k, q[1]]; });
+    if (!opt.noFeet) s += ellipse(-14, 88, 11.5, 7, p.fill, p.line, SW) + ellipse(14, 88, 11.5, 7, p.fill, p.line, SW);
+    s += shape(curve(pts, true), p.fill, p.line, SW);
+    s += ellipse(0, 61, 14, 13, p.patch, p.line, FW * 0.8);
+    return s;
+  }
+
+  /* 자세: 천간마다 하나 */
+  var POSES = [
+    { id: 'up',       L: 'M-25 38C-39 30 -50 17 -57 4',  R: 'M25 38C39 30 50 17 57 4',  layer: 'behindHead' },
+    { id: 'together', L: 'M-25 38C-30 50 -17 58 -6 56',  R: 'M25 38C30 50 17 58 6 56',  layer: 'front' },
+    { id: 'wide',     L: 'M-25 38C-39 36 -52 30 -61 22', R: 'M25 38C39 36 52 30 61 22', layer: 'behindHead' },
+    { id: 'lantern',  L: 'M-25 38C-33 48 -36 57 -36 65', R: 'M25 38C36 44 44 51 49 56', layer: 'front', hand: [51, 58] },
+    { id: 'hips',     L: 'M-25 38C-45 42 -45 58 -30 62', R: 'M25 38C45 42 45 58 30 62', layer: 'front' },
+    { id: 'pot',      L: 'M-25 38C-30 50 -21 57 -12 56', R: 'M25 38C30 50 21 57 12 56', layer: 'front', hand: [0, 57] },
+    { id: 'flex',     L: 'M-25 38C-33 48 -36 57 -36 65', R: 'M25 38C44 37 53 27 53 9',  layer: 'behindHead', hand: [53, 3] },
+    { id: 'cheek',    L: 'M-25 38C-41 35 -45 21 -37 10', R: 'M25 38C33 48 36 57 36 65', layer: 'cheek' },
+    { id: 'wave',     L: 'M-25 38C-33 48 -36 57 -36 65', R: 'M25 38C43 30 54 15 57 -4', layer: 'behindHead' },
+    { id: 'umbrella', L: 'M-25 38C-33 48 -36 57 -36 65', R: 'M25 38C36 43 44 42 49 35', layer: 'front', hand: [50, 33] }
+  ];
+
+  function arms(c, which) {
+    var pose = c.pose, p = c.p;
+    var paths = which === 'L' ? [pose.L] : which === 'R' ? [pose.R] : [pose.L, pose.R];
+    return paths.map(function (d) { return capsule(d, 12, p.fill, p.line, SW); }).join('');
+  }
+
+  /* ─────────────── 성별 소품 ─────────────── */
+
+  function bow(c, x, y, rot) {
+    if (c.gender !== 'f') return '';
+    var p = c.p;
+    return D.g(shape('M0 0C-5 -9 -17 -11 -17 -2C-17 7 -6 6 0 0ZM0 0C5 -9 17 -11 17 -2C17 7 6 6 0 0Z', p.acc, p.accLine, FW) +
+      circle(0, 0, 4, p.acc, p.accLine, FW * 0.85), 'translate(' + x + ' ' + y + ') rotate(' + (rot || 0) + ')');
+  }
+
+  function scarf(c) {
+    if (c.gender !== 'm') return '';
+    var p = c.p;
+    return shape('M-27 20Q0 29 27 20Q14 36 2 51Q0 53 -2 51Q-14 36 -27 20Z', p.acc, p.accLine, FW) + circle(-21, 24, 4.4, p.acc, p.accLine, FW * 0.85);
+  }
+
+  function cowlick(c, x, y) {
+    if (c.gender !== 'm' || c.hasHat) return '';
+    return line('M' + x + ' ' + y + 'q-1 -10 8 -12', c.p.line, FW);
+  }
+
+  /* ─────────────── 천간 소품 ─────────────── */
+
+  var HATS = {   /* (0,0) = 모자 밑동 가운데 */
+    tree: function (c) {
+      var p = c.p;
+      return capsule('M0 2L0 -20', 7, p.item, p.line, FW) +
+        shape('M-14 -22C-27 -22 -28 -38 -17 -40C-19 -53 -3 -58 2 -50C8 -58 24 -53 20 -40C30 -37 28 -22 15 -22Z', p.item, p.line, FW);
+    },
+    flower: function (c) {
+      var p = c.p, s = line('M0 2Q2 -6 2 -15', p.line, FW * 0.9);
       for (var i = 0; i < 5; i++) {
-        var ang = (t[3] + (t[4] - t[3]) * i / 4) * Math.PI / 180;
-        pen.raw(D.circle(r1(t[0] + Math.cos(ang) * t[2]), r1(t[1] + Math.sin(ang) * t[2]), 2.7, CREAM, c.p.ink, 1.8));
+        var a = i / 5 * Math.PI * 2 - Math.PI / 2;
+        s += circle(2 + Math.cos(a) * 8.5, -25 + Math.sin(a) * 8.5, 6.6, p.item, p.line, FW * 0.85);
       }
-      pen.close();
-    } else {
-      var n = a.neck;   /* [x, y, w, rot] */
-      var col = c.mode === 'line' ? c.p.paper : '#FFF2D6';
-      pen.raw('<g transform="translate(' + n[0] + ' ' + n[1] + ') rotate(' + (n[3] || 0) + ')">' +
-        '<path d="M' + (-n[2]) + ' -4Q0 3 ' + n[2] + ' -4L' + (n[2] - 2) + ' 4Q0 10 ' + (-n[2] + 2) + ' 4Z" fill="' + col + '" stroke="' + c.p.ink + '" stroke-width="2.4" stroke-linejoin="round"/>' +
-        '<path d="M' + (n[2] * 0.3) + ' 5l4 11l5 -3l-2 -9" fill="' + col + '" stroke="' + c.p.ink + '" stroke-width="2.4" stroke-linejoin="round"/></g>');
-    }
-  }
-
-  /* ── 천간 표시: 곁에 뜬 작은 기호 하나 + 반짝 선 두 개 ── */
-  function stemMark(pen, c, at) {
-    var x = at[0], y = at[1], ink = c.p.ink, acc = c.mode === 'line' ? 'none' : c.p.body, s = '';
-    function L(d, w) { return '<path d="' + d + '" fill="none" stroke="' + ink + '" stroke-width="' + (w || 2.4) + '" stroke-linecap="round" stroke-linejoin="round"/>'; }
-    function F(d, col) { return '<path d="' + d + '" fill="' + col + '" stroke="' + ink + '" stroke-width="2.4" stroke-linejoin="round"/>'; }
-    var leaf = c.mode === 'line' ? 'none' : '#7FB069', sun = c.mode === 'line' ? 'none' : '#F7A23C';
-    switch (c.stem) {
-      case 0: s = L('M0 12V-2') + F('M0 -16L9 -1H-9Z', leaf); break;                                     /* 갑: 곧은 나무 */
-      case 1: s = F('M0 -4C-6 -14 -14 -6 -4 -1C-14 4 -6 12 0 4C6 12 14 4 4 -1C14 -6 6 -14 0 -4Z', c.mode === 'line' ? 'none' : '#F39A86') + L('M0 4V14'); break; /* 을: 꽃 */
-      case 2: s = F('M0 -7A7 7 0 1 1 0 7A7 7 0 1 1 0 -7Z', sun) + L('M0 -13V-11M0 11V13M-13 0H-11M11 0H13M-9 -9L-8 -8M9 9L8 8M9 -9L8 -8M-9 9L-8 8', 2.2); break; /* 병: 해 */
-      case 3: s = F('M-4 14V0H4V14Z', CREAM) + F('M0 -2C-5 -7 -2 -11 0 -15C2 -11 5 -7 0 -2Z', sun); break;  /* 정: 촛불 */
-      case 4: s = F('M-14 10L-4 -8L2 0L6 -5L14 10Z', leaf); break;                                         /* 무: 산 */
-      case 5: s = F('M-9 4H9L6 14H-6Z', '#C98A5A') + L('M0 4V-6') + F('M0 -4C-8 -6 -9 -12 -8 -13C-3 -12 0 -9 0 -4Z', leaf) + F('M0 -6C6 -9 9 -14 8 -15C3 -14 0 -11 0 -6Z', leaf); break; /* 기: 화분 새싹 */
-      case 6: s = L('M-8 12L8 -12', 2.6) + L('M-11 5L-1 12') + F('M5 -13L10 -16L9 -9Z', CREAM); break;     /* 경: 칼 */
-      case 7: s = F('M0 -12L9 -3L0 12L-9 -3Z', CREAM) + L('M-9 -3H9M-4 -3L0 12M4 -3L0 12', 1.8); break;    /* 신: 보석 */
-      case 8: s = L('M-14 0C-10 -6 -6 -6 -3 0C0 6 4 6 7 0C9 -4 12 -5 14 -2', 2.6) + L('M-10 8C-7 4 -4 4 -1 8C2 12 5 12 8 8', 2.2); break; /* 임: 물결 */
-      default: s = F('M-6 -10C-10 -3 -10 2 -6 3C-2 2 -2 -3 -6 -10Z', c.mode === 'line' ? 'none' : '#9CC4E8') + F('M6 -2C2 5 2 10 6 11C10 10 10 5 6 -2Z', c.mode === 'line' ? 'none' : '#9CC4E8'); /* 계: 빗방울 */
-    }
-    pen.raw('<g transform="translate(' + x + ' ' + y + ') rotate(' + r1((pen.rand() - 0.5) * 14) + ')">' + s + '</g>');
-    /* 반짝 선 (참고 그림의 ‘ \\ ’ 같은 기척) */
-    pen.raw('<path d="M' + (x - 22) + ' ' + (y - 6) + 'l-6 -5M' + (x - 20) + ' ' + (y + 4) + 'l-8 -1" stroke="' + (c.mode === 'line' ? ink : '#E86A45') + '" stroke-width="2.2" stroke-linecap="round"/>');
-  }
-
-  /* 네 다리 (서 있는 짐승): 가는 두 선, 발끝은 살짝 열린 채 */
-  function leg(pen, x, y0, y1, w, fill) {
-    pen.part([[x - w, y0], [x + w, y0], [x + w * 0.8, y1], [x - w * 0.9, y1]], fill || 'body', { jit: 1.4, tension: 0.4 });
-  }
-
-  /* ─────────────── 열두 짐승 (제 몸 모양으로) ─────────────── */
-  var ANIMALS = {
-    rat: function (pen, c) {
-      var H = [-36, -28, 1.3];
-      pen.line([[38, 78], [72, 84], [92, 62], [84, 40], [70, 46]], SW);                                   /* 긴 꼬리 */
-      pen.part([[-18, -6], [24, -16], [48, 18], [46, 62], [30, 88], [-22, 88], [-38, 58], [-34, 18]], 'body', { streak: [8, 40, 30, 40] });
-      pen.line([[-30, 42], [-22, 50], [-12, 48]], 2.6);                                                    /* 앞발 */
-      pen.open(H);
-      pen.part([[-28, -62], [-12, -66], [-6, -52], [-14, -42], [-28, -46]], 'paper');                     /* 귀 */
-      pen.open(H);
-      pen.part([[-74, -16], [-54, -42], [-28, -52], [-8, -38], [-6, -12], [-28, 0], [-56, -4]], 'paper');  /* 머리 */
-      pen.line([[-74, -12], [-90, -18]], 1.8).line([[-74, -8], [-88, -2]], 1.8);
-      face(pen, c, { eye: [-44, -26], nose: [-74, -15], cheek: [-36, -12] });
-      pen.close();
-      return { head: H, band: [-30, -26, 30, 200, 280], neck: [-22, -2, 16, 20], mark: [62, -66] };
+      return s + circle(2, -25, 4.6, c.ink);
     },
-    ox: function (pen, c) {
-      var H = [-60, -24, 1.25];
-      [-34, -16, 36, 54].forEach(function (x, i) { leg(pen, x, 40, 90, 7, i % 2 ? 'body' : 'body'); });
-      pen.line([[66, 4], [78, 30], [76, 52]], SW).part([[70, 50], [82, 50], [80, 62], [70, 60]], 'body', { jit: 1 });
-      pen.part([[-46, -14], [42, -20], [70, -2], [68, 46], [-38, 50], [-56, 24]], 'body', { streak: [10, 16, 48, 26] });
-      pen.open(H);
-      pen.line([[-72, -42], [-84, -58], [-80, -72]], SW).line([[-52, -44], [-44, -60], [-48, -72]], SW);  /* 뿔 */
-      pen.part([[-92, -6], [-90, -34], [-68, -48], [-46, -42], [-40, -14], [-54, 8], [-82, 10]], 'paper'); /* 머리 */
-      pen.part([[-96, -10], [-92, 4], [-72, 8], [-68, -6]], 'paper', { jit: 1 });                         /* 주둥이 */
-      pen.dot(-88, -2, 1.8).dot(-78, -1, 1.8);
-      face(pen, c, { eye: [-72, -24], eye2: [-54, -26], cheek: [-60, -12] });
-      pen.close();
-      return { head: H, band: [-66, -24, 24, 205, 320], neck: [-46, 4, 16, -10], mark: [62, -64] };
+    mountain: function (c) {
+      var p = c.p;
+      return shape('M-30 3L-13 -23Q-11 -26 -9 -23L-3 -14L7 -34Q9 -37 11 -34L30 3Q0 7 -30 3Z', p.item, p.line, FW) +
+        D.fillOnly('M-17 -17L-13 -23Q-11 -26 -9 -23L-6 -18Q-9 -16 -11 -19Q-14 -16 -17 -17Z', p.line) +
+        D.fillOnly('M2 -24L7 -34Q9 -37 11 -34L16 -24Q13 -22 10 -26Q6 -21 2 -24Z', p.line);
     },
-    tiger: function (pen, c) {
-      var H = [-60, -26, 1.25];
-      [-40, -22, 34, 52].forEach(function (x) { leg(pen, x, 34, 90, 7); });
-      pen.line([[64, 6], [88, -6], [96, -34], [86, -50]], SW);                                            /* 치켜든 꼬리 */
-      pen.part([[-52, -6], [40, -14], [66, 4], [62, 40], [-44, 42], [-60, 20]], 'body', { streak: [6, 14, 46, 22] });
-      pen.line([[0, -10], [4, 6], [-2, 18]], 2.6).line([[20, -12], [24, 4], [18, 16]], 2.6).line([[40, -10], [44, 6]], 2.6); /* 줄무늬 */
-      pen.open(H);
-      pen.part([[-80, -54], [-70, -66], [-62, -52]], 'paper', { jit: 1 }).part([[-50, -58], [-38, -64], [-36, -48]], 'paper', { jit: 1 });
-      pen.part([[-92, -18], [-86, -48], [-60, -58], [-36, -46], [-32, -18], [-50, 2], [-78, 2]], 'paper');
-      pen.line([[-64, -56], [-62, -46]], 2.2).line([[-52, -56], [-54, -46]], 2.2);                        /* 이마 왕 */
-      face(pen, c, { eye: [-72, -28], eye2: [-50, -30], nose: [-62, -14], mouth: [-62, -6], cheek: [-80, -12] });
-      pen.close();
-      return { head: H, band: [-62, -28, 28, 205, 320], neck: [-44, 2, 16, -8], mark: [36, -74] };
+    straw: function (c) {
+      var p = c.p;
+      return ellipse(0, 0, 32, 8, p.item, p.line, FW) + shape('M-15 -1C-16 -19 16 -19 15 -1Z', p.item, p.line, FW) +
+        shape('M-15 -6Q0 -2 15 -6L15 -1Q0 3 -15 -1Z', c.ink, p.line, FW * 0.6);
     },
-    rabbit: function (pen, c) {
-      var H = [-28, -30, 1.2];
-      pen.part([[-14, -4], [26, -6], [46, 30], [44, 70], [28, 88], [-26, 88], [-38, 56], [-30, 18]], 'body', { streak: [8, 44, 28, 36] });
-      pen.part([[38, 58], [54, 52], [58, 68], [44, 76]], c.p.body ? CREAM : 'none', { jit: 1 });          /* 꼬리 */
-      pen.line([[-26, 46], [-16, 54], [-6, 52]], 2.6);
-      pen.open(H);
-      pen.part([[-36, -48], [-46, -96], [-38, -118], [-26, -104], [-22, -52]], 'paper');                  /* 귀 */
-      pen.part([[-14, -48], [-6, -100], [6, -114], [10, -96], [0, -48]], 'paper');
-      pen.line([[-36, -60], [-37, -92]], 2).line([[-6, -60], [0, -94]], 2);
-      pen.part([[-62, -20], [-52, -50], [-24, -56], [-2, -40], [0, -14], [-22, 0], [-50, -2]], 'paper');
-      face(pen, c, { eye: [-40, -28], nose: [-60, -18], cheek: [-34, -14] });
-      pen.close();
-      return { head: H, band: [-30, -26, 30, 205, 300], neck: [-22, 0, 16, 18], mark: [56, -70] };
+    helmet: function (c) {
+      var p = c.p;
+      return shape('M-23 2C-23 -28 23 -28 23 2Q0 6 -23 2Z', p.item, p.line, FW) + line('M-23 -3Q0 2 23 -3', p.line, FW * 0.7) +
+        shape('M0 -22C-5 -31 -2 -41 7 -43C4 -37 7 -29 0 -22Z', c.ink, p.line, FW * 0.7);
     },
-    dragon: function (pen, c) {
-      var H = [-40, -28, 1.25];
-      pen.line([[36, 80], [70, 86], [94, 64], [90, 30], [76, 20]], SW + 0.6);                               /* 꼬리 */
-      pen.line([[90, 30], [98, 20], [86, 22]], 2.4);
-      pen.part([[-16, -8], [26, -18], [50, 16], [48, 62], [32, 88], [-22, 88], [-38, 58], [-32, 16]], 'body', { streak: [8, 40, 30, 40] });
-      pen.line([[26, -14], [34, -24], [38, -8], [46, -16], [48, 2], [56, -2], [52, 14]], 2.6, 0.2);           /* 등 비늘 */
-      pen.line([[-30, 40], [-20, 50], [-10, 46]], 2.6);
-      pen.open(H);
-      pen.line([[-40, -50], [-46, -72], [-56, -78]], SW).line([[-46, -66], [-36, -74]], 2.4);                /* 뿔 */
-      pen.line([[-22, -50], [-20, -72], [-28, -80]], SW).line([[-20, -66], [-10, -70]], 2.4);
-      pen.part([[-86, -24], [-70, -46], [-36, -54], [-10, -40], [-8, -14], [-30, 0], [-64, -6], [-86, -10]], 'paper');
-      pen.line([[-86, -14], [-100, -26], [-104, -12]], 1.8);                                                 /* 수염 */
-      face(pen, c, { eye: [-44, -30], nose: [-80, -20], cheek: [-36, -16] });
-      pen.close();
-      pen.close();
-      return { head: H, band: [-34, -28, 28, 210, 300], neck: [-22, -2, 16, 18], mark: [64, -64] };
+    gem: function (c) {
+      var p = c.p;
+      return line('M-29 6Q0 -11 29 6', p.line, FW * 1.5) + line('M-29 6Q0 -11 29 6', p.item, FW * 0.6) +
+        shape('M-10 -4L-5 -13L5 -13L10 -4L0 9Z', p.item, p.line, FW) + line('M-10 -4H10', p.line, FW * 0.55);
     },
-    snake: function (pen, c) {
-      var H = [-22, -36, 1.35];
-      pen.part([[-62, 78], [-40, 62], [20, 60], [62, 70], [64, 86], [20, 94], [-40, 94]], 'body', { streak: [0, 78, 52, 12] });
-      pen.part([[-46, 60], [-24, 44], [24, 42], [50, 52], [46, 66], [10, 70], [-36, 70]], 'body', { streak: [2, 56, 38, 10] });
-      pen.part([[-6, 48], [-12, 10], [-30, -16], [-24, -30], [-6, -24], [10, 8], [22, 46]], 'body', { streak: [-2, 10, 10, 30] });
-      pen.open(H);
-      pen.part([[-52, -36], [-36, -54], [-8, -52], [6, -36], [-4, -20], [-28, -16], [-48, -22]], 'paper');
-      pen.line([[-52, -28], [-64, -30], [-70, -24]], 1.8).line([[-64, -30], [-70, -36]], 1.8);              /* 혀 */
-      face(pen, c, { eye: [-28, -38], eye2: [-12, -38], cheek: [-20, -26] });
-      pen.close();
-      return { head: H, band: [-22, -32, 24, 200, 320], neck: [-8, -10, 13, 16], mark: [52, -46] };
-    },
-    horse: function (pen, c) {
-      var H = [-64, -56, 1.3];
-      [-32, -16, 30, 46].forEach(function (x) { leg(pen, x, 28, 90, 6); });
-      pen.line([[58, 0], [72, 24], [70, 52]], SW).line([[62, 6], [80, 30], [80, 50]], 2.2);                 /* 꼬리 */
-      pen.part([[-44, -16], [40, -20], [60, 0], [54, 34], [-40, 36], [-52, 10]], 'body', { streak: [6, 8, 44, 22] });
-      pen.part([[-46, -8], [-62, -56], [-48, -68], [-30, -30], [-26, -12]], 'body', { streak: [-44, -36, 8, 22] }); /* 목 */
-      pen.line([[-46, -66], [-34, -52], [-30, -40], [-24, -26]], 2.6, 0.4).line([[-40, -60], [-28, -50]], 2.2); /* 갈기 */
-      pen.open(H);
-      pen.part([[-90, -46], [-70, -72], [-50, -74], [-44, -58], [-62, -40], [-84, -30], [-94, -34]], 'paper');
-      pen.part([[-58, -74], [-54, -88], [-48, -74]], 'paper', { jit: 1 });
-      face(pen, c, { eye: [-62, -60], nose: [-88, -38], cheek: [-70, -48] });
-      pen.close();
-      return { head: H, band: [-62, -58, 18, 200, 300], neck: [-46, -34, 13, 60], mark: [44, -64] };
-    },
-    sheep: function (pen, c) {
-      var H = [-52, -18, 1.35];
-      [-30, -12, 28, 44].forEach(function (x) { leg(pen, x, 40, 90, 5, 'paper'); });
-      var wool = [], n = 16;
-      for (var i = 0; i < n; i++) {
-        var a = i / n * Math.PI * 2, r = i % 2 ? 1 : 1.13;
-        wool.push([10 + Math.cos(a) * 58 * r, 14 + Math.sin(a) * 36 * r]);
-      }
-      pen.part(wool, 'body', { tension: 1.4, streak: [10, 14, 46, 26] });
-      pen.open(H);
-      pen.part([[-70, -32], [-52, -44], [-34, -36], [-32, -10], [-46, 6], [-66, 2], [-76, -14]], 'paper');
-      pen.line([[-40, -40], [-26, -50], [-18, -38], [-26, -30], [-32, -36]], SW, 0.9);                       /* 말린 뿔 */
-      face(pen, c, { eye: [-58, -22], nose: [-72, -10], cheek: [-50, -8] });
-      pen.close();
-      return { head: H, band: [-52, -18, 24, 200, 290], neck: [-40, 4, 14, -12], mark: [62, -54] };
-    },
-    monkey: function (pen, c) {
-      var H = [-22, -28, 1.15];
-      pen.line([[36, 80], [76, 78], [92, 52], [80, 28], [64, 34], [70, 46]], SW);                           /* 꼬리 */
-      pen.part([[-26, 0], [24, -2], [40, 34], [36, 78], [16, 90], [-30, 90], [-44, 60], [-38, 24]], 'body', { streak: [0, 46, 30, 36] });
-      pen.line([[-36, 30], [-48, 58], [-34, 66]], SW);                                                      /* 팔 */
-      pen.open(H);
-      pen.part([[-60, -36], [-72, -40], [-70, -22], [-58, -22]], 'paper', { jit: 1 }).part([[16, -36], [28, -40], [26, -22], [14, -22]], 'paper', { jit: 1 });
-      pen.part([[-58, -34], [-48, -60], [-22, -66], [2, -56], [14, -30], [4, -4], [-22, 4], [-48, -6]], 'body', { streak: [-22, -50, 22, 10] });
-      pen.part([[-46, -28], [-36, -40], [-22, -34], [-8, -40], [2, -26], [-4, -6], [-26, 0], [-44, -10]], 'paper', { jit: 1.2 });
-      face(pen, c, { eye: [-32, -26], eye2: [-12, -26], mouth: [-22, -12], cheek: [-40, -16] });
-      pen.close();
-      return { head: H, band: [-22, -32, 36, 210, 330], neck: [-22, 6, 18, 0], mark: [60, -64] };
-    },
-    rooster: function (pen, c) {
-      var H = [-36, -40, 1.25];
-      pen.line([[-10, 66], [-12, 90], [-22, 92]], SW).line([[-12, 90], [-4, 92]], 2.4);
-      pen.line([[12, 66], [12, 90], [2, 92]], SW).line([[12, 90], [20, 92]], 2.4);
-      pen.part([[34, -6], [60, -40], [82, -30], [76, 0], [60, 24]], 'body', { tension: 0.8 });              /* 꽁지 */
-      pen.part([[44, 0], [76, -10], [86, 14], [62, 34]], 'body', { tension: 0.8 });
-      pen.part([[-30, -12], [20, -16], [52, 10], [44, 54], [12, 70], [-24, 66], [-42, 34]], 'body', { streak: [4, 26, 32, 30] });
-      pen.line([[0, 16], [14, 30], [30, 26]], 2.4);                                                         /* 날개 */
-      pen.open(H);
-      pen.part([[-50, -64], [-44, -78], [-36, -70], [-28, -80], [-22, -64]], c.mode === 'line' ? 'none' : '#E5532F', { jit: 1 }); /* 볏 */
-      pen.part([[-56, -30], [-50, -58], [-26, -66], [-12, -50], [-14, -20], [-30, -8], [-48, -14]], 'paper');
-      pen.open(H);
-      pen.part([[-56, -40], [-74, -34], [-56, -30]], c.mode === 'line' ? 'none' : '#F7A23C', { jit: 0.6 }); /* 부리 */
-      face(pen, c, { eye: [-38, -42], cheek: [-32, -28] });
-      pen.close();
-      return { head: H, band: [-34, -40, 26, 210, 300], neck: [-26, -10, 16, 12], mark: [56, -76] };
-    },
-    dog: function (pen, c) {
-      var H = [-40, -26, 1.3];
-      pen.line([[38, 54], [62, 40], [70, 14]], SW + 0.4);                                                   /* 꼬리 */
-      pen.part([[-18, -4], [24, -10], [44, 26], [42, 68], [26, 88], [-26, 88], [-40, 56], [-32, 16]], 'body', { streak: [6, 40, 28, 38] });
-      pen.line([[-28, 40], [-26, 88]], 2.4).line([[-10, 44], [-8, 88]], 2.4);
-      pen.part([[-74, -16], [-62, -46], [-34, -54], [-10, -42], [-6, -14], [-28, 0], [-58, -2]], 'paper');
-      pen.part([[-30, -52], [-12, -50], [-6, -24], [-18, -18]], 'body', { jit: 1.2 });                     /* 처진 귀 */
-      face(pen, c, { eye: [-44, -30], nose: [-74, -14], mouth: [-62, -4], cheek: [-46, -14] });
-      return { head: H, band: [-38, -28, 28, 205, 285], neck: [-22, 0, 16, 16], mark: [60, -68] };
-    },
-    pig: function (pen, c) {
-      var H = [-56, -20, 1.25];
-      [-36, -18, 30, 48].forEach(function (x) { leg(pen, x, 42, 88, 7); });
-      pen.line([[64, 10], [76, 4], [74, -8], [66, -2], [72, 8]], 2.6, 0.9);                                  /* 말린 꼬리 */
-      var b = [], n = 12;
-      for (var i = 0; i < n; i++) { var a = i / n * Math.PI * 2; b.push([6 + Math.cos(a) * 62, 18 + Math.sin(a) * 34]); }
-      pen.part(b, 'body', { streak: [8, 18, 48, 24] });
-      pen.part([[-56, -40], [-50, -56], [-40, -42]], 'paper', { jit: 1 });
-      pen.part([[-84, -8], [-76, -38], [-50, -46], [-30, -34], [-28, -6], [-46, 10], [-72, 8]], 'paper');
-      pen.part([[-92, -18], [-80, -22], [-78, -6], [-90, -4]], 'paper', { jit: 0.8 });                     /* 코 */
-      pen.dot(-87, -14, 1.6).dot(-84, -9, 1.6);
-      face(pen, c, { eye: [-64, -26], eye2: [-46, -28], cheek: [-58, -10] });
-      pen.close();
-      return { head: H, band: [-56, -18, 30, 210, 300], neck: [-36, 8, 16, -6], mark: [56, -60] };
+    wave: function (c) {
+      var p = c.p;
+      return shape('M-25 2C-25 -14 -13 -29 4 -31C17 -32 25 -23 23 -13C21 -6 12 -6 10 -11C8 -17 13 -19 15 -15C13 -24 0 -24 -7 -13C-11 -7 -9 0 -5 2Q-15 4 -25 2Z', p.item, p.line, FW);
     }
   };
 
+  function sunHalo(c, cx, cy, r) {
+    var s = circle(cx, cy, r, 'none', c.ink, FW), n = 12;
+    for (var i = 0; i < n; i++) {
+      var a = i / n * Math.PI * 2 + Math.PI / n, r1 = r + 7, r2 = r + 17;
+      s += line('M' + D.r1(cx + Math.cos(a) * r1) + ' ' + D.r1(cy + Math.sin(a) * r1) + 'L' + D.r1(cx + Math.cos(a) * r2) + ' ' + D.r1(cy + Math.sin(a) * r2), c.ink, FW);
+    }
+    return s;
+  }
+
+  function lantern(c, x, y) {
+    var p = c.p;
+    return D.g(line('M0 -2L0 9', p.line, FW * 0.8) + shape('M-10 11C-13 18 -13 29 -10 35L10 35C13 29 13 18 10 11Z', c.ink, p.line, FW) +
+      line('M-12 11H12M-11 35H11', p.line, FW * 1.1) + line('M0 36V43', p.line, FW * 0.8), 'translate(' + x + ' ' + y + ')');
+  }
+
+  function sproutPot(c, x, y) {
+    var p = c.p;
+    return D.g(line('M0 -4V-14', p.line, FW * 0.9) + shape('M0 -12C-3 -21 -12 -21 -14 -16C-8 -11 -4 -10 0 -12Z', p.item, p.line, FW * 0.8) +
+      shape('M0 -14C3 -23 12 -25 15 -20C9 -13 5 -12 0 -14Z', p.item, p.line, FW * 0.8) +
+      shape('M-13 -4L13 -4L9 13L-9 13Z', c.ink, p.line, FW), 'translate(' + x + ' ' + y + ')');
+  }
+
+  function dumbbell(c, x, y) {
+    var p = c.p;
+    return D.g(capsule('M-14 0L14 0', 4, p.item, p.line, FW * 0.8) + shape('M-20 -10h7v20h-7z', c.ink, p.line, FW * 0.8) +
+      shape('M13 -10h7v20h-7z', c.ink, p.line, FW * 0.8), 'translate(' + x + ' ' + y + ') rotate(-8)');
+  }
+
+  function umbrella(c, hx, hy) {
+    var p = c.p, top = [62, -60];
+    var s = line('M' + hx + ' ' + hy + 'L' + top[0] + ' ' + top[1], p.line, FW * 1.1) + line('M' + hx + ' ' + hy + 'q-1 7 -7 6', p.line, FW * 1.1);
+    s += D.g(shape('M-38 4C-36 -25 36 -25 38 4C31 0 25 0 19 5C13 0 6 0 0 5C-6 0 -13 0 -19 5C-25 0 -31 0 -38 4Z', p.item, p.line, FW) +
+      line('M0 -18V5', p.line, FW * 0.6) + circle(0, -20, 2.8, c.ink), 'translate(' + top[0] + ' ' + top[1] + ') rotate(16)');
+    s += shape('M-56 -64q-5 8 0 10q5 -2 0 -10z', 'none', c.ink, FW * 0.75) + shape('M-70 -34q-5 8 0 10q5 -2 0 -10z', 'none', c.ink, FW * 0.75);
+    return s;
+  }
+
+  /* ─────────────── 발밑 물상 (지지) — 켤 때만, 아주 간단히 ─────────────── */
+
+  function ground(c) {
+    var ink = c.ink, w = FW * 0.9;
+    switch (c.branch) {
+      case 0: case 11: return line('M-70 100q9 -7 18 0t18 0t18 0t18 0t18 0t18 0t18 0t18 0', ink, w);                  /* 물결 */
+      case 1: return line('M-64 99H64', ink, w) + line('M-56 80v10M-61 85h10M56 76v10M51 81h10', ink, w * 0.75);      /* 언 땅 · 눈 */
+      case 2: case 3: return line('M-64 99H64', ink, w) + line('M-50 98l-4 -9M-46 98l2 -10M46 98l-2 -10M50 98l4 -9', ink, w * 0.8);  /* 풀 */
+      case 4: return shape('M-50 100C-62 100 -62 86 -50 88C-46 78 -30 78 -28 86C-22 78 -8 80 -8 88C-2 80 14 80 16 88C22 80 36 82 36 90C46 88 52 100 42 100Z', c.paper, ink, w);  /* 구름 */
+      case 5: case 6: case 7: return line('M-64 99H64', ink, w) + line('M-58 88q3 -5 0 -10M58 88q3 -5 0 -10', ink, w * 0.8);  /* 볕 */
+      case 8: return shape('M-70 100C-72 88 -60 84 -52 89C-44 84 -36 92 -38 100Z', c.paper, ink, w) + shape('M40 100C38 90 48 86 56 90C64 86 72 94 68 100Z', c.paper, ink, w) + line('M-68 100H70', ink, w);  /* 바위 */
+      case 9: return line('M-64 99H64', ink, w) + line('M-56 98Q-55 84 -46 76M56 98Q55 84 46 76', ink, w * 0.8);    /* 이삭 */
+      default: return line('M-72 101Q0 88 72 101', ink, w);                                                        /* 언덕 */
+    }
+  }
+
+  /* ─────────────── 동물 12 ─────────────── */
+  /* { back, head, front, eyes:[ex,ey,onPatch], mouth:[y,onPatch,w], hat:[x,y,rot,s], bow:[x,y,rot], blush:[x,y], tail, top } */
+
+  var ANIMALS = {
+    rat: function (c) {
+      var p = c.p;
+      return {
+        back: circle(-42, -52, 22, p.fill, p.line, SW) + circle(-41, -50, 12, p.patch) + circle(42, -52, 22, p.fill, p.line, SW) + circle(41, -50, 12, p.patch),
+        head: shape(head(0, -14, 52, 44), p.fill, p.line, SW),
+        front: ellipse(0, 4, 5, 4, p.nose) + line('M-33 6L-49 3M-33 12L-47 14M33 6L49 3M33 12L47 14', p.feat, FW * 0.6),
+        eyes: [19, -13], mouth: [12, false, 0.85], hat: [0, -56], bow: [-37, -46, -25], blush: [30, 3],
+        tail: line('M22 77C44 84 68 72 60 54C56 44 66 38 74 42', p.line, 4.6),
+        top: [0, -58]
+      };
+    },
+    ox: function (c) {
+      var p = c.p;
+      var horn = function (k) { return shape('M' + (k * -22) + ' -53C' + (k * -30) + ' -62 ' + (k * -40) + ' -70 ' + (k * -48) + ' -82C' + (k * -53) + ' -69 ' + (k * -48) + ' -55 ' + (k * -37) + ' -46Z', p.patch, p.line, SW); };
+      var ear = function (k) { return shape('M' + (k * 48) + ' -37C' + (k * 63) + ' -46 ' + (k * 80) + ' -43 ' + (k * 80) + ' -34C' + (k * 77) + ' -25 ' + (k * 62) + ' -25 ' + (k * 50) + ' -27Z', p.fill, p.line, SW); };
+      return {
+        back: horn(1) + horn(-1) + ear(1) + ear(-1),
+        head: shape(head(0, -14, 56, 44), p.fill, p.line, SW),
+        front: ellipse(0, 10, 32, 18, p.patch, p.line, FW) + ellipse(-10, 7, 3.4, 4.6, p.nose) + ellipse(10, 7, 3.4, 4.6, p.nose),
+        eyes: [24, -21], mouth: [18, true, 0.85], hat: [0, -56], bow: [-35, -50, -20], blush: [42, -6],
+        tail: line('M24 74C44 74 54 60 54 44', p.line, 4.6) + shape('M54 44C48 38 50 30 56 26C56 32 62 34 60 40Z', p.line, p.line, FW * 0.6),
+        top: [0, -58]
+      };
+    },
+    tiger: function (c) {
+      var p = c.p, st = p.feat;
+      var stripe = function (x1, y1, x2, y2, w) {
+        var dx = x2 - x1, dy = y2 - y1, L = Math.sqrt(dx * dx + dy * dy), nx = -dy / L * w, ny = dx / L * w;
+        return D.fillOnly('M' + D.r1(x1 + nx) + ' ' + D.r1(y1 + ny) + 'L' + D.r1(x2) + ' ' + D.r1(y2) + 'L' + D.r1(x1 - nx) + ' ' + D.r1(y1 - ny) + 'Z', st);
+      };
+      return {
+        back: circle(-39, -51, 14, p.fill, p.line, SW) + circle(-39, -50, 7, p.patch) + circle(39, -51, 14, p.fill, p.line, SW) + circle(39, -50, 7, p.patch),
+        head: shape(head(0, -15, 54, 45), p.fill, p.line, SW),
+        front: stripe(0, -59, 0, -46, 4) + stripe(-12, -56, -9, -46, 3) + stripe(12, -56, 9, -46, 3) +
+          stripe(-54, -14, -40, -12, 3.4) + stripe(54, -14, 40, -12, 3.4) +
+          ellipse(-8.5, 10, 10, 7.5, p.patch, p.line, FW * 0.75) + ellipse(8.5, 10, 10, 7.5, p.patch, p.line, FW * 0.75) +
+          shape('M-5.5 1Q0 -1.5 5.5 1Q4 6 0 7Q-4 6 -5.5 1Z', p.nose, p.nose, FW * 0.5),
+        eyes: [21, -17], mouth: [20, false, 0.75], hat: [0, -58], bow: [-35, -48, -25], blush: [35, 0],
+        tail: capsule('M24 76C48 76 66 64 63 42', 9, p.fill, p.line, SW) + line('M52 72l3 -7M61 59l6 -4', st, FW * 0.8),
+        top: [0, -60]
+      };
+    },
+    rabbit: function (c) {
+      var p = c.p;
+      var ear = function (k, rot) {
+        return D.g(shape('M-10 0C-15 -28 -11 -55 0 -61C11 -55 15 -28 10 0Z', p.fill, p.line, SW) +
+          shape('M-4.5 -7C-7 -27 -5 -45 0 -51C5 -45 7 -27 4.5 -7Z', p.patch), 'translate(' + (k * 19) + ' -45) rotate(' + rot + ')');
+      };
+      return {
+        back: ear(-1, -8) + ear(1, 22),
+        head: shape(head(0, -12, 48, 41), p.fill, p.line, SW),
+        front: shape('M-4.5 1Q0 -1.5 4.5 1Q3 5.5 0 5.5Q-3 5.5 -4.5 1Z', p.nose, p.nose, FW * 0.45),
+        eyes: [18, -12], mouth: [9, false, 0.7], hat: [0, -50], bow: [-23, -50, -10], blush: [30, 3],
+        tail: circle(33, 72, 10, p.patch, p.line, FW),
+        top: [0, -54]
+      };
+    },
+    dragon: function (c) {
+      var p = c.p;
+      var antler = function (k) { return capsule('M' + (k * 19) + ' -52C' + (k * 25) + ' -68 ' + (k * 29) + ' -80 ' + (k * 33) + ' -92', 6.5, p.patch, p.line, FW) + capsule('M' + (k * 27) + ' -76C' + (k * 35) + ' -78 ' + (k * 41) + ' -83 ' + (k * 44) + ' -89', 5.5, p.patch, p.line, FW); };
+      var fin = function (k) { return shape('M' + (k * 50) + ' -33L' + (k * 70) + ' -43L' + (k * 63) + ' -30L' + (k * 72) + ' -22L' + (k * 52) + ' -19Z', p.fill, p.line, SW * 0.9); };
+      return {
+        back: antler(-1) + antler(1) + fin(-1) + fin(1),
+        head: shape(head(0, -15, 54, 45), p.fill, p.line, SW),
+        front: ellipse(0, 9, 27, 16, p.patch, p.line, FW) + circle(-8, 4, 2.3, p.featPatch) + circle(8, 4, 2.3, p.featPatch) +
+          line('M-27 9C-40 12 -50 4 -60 10M27 9C40 12 50 4 60 10', p.line, FW * 0.7),
+        eyes: [21, -20], mouth: [16, true, 0.85], hat: [0, -58], bow: [-37, -46, -25], blush: [39, -4],
+        tail: capsule('M24 76C50 80 72 62 63 40', 9, p.fill, p.line, SW) + D.fillOnly('M66 56l8 -2l-6 -6zM64 41l6 -5l-8 -2z', p.line),
+        top: [0, -60]
+      };
+    },
+    snake: function (c) {
+      var p = c.p, dots = '';
+      [[-26, 80], [0, 82], [26, 80], [-14, 59], [14, 59]].forEach(function (q) { dots += circle(q[0], q[1], 2.6, p.feat); });
+      return {
+        snakeBody: line('M46 84C64 88 78 78 74 64C72 56 78 50 86 54', p.line, 12) + line('M46 84C64 88 78 78 74 64C72 56 78 50 86 54', p.fill, 5) +
+          shape(curve([[-52, 80], [-44, 68], [0, 64], [44, 68], [54, 80], [44, 94], [0, 98], [-44, 94]], true), p.fill, p.line, SW) +
+          shape(curve([[-38, 62], [-32, 50], [0, 46], [32, 50], [38, 62], [30, 72], [0, 76], [-30, 72]], true), p.fill, p.line, SW) +
+          capsule('M10 62C16 46 -14 36 -6 18C-2 8 2 4 0 -4', 26, p.fill, p.line, SW) + dots,
+        head: shape(curve([[-45, -28], [-37, -51], [0, -57], [37, -51], [45, -28], [35, -5], [0, 3], [-35, -5]], true), p.fill, p.line, SW),
+        front: '',
+        eyes: [18, -27], mouth: [-13, false, 0.75],
+        tongue: line('M0 1V11M0 11l-4.5 6M0 11l4.5 6', c.el === 'fire' && c.mode !== 'line' ? CREAM : c.ink, FW * 0.85),
+        hat: [0, -54], bow: [-33, -44, -25], blush: [30, -13],
+        tail: '', top: [0, -56]
+      };
+    },
+    horse: function (c) {
+      var p = c.p, mane = p.mane;
+      var ear = function (k) { return shape('M' + (k * 19) + ' -55C' + (k * 21) + ' -70 ' + (k * 28) + ' -83 ' + (k * 33) + ' -89C' + (k * 41) + ' -78 ' + (k * 40) + ' -63 ' + (k * 36) + ' -53Z', p.fill, p.line, SW) +
+        shape('M' + (k * 25) + ' -59C' + (k * 27) + ' -68 ' + (k * 30) + ' -77 ' + (k * 33) + ' -81C' + (k * 37) + ' -74 ' + (k * 36) + ' -65 ' + (k * 33) + ' -58Z', p.patch); };
+      return {
+        back: ear(-1) + ear(1) + shape('M26 -54C40 -56 50 -48 50 -38C58 -34 60 -22 54 -16C62 -10 58 2 50 4L36 -30Z', mane, p.line, FW),
+        head: shape(curve([[-45, -28], [-35, -57], [0, -65], [35, -57], [45, -28], [39, 2], [0, 12], [-39, 2]], true), p.fill, p.line, SW),
+        front: ellipse(0, 6, 26, 16, p.patch, p.line, FW) + ellipse(-9.5, 3, 3, 4.4, p.featPatch) + ellipse(9.5, 3, 3, 4.4, p.featPatch) +
+          shape('M-17 -55C-19 -68 -6 -72 -2 -63C2 -74 15 -72 15 -61C22 -64 24 -53 17 -49C10 -55 4 -51 0 -49C-6 -53 -11 -51 -17 -55Z', mane, p.line, FW),
+        eyes: [19, -28], mouth: [13, true, 0.8], hat: [0, -62], bow: [-27, -57, -15], blush: [32, -12],
+        tail: shape('M24 66C40 60 56 66 62 80C54 76 50 80 54 88C44 80 34 74 24 76Z', mane, p.line, FW),
+        top: [0, -64]
+      };
+    },
+    sheep: function (c) {
+      var p = c.p, horn = function (k) { return circle(k * 42, -8, 12, p.patch, p.line, FW) + line('M' + (k * 42) + ' -8m' + (k * -4.5) + ' 0a4.5 4.5 0 1 0 ' + (k * 4.5) + ' -4.5', p.line, FW * 0.65); };
+      return {
+        back: shape(D.scallop(0, -20, 52, 44, 11, 6, -Math.PI / 2), p.fill, p.line, SW),
+        head: shape(head(0, -4, 33, 35), p.patch, p.line, SW) + horn(-1) + horn(1),
+        front: shape('M-4.5 3Q0 0.5 4.5 3Q3 7 0 7Q-3 7 -4.5 3Z', p.featPatch, p.featPatch, FW * 0.45),
+        eyes: [13.5, -8, true], mouth: [11, true, 0.7], hat: [0, -66], bow: [-37, -48, -25], blush: [22, 3],
+        tail: circle(33, 70, 9, p.fill, p.line, FW),
+        top: [0, -68], woolBody: true
+      };
+    },
+    monkey: function (c) {
+      var p = c.p;
+      return {
+        back: circle(-50, -14, 16, p.fill, p.line, SW) + circle(-49, -13, 9, p.patch) + circle(50, -14, 16, p.fill, p.line, SW) + circle(49, -13, 9, p.patch),
+        head: shape(head(0, -16, 48, 44), p.fill, p.line, SW),
+        front: shape(curve([[-30, -22], [-24, -35], [-12, -37], [0, -29], [12, -37], [24, -35], [30, -22], [28, -3], [20, 14], [0, 22], [-20, 14], [-28, -3]], true), p.patch, p.line, FW) +
+          circle(-3.2, 2, 1.8, p.featPatch) + circle(3.2, 2, 1.8, p.featPatch),
+        eyes: [14.5, -18, true], mouth: [9, true, 0.8], hat: [0, -58], bow: [-33, -50, -20], blush: [21, -2],
+        tail: line('M24 76C50 80 68 60 60 42C56 34 47 36 49 44', p.line, 4.8),
+        top: [0, -60]
+      };
+    },
+    rooster: function (c) {
+      var p = c.p, comb = c.el === 'fire' && c.mode !== 'line' ? p.line : c.ink;
+      var cx = c.hasHat ? -15 : 0;
+      return {
+        back: shape('M16 66C20 42 38 22 56 16C49 29 42 46 33 70Z', p.fill, p.line, FW) +
+          shape('M22 72C34 52 54 42 72 42C61 51 52 62 39 78Z', p.fill, p.line, FW),
+        head: shape(head(0, -16, 48, 44), p.fill, p.line, SW),
+        front: shape('M2 7C8 8 10 19 4 22C-1 20 -3 11 2 7Z', comb, p.line, FW * 0.7) + shape('M-9 -4Q0 -8 9 -4L1 9Z', p.patch, p.line, FW * 0.8),
+        comb: D.g(shape('M-17 -53C-24 -62 -17 -73 -9 -66C-10 -81 7 -82 7 -67C14 -76 25 -67 19 -55C10 -58 -8 -58 -17 -53Z', comb, p.line, FW), 'translate(' + cx + ' 0)'),
+        eyes: [19, -20], mouth: null, hat: [17, -57, 14, 0.85], bow: [-36, -44, -25], blush: [31, 0],
+        tail: '', top: [0, -62], chickenFeet: true
+      };
+    },
+    dog: function (c) {
+      var p = c.p;
+      var ear = function (k) { return shape(curve([[k * 27, -56], [k * 48, -56], [k * 63, -37], [k * 68, -5], [k * 61, 12], [k * 50, 8], [k * 44, -16], [k * 33, -39]], true), p.fill, p.line, SW); };
+      return {
+        back: '',
+        head: shape(head(0, -16, 52, 44), p.fill, p.line, SW),
+        front: ear(-1) + ear(1) + ellipse(0, 9, 24, 16, p.patch, p.line, FW) + ellipse(0, 1, 8, 6, p.nose),
+        eyes: [21, -20], mouth: [9, true, 0.8], hat: [0, -58], bow: [-29, -54, -15], blush: [35, 0],
+        tail: capsule('M25 74C42 70 46 59 39 51', 8, p.fill, p.line, SW),
+        top: [0, -60]
+      };
+    },
+    pig: function (c) {
+      var p = c.p;
+      var ear = function (k) { return shape('M' + (k * 25) + ' -53L' + (k * 50) + ' -77L' + (k * 52) + ' -44Z', p.fill, p.line, SW) + shape('M' + (k * 32) + ' -54L' + (k * 47) + ' -67L' + (k * 47) + ' -51Z', p.patch); };
+      return {
+        back: ear(-1) + ear(1),
+        head: shape(head(0, -14, 54, 45), p.fill, p.line, SW),
+        front: ellipse(0, 4, 18, 12.5, p.patch, p.line, FW) + ellipse(-6, 4, 2.8, 4.3, p.featPatch) + ellipse(6, 4, 2.8, 4.3, p.featPatch),
+        eyes: [24, -19], mouth: [21, false, 0.75], hat: [0, -56], bow: [-29, -54, -15], blush: [39, 2],
+        tail: line('M28 70C40 60 50 72 42 76C36 79 36 68 46 66', p.line, FW * 1.05),
+        top: [0, -58]
+      };
+    }
+  };
+
+  var HAT_BY_STEM = ['tree', 'flower', null, null, 'mountain', 'straw', 'helmet', 'gem', 'wave', null];
+
+  /* 양의 털 몸 */
+  function woolBody(c) {
+    var p = c.p;
+    return ellipse(-14, 88, 11, 7, p.patch, p.line, SW) + ellipse(14, 88, 11, 7, p.patch, p.line, SW) +
+      shape(D.scallop(0, 54, 30, 30, 10, 4, -Math.PI / 2), p.fill, p.line, SW) + ellipse(0, 61, 13, 12, p.patch, p.line, FW * 0.8);
+  }
+
+  /* 뱀 (남): 목에 두른 짧은 띠 */
+  function scarfSnake(c) {
+    if (c.gender !== 'm') return '';
+    var p = c.p;
+    return shape('M-22 30Q0 39 22 30L20 39Q0 48 -20 39Z', p.acc, p.accLine, FW) + circle(16, 38, 4.2, p.acc, p.accLine, FW * 0.85);
+  }
+
   /* ─────────────── 조립 ─────────────── */
 
-  /* 캐릭터 한 마리를 <g> 글자로. opts: { ink, paper, mode:'color'|'line', ground } */
+  /* 캐릭터 한 마리를 <g> 글자로. opts: { ink, paper, mode:'color'|'line', ground:false } */
   function render(index, gender, opts) {
     opts = opts || {};
     var info = G.ilju(index);
-    var ink = opts.ink || '#C93B22', paper = opts.paper || '#F2BE35', mode = opts.mode === 'line' ? 'line' : 'color';
-    var c = { index: info.index, stem: info.stem, branch: info.branch, el: info.el, animal: info.animal, gender: gender === 'm' ? 'm' : 'f', mode: mode, p: palette(info.el, mode, ink, paper) };
-    var pen = Pen(c), fn = ANIMALS[c.animal] || ANIMALS.rat;
-    if (opts.ground) pen.line([[-70, 93], [-20, 95], [30, 92], [70, 94]], 2);
-    var a = fn(pen, c);
-    genderMark(pen, c, a);
-    stemMark(pen, c, a.mark);
-    return '<g class="char" stroke-linecap="round" stroke-linejoin="round">' + pen.done() + '</g>';
+    var ink = opts.ink || '#C93B22', paper = opts.paper || '#F2BE35', mode = opts.mode || 'color';
+    var c = {
+      index: info.index, stem: info.stem, branch: info.branch, el: info.el, animal: info.animal,
+      gender: gender === 'm' ? 'm' : 'f', mode: mode, ink: ink, paper: paper,
+      p: palette(info.el, mode, ink, paper), expr: EXPR[info.stem], pose: POSES[info.stem],
+      hasHat: !!HAT_BY_STEM[info.stem]
+    };
+    var A = ANIMALS[c.animal](c);
+    var snake = c.animal === 'snake';
+    var out = [];
+
+    if (opts.ground) out.push(ground(c));
+    if (c.stem === 2) out.push(sunHalo(c, 0, -18, 72));        /* 병: 등 뒤의 해 */
+
+    out.push(A.tail || '');
+    if (snake) {
+      out.push(A.snakeBody);
+    } else {
+      if (A.chickenFeet) out.push(line('M-14 86v7M-14 93l-6 5M-14 93v7M-14 93l6 5M14 86v7M14 93l-6 5M14 93v7M14 93l6 5', c.p.line, FW));
+      out.push(A.woolBody ? woolBody(c) : body(c, { noFeet: A.chickenFeet }));
+      out.push(scarf(c));
+      if (c.pose.layer === 'cheek') out.push(arms(c, 'R'));
+      else if (c.pose.id !== 'pot') out.push(arms(c));
+    }
+    if (snake) out.push(scarfSnake(c));
+    out.push(A.back || '');
+    out.push(A.head);
+    out.push(A.front || '');
+    if (A.comb) out.push(A.comb);
+    out.push(blush(c, A.blush[0], A.blush[1]));
+    out.push(eyes(c, A.eyes[0], A.eyes[1], A.eyes[2]));
+    if (A.mouth) out.push(mouth(c, A.mouth[0], A.mouth[1], A.mouth[2]));
+    if (A.tongue) out.push(A.tongue);
+    out.push(cowlick(c, A.top[0] - 3, A.top[1] + 5));
+
+    var hat = HAT_BY_STEM[c.stem];
+    if (hat) {
+      var hx = A.hat[0], hy = A.hat[1] + (hat === 'gem' ? 8 : 0), hr = A.hat[2] || 0, hs = A.hat[3] || 1;
+      out.push(D.g(HATS[hat](c), 'translate(' + hx + ' ' + hy + ') rotate(' + hr + ') scale(' + hs + ')'));
+    }
+    out.push(bow(c, A.bow[0], A.bow[1], A.bow[2]));
+
+    if (!snake && c.pose.layer === 'cheek') out.push(arms(c, 'L'));
+    var hand = c.pose.hand;
+    if (c.stem === 3) out.push(snake ? lantern(c, 72, 34) : lantern(c, hand[0], hand[1]));
+    if (c.stem === 5) out.push(snake ? sproutPot(c, -64, 84) : sproutPot(c, hand[0], hand[1]) + arms(c));
+    if (c.stem === 6) out.push(snake ? dumbbell(c, 70, 52) : dumbbell(c, hand[0], hand[1]));
+    if (c.stem === 9) out.push(snake ? umbrella(c, 82, 54) : umbrella(c, hand[0], hand[1]));
+
+    return '<g class="char" stroke-linecap="round" stroke-linejoin="round">' + out.join('') + '</g>';
   }
 
-  /* 썸네일 · 시트용: 혼자 서는 <svg> (종이색 바탕 포함 — 붓 자국이 바탕과 같은 색이어야 해서) */
+  /* 썸네일 · 시트용: 혼자 서는 <svg> */
   function svg(index, gender, opts) {
     opts = opts || {};
     var vb = opts.viewBox || '-108 -128 216 236';
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + vb + '"' + (opts.size ? ' width="' + opts.size + '"' : '') + '>' +
-      '<rect x="-108" y="-128" width="216" height="236" fill="' + (opts.paper || '#F2BE35') + '"/>' +
       (opts.filter ? '<g filter="url(#' + opts.filter + ')">' : '<g>') + render(index, gender, opts) + '</g></svg>';
   }
 
@@ -349,8 +503,9 @@
   function describe(index, gender) {
     var info = G.ilju(index), m = gender === 'm';
     return {
-      ko: info.ko + '일주 ' + (m ? '남' : '여') + ' — ' + info.title + ' 캐릭터 (' + info.item.ko + '). ' + (m ? '목에 두른 수건' : '진주 머리띠'),
-      en: 'a simple hand-drawn ' + info.colorEn + ' ' + info.animalEn + ' character in loose pen lines with dry flat color (' + (m ? 'wearing a small neckerchief' : 'wearing a pearl headband') + '), ' + info.item.en
+      ko: info.ko + '일주 ' + (m ? '남' : '여') + ' — ' + info.title + ' 캐릭터 (' + info.item.ko + '). ' +
+        (m ? '짧은 눈썹, 목에 두른 수건' : '속눈썹, 리본, 볼터치'),
+      en: 'a cute chibi ' + info.colorEn + ' ' + info.animalEn + ' character (' + (m ? 'boy, short eyebrows, a neckerchief' : 'girl, eyelashes, a ribbon bow, rosy cheeks') + '), ' + info.item.en
     };
   }
 
