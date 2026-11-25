@@ -75,6 +75,7 @@ var PRIVATE = [
   ['tools/',            '만드는 · 재는 · 시험하는 도구 (이 스크립트도)'],
   ['tests/',            '시험 증거'],
   ['wip/',              '하던 일 보관'],
+  ['bujeok/',           '일주 부적 공방 — 게임과 따로 된 정적 사이트 (bujeok/README.md). 게임 배포에는 싣지 않는다'],
   ['mcp/',              'MCP 서버 코드. api/ 함수가 읽는다 — 정적 파일로는 내지 않는다'],
   ['api/',              'Vercel 함수. Vercel 이 저장소 뿌리에서 따로 만든다 (/api/... 주소는 그대로)'],
   ['library/',          '문어가 읽는 책 · 카드. api/mcp 함수가 읽는다 (vercel.json includeFiles) — 브라우저는 읽지 않는다'],
