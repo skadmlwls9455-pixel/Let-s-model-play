@@ -29,19 +29,19 @@
 <main class="layout">
   <!-- 미리보기 -->
   <section class="stage" aria-label="부적 미리보기">
-    <div class="side-tabs" role="tablist">
-      <button class="seg-btn on" data-view="front" role="tab">앞면</button>
-      <button class="seg-btn" data-view="back" role="tab">뒷면</button>
-      <button class="seg-btn" data-view="both" role="tab">나란히</button>
+    <div class="side-tabs" role="tablist" aria-label="보이는 면">
+      <button class="seg-btn on" data-view="front" role="tab" aria-selected="true" aria-controls="cards" type="button">앞면</button>
+      <button class="seg-btn" data-view="back" role="tab" aria-selected="false" aria-controls="cards" type="button">뒷면</button>
+      <button class="seg-btn" data-view="both" role="tab" aria-selected="false" aria-controls="cards" type="button">나란히</button>
     </div>
     <div class="cards view-front" id="cards">
       <div class="card-wrap" data-side="front"><div class="card-host" id="frontHost"></div><div class="selbox" hidden></div></div>
       <div class="card-wrap" data-side="back"><div class="card-host" id="backHost"></div><div class="selbox" hidden></div>
-        <div class="back-hint" id="backHint">뒷면은 빈 장이에요.<br>고민이 풀린 장면을 직접 그려서 <b>뒷면</b> 칸에서 올리면 여기 들어가요.</div>
+        <div class="back-hint" id="backHint">뒷면은 빈 장이에요.<span class="hint-more"><br>고민이 풀린 장면을 직접 그려서 <b>뒷면</b> 칸에서 올리면 여기 들어가요.</span></div>
       </div>
     </div>
     <div class="selbar" id="selbar" hidden>
-      <span class="sel-name" id="selName"></span>
+      <span class="sel-name" id="selName" aria-live="polite"></span>
       <button class="icon-btn" data-act="smaller" title="작게" aria-label="작게">－</button>
       <button class="icon-btn" data-act="bigger" title="크게" aria-label="크게">＋</button>
       <button class="icon-btn" data-act="rotL" title="왼쪽으로 돌리기" aria-label="왼쪽으로 돌리기">↺</button>
@@ -51,23 +51,23 @@
       <button class="icon-btn" data-act="reset" title="제자리로" aria-label="제자리로">⟲</button>
       <button class="icon-btn danger" data-act="del" title="지우기" aria-label="지우기">✕</button>
     </div>
-    <p class="stage-tip">카드 위 글자 · 캐릭터 · 장식은 끌어서 옮길 수 있어요. 고른 뒤 ＋ － 로 크기, ↺ ↻ 로 각도.</p>
+    <p class="stage-tip">카드 위 글자 · 캐릭터 · 장식은 끌어서 옮길 수 있어요. 고른 뒤 ＋ － 로 크기, ↺ ↻ 로 각도. 키보드는 Tab 으로 고르고 화살표로 옮겨요.</p>
   </section>
 
   <!-- 조절판 -->
   <aside class="panel">
     <nav class="tabs" role="tablist" aria-label="만들기 단계">
-      <button class="tab on" data-tab="ilju">① 일주</button>
-      <button class="tab" data-tab="text">② 글자</button>
-      <button class="tab" data-tab="deco">③ 장식</button>
-      <button class="tab" data-tab="frame">④ 틀 · 색</button>
-      <button class="tab" data-tab="back">⑤ 뒷면</button>
-      <button class="tab" data-tab="llm">⑥ 그림 프롬프트</button>
-      <button class="tab" data-tab="out">⑦ 내보내기</button>
+      <button class="tab on" data-tab="ilju" role="tab" id="tab-ilju" aria-controls="pane-ilju" aria-selected="true" type="button">① 일주</button>
+      <button class="tab" data-tab="text" role="tab" id="tab-text" aria-controls="pane-text" aria-selected="false" type="button">② 글자</button>
+      <button class="tab" data-tab="deco" role="tab" id="tab-deco" aria-controls="pane-deco" aria-selected="false" type="button">③ 장식</button>
+      <button class="tab" data-tab="frame" role="tab" id="tab-frame" aria-controls="pane-frame" aria-selected="false" type="button">④ 틀 · 색</button>
+      <button class="tab" data-tab="back" role="tab" id="tab-back" aria-controls="pane-back" aria-selected="false" type="button">⑤ 뒷면</button>
+      <button class="tab" data-tab="llm" role="tab" id="tab-llm" aria-controls="pane-llm" aria-selected="false" type="button">⑥ 그림 프롬프트</button>
+      <button class="tab" data-tab="out" role="tab" id="tab-out" aria-controls="pane-out" aria-selected="false" type="button">⑦ 내보내기</button>
     </nav>
 
     <!-- ① 일주 -->
-    <section class="pane on" data-pane="ilju">
+    <section class="pane on" data-pane="ilju" role="tabpanel" id="pane-ilju" aria-labelledby="tab-ilju">
       <div class="row">
         <label class="lab" for="inName">신청자 (메모)</label>
         <input id="inName" data-bind="name" placeholder="예: 3월 상담 · 김○○" maxlength="40">
@@ -105,7 +105,7 @@
         <summary>내가 그린 캐릭터로 바꾸기</summary>
         <p class="note">지금 고른 일주(성별까지)에만 들어가요. 투명 PNG 가 가장 깔끔하고, 흰 종이에 그린 선화는 ‘흰 바탕 지우기’나 ‘빨간 선으로’를 고르면 돼요.</p>
         <div class="inline">
-          <label class="btn small file">그림 올리기<input type="file" id="inCharFile" accept="image/*" hidden></label>
+          <label class="btn small file">그림 올리기<input type="file" id="inCharFile" accept="image/*"></label>
           <label class="check"><input type="checkbox" id="inCharBoth" checked> 여 · 남 같이</label>
           <button class="btn small ghost" id="btnCharClear" type="button">원래 캐릭터로</button>
         </div>
@@ -120,7 +120,7 @@
     </section>
 
     <!-- ② 글자 -->
-    <section class="pane" data-pane="text">
+    <section class="pane" data-pane="text" role="tabpanel" id="pane-text" aria-labelledby="tab-text">
       <div class="row">
         <span class="lab">배치</span>
         <div class="seg" data-bind="layout">
@@ -136,7 +136,7 @@
           </select>
         </div>
       </div>
-      <div class="row" id="rowYearCustom" hidden><input data-bind="yearCustom" placeholder="맨 윗줄에 쓸 말" maxlength="20"></div>
+      <div class="row" id="rowYearCustom" hidden><input data-bind="yearCustom" placeholder="맨 윗줄에 쓸 말" maxlength="20" aria-label="맨 윗줄 직접 쓰기"></div>
       <div class="row two">
         <div><label class="lab" for="inTop">윗줄</label><input id="inTop" data-bind="topText" maxlength="12"></div>
         <div><label class="lab" for="inBottom">아랫줄</label><input id="inBottom" data-bind="bottomText" maxlength="12"></div>
@@ -146,7 +146,7 @@
         <label class="lab" for="inFont">글꼴</label>
         <div class="inline">
           <select id="inFont" data-bind="font"></select>
-          <label class="btn small ghost file">내 글꼴 올리기<input type="file" id="inFontFile" accept=".ttf,.otf,.woff,.woff2,font/*" hidden></label>
+          <label class="btn small ghost file">내 글꼴 올리기<input type="file" id="inFontFile" accept=".ttf,.otf,.woff,.woff2,font/*"></label>
         </div>
       </div>
       <div class="row"><label class="lab" for="inStretch">가로로 넓적하게 <output id="outStretch"></output></label><input id="inStretch" type="range" min="1" max="1.9" step="0.02" data-bind="stretch"></div>
@@ -159,7 +159,7 @@
     </section>
 
     <!-- ③ 장식 -->
-    <section class="pane" data-pane="deco">
+    <section class="pane" data-pane="deco" role="tabpanel" id="pane-deco" aria-labelledby="tab-deco">
       <div class="row">
         <span class="lab">한 번에 채우기</span>
         <div class="chips" id="themeChips"></div>
@@ -176,7 +176,7 @@
     </section>
 
     <!-- ④ 틀 · 색 -->
-    <section class="pane" data-pane="frame">
+    <section class="pane" data-pane="frame" role="tabpanel" id="pane-frame" aria-labelledby="tab-frame">
       <div class="row">
         <span class="lab">틀</span>
         <div class="seg" data-bind="frame">
@@ -202,20 +202,20 @@
       <fieldset class="row seal">
         <legend class="lab">낙관 (내 서명 도장)</legend>
         <div class="inline">
-          <input data-bind="seal.text" placeholder="1~4글자" maxlength="4" class="short">
-          <select data-bind="seal.where"><option value="back">뒷면</option><option value="front">앞면</option><option value="both">앞 · 뒤</option></select>
-          <select data-bind="seal.style"><option value="fill">꽉 찬 도장</option><option value="line">테두리 도장</option></select>
+          <input data-bind="seal.text" placeholder="1~4글자" maxlength="4" class="short" aria-label="낙관 글자">
+          <select data-bind="seal.where" aria-label="낙관 위치"><option value="back">뒷면</option><option value="front">앞면</option><option value="both">앞 · 뒤</option></select>
+          <select data-bind="seal.style" aria-label="낙관 모양"><option value="fill">꽉 찬 도장</option><option value="line">테두리 도장</option></select>
         </div>
       </fieldset>
     </section>
 
     <!-- ⑤ 뒷면 -->
-    <section class="pane" data-pane="back">
+    <section class="pane" data-pane="back" role="tabpanel" id="pane-back" aria-labelledby="tab-back">
       <p class="note">뒷면은 빈 장으로 두었어요. 고민이 풀린 장면을 직접 그리고, 여기서 올리면 뒷면에 들어가요. 그릴 거리가 막히면 ⑥ 그림 프롬프트에서 아이디어를 받아 보세요.</p>
       <div class="row checks"><label class="check"><input type="checkbox" data-bind="back.frame"> 뒷면에도 틀</label></div>
       <div class="row">
         <div class="inline">
-          <label class="btn file">뒷면 그림 올리기<input type="file" id="inBackFile" accept="image/*" hidden></label>
+          <label class="btn file">뒷면 그림 올리기<input type="file" id="inBackFile" accept="image/*"></label>
           <button class="btn ghost" id="btnBackClear" type="button">그림 빼기</button>
           <button class="btn ghost" id="btnBackTemplate" type="button">빈 뒷면 PNG 받기 (그림판용)</button>
         </div>
@@ -231,7 +231,7 @@
     </section>
 
     <!-- ⑥ 그림 프롬프트 -->
-    <section class="pane" data-pane="llm">
+    <section class="pane" data-pane="llm" role="tabpanel" id="pane-llm" aria-labelledby="tab-llm">
       <div class="row">
         <label class="lab" for="inWorry">신청자의 고민</label>
         <textarea id="inWorry" data-bind="worry" rows="5" placeholder="예: 올해 이직 준비 중인데 면접에서 자꾸 떨어져요. 자신감이 바닥이에요."></textarea>
@@ -264,13 +264,15 @@
         <div class="row"><label class="lab" for="inNeg">네거티브 프롬프트</label><textarea id="inNeg" rows="2" spellcheck="false"></textarea></div>
         <button class="btn small ghost" id="btnCopyRaw" type="button">LLM 에 보내는 글 전체 복사 (다른 곳에 붙여 쓰기)</button>
       </details>
-      <div class="llm-status" id="llmStatus" aria-live="polite"></div>
+      <div class="llm-line">
+        <div class="llm-status" id="llmStatus" aria-live="polite"></div><span id="llmCount" class="llm-count" aria-hidden="true"></span>
+      </div>
       <pre class="llm-stream" id="llmStream" hidden></pre>
       <div class="ideas" id="ideas"></div>
     </section>
 
     <!-- ⑦ 내보내기 -->
-    <section class="pane" data-pane="out">
+    <section class="pane" data-pane="out" role="tabpanel" id="pane-out" aria-labelledby="tab-out">
       <div class="row">
         <label class="lab" for="inScale">크기</label>
         <select id="inScale">
@@ -300,7 +302,7 @@
   <p class="note">만든 부적은 이 브라우저에 저절로 저장돼요. 다른 컴퓨터로 옮기거나 혹시 몰라 남겨 두려면 백업 파일을 받아 두세요.</p>
   <div class="inline wrap">
     <button class="btn small" id="btnBackup" type="button">백업 파일 받기</button>
-    <label class="btn small ghost file">백업 불러오기<input type="file" id="inRestore" accept=".json,application/json" hidden></label>
+    <label class="btn small ghost file">백업 불러오기<input type="file" id="inRestore" accept=".json,application/json"></label>
   </div>
   <ul class="archive-list" id="archiveList"></ul>
 </dialog>

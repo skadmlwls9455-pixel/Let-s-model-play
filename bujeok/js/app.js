@@ -617,8 +617,11 @@
       sb.style.left = (box.l - r0.left - 4) + 'px'; sb.style.top = (box.t - r0.top - 4) + 'px';
       sb.style.width = (box.r - box.l + 8) + 'px'; sb.style.height = (box.b - box.t + 8) + 'px';
     }
-    $('#selbar').hidden = false;
-    $('#selName').textContent = h.name;
+    /* 손잡이 줄이 막 나타났으면 이름은 다음 장면에 (화면 낭독기가 첫 이름을 놓치지 않게) */
+    var bar = $('#selbar'), nm = $('#selName'), was = bar.hidden;
+    bar.hidden = false;
+    if (was) { nm.textContent = ''; requestAnimationFrame(function () { if (!bar.hidden) nm.textContent = h.name; }); }
+    else if (nm.textContent !== h.name) nm.textContent = h.name;
     $$('#selbar [data-act]').forEach(function (b) {
       var a = b.dataset.act, ok = a === 'smaller' || a === 'bigger' || a === 'reset' ||
         (a === 'rotL' || a === 'rotR') && !!h.rotate || a === 'flip' && !!h.flip || (a === 'dup' || a === 'del') && !!h.item;
@@ -790,8 +793,8 @@
   }
 
   function fullPrompt(p) {
-    var st = (llmCfg().style || '').trim();
-    return (p || '').replace(/[\s,.]+$/, '') + (st ? ', ' + st : '');
+    var st = (llmCfg().style || '').trim(), body = (p || '').trim().replace(/[\s,.]+$/, '');
+    return body ? body + (st ? ', ' + st : '') : st;
   }
 
   function renderIdeas() {
@@ -809,8 +812,9 @@
         (x.symbol ? '<dt>바뀐 것</dt><dd>' + esc(x.symbol) + '</dd>' : '') +
         (x.caption ? '<dt>한 마디</dt><dd>' + esc(x.caption) + ' <button class="link" data-cap="' + i + '" type="button">뒷면에 넣기</button></dd>' : '') +
         '</dl>' +
-        '<div class="prompt"><div class="prompt-h"><b>레퍼런스 프롬프트</b><button class="btn small" data-copy="p' + i + '" type="button">복사</button></div><code id="p' + i + '">' + esc(fullPrompt(x.prompt_en)) + '</code></div>' +
-        (neg ? '<div class="prompt neg"><div class="prompt-h"><b>네거티브</b><button class="btn small ghost" data-copy="n' + i + '" type="button">복사</button></div><code id="n' + i + '">' + esc(neg) + '</code></div>' : '') +
+        /* 모델이 영어 프롬프트를 안 줬으면 (장면 글만 온 경우) 프롬프트 칸은 감춘다 */
+        (String(x.prompt_en || '').trim() ? '<div class="prompt"><div class="prompt-h"><b>레퍼런스 프롬프트</b><button class="btn small" data-copy="p' + i + '" type="button">복사</button></div><code id="p' + i + '">' + esc(fullPrompt(x.prompt_en)) + '</code></div>' +
+        (neg ? '<div class="prompt neg"><div class="prompt-h"><b>네거티브</b><button class="btn small ghost" data-copy="n' + i + '" type="button">복사</button></div><code id="n' + i + '">' + esc(neg) + '</code></div>' : '') : '') +
         '</article>';
     });
     h += '<button class="btn ghost small" id="btnCopyAll" type="button">아이디어 전부 글로 복사</button>';
@@ -945,6 +949,11 @@
       BJ.llm.listModels(engineConf()).then(function (list) {
         if (llmCfg().engine !== eng) return;   /* 그사이 엔진을 바꿨으면 버린다 */
         list = (list || []).map(String);
+        /* 주소 끝에 /v1 이 빠져 있었으면 찾은 주소로 고쳐 둔다 */
+        if (eng === 'openai' && BJ.llm.effectiveUrl) {
+          var was = engineConf().url, eff = BJ.llm.effectiveUrl('openai', was);
+          if (eff && eff !== BJ.llm.normalizeUrl('openai', was)) { llmCfg().urls.openai = eff; syncEngine(); saveLlm(); toast('주소 끝에 /v1 을 붙였어요: ' + eff, 4000); }
+        }
         $('#modelList').innerHTML = list.map(function (m) { return '<option value="' + esc(m) + '">'; }).join('');
         if (!list.length) { setStatus(EMPTY[eng] || '모델이 없어요.'); return; }
         /* 비어 있으면 목록의 첫째(엔진 쪽에서 쓸 만한 순서로 준 것)를 넣는다 */
@@ -1066,7 +1075,7 @@
   function archiveRow(r) {
     var d = peek(r.value), info = G.ilju(d.ilju), when = new Date(d.at || Date.now()), key = esc(r.key);
     return '<li class="' + (r.key === S.id ? 'cur' : '') + '"><div class="thumb">' + BJ.chars.svg(d.ilju, d.gender, { mode: d.mode, ink: d.ink, paper: d.paper }) + '</div>' +
-      '<div class="meta"><b>' + esc(d.name || '이름 없음') + '</b><span>' + info.ko + '일주 ' + (d.gender === 'm' ? '남' : '여') + ' · ' + esc(d.text) + '</span>' +
+      '<div class="meta"><b title="' + esc(d.name || '이름 없음') + '">' + esc(d.name || '이름 없음') + '</b><span>' + info.ko + '일주 ' + (d.gender === 'm' ? '남' : '여') + ' · ' + esc(d.text) + '</span>' +
       '<span class="dim">' + when.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + (d.worry ? ' · 고민 있음' : '') + (d.img ? ' · 뒷면 그림' : '') + '</span></div>' +
       '<div class="acts"><button class="btn small" data-open="' + key + '" type="button">열기</button><button class="btn small ghost" data-dup="' + key + '" type="button">복제</button><button class="btn small ghost danger" data-del="' + key + '" type="button">지우기</button></div></li>';
   }
