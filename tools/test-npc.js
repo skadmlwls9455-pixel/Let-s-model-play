@@ -24,6 +24,7 @@ var C7 = { clothes: ['shop.hello', 'shop.thanks', 'shop.none', 'contest.open', '
 var C14 = { clothes: ['shop.enter', 'shop.tryon', 'shop.mirror', 'shop.pay', 'shop.leave', 'contest.poster', 'contest.start', 'contest.judge', 'contest.podium'],
   goods: ['goods.enter', 'shop.pay', 'shop.leave', 'contest.poster', 'contest.start', 'contest.judge', 'contest.podium'],
   cafe: ['cafe.order', 'cafe.stamp', 'cafe.record', 'contest.poster', 'contest.start', 'contest.judge', 'contest.podium'] };
+var HATS8 = ['none', 'beret', 'apron', 'cap', 'pencil', 'toque', 'rope', 'combs'];   /* 11-28: 장면 · 초상이 그리는 머리 여덟 (docs/NPC_BIBLE.md 6절) */
 var ATTIC = ['#e8463c', '#f08a3c', '#9a5cc8', '#4a86d8', '#4fa868', '#f07aa8'];
 function rgb(h) { return [1, 3, 5].map(function (i) { return parseInt(h.slice(i, i + 2), 16); }); }
 function dist(a, b) { a = rgb(a); b = rgb(b); return Math.sqrt(a.reduce(function (s, v, i) { return s + (v - b[i]) * (v - b[i]); }, 0)); }
@@ -37,7 +38,7 @@ NPC.keepers.forEach(function (id) {
   ok(!names[r.name], id + ' 이름이 겹치지 않는다'); names[r.name] = 1;
   ok(/^#[0-9a-f]{6}$/.test(r.color) && !colors[r.color], id + ' 색'); colors[r.color] = 1;
   ok(ATTIC.every(function (a) { return dist(a, r.color) >= 50; }), id + ' 색이 다락 문어 여섯 색과 뚜렷이 다르다');
-  ok(['beret', 'apron', 'cap'].indexOf(r.hat) >= 0, id + ' 모자');
+  ok(HATS8.indexOf(r.hat) >= 0 && r.hat !== 'none', id + ' 모자');
   ok(NPC.tag(id) === r.name + ' · 대본', id + ' 이름표에 대본');
 });
 ok(NPC.sleepers.length === 4 && NPC.sleepers.every(function (s, i) { return s.id === 'sleep-' + (i + 1) && /^#[0-9a-f]{6}$/.test(s.color) && !colors[s.color]; }), '자던 문어 넷 (색은 그대로)');
@@ -49,10 +50,10 @@ NPC.residents.concat(['stylist']).forEach(function (id, i) {
   ok(/^#[0-9a-f]{6}$/.test(r.color) && !colors[r.color], id + ' 색'); colors[r.color] = 1;
   if (i < 4) ok(r.color === NPC.sleepers[i].color, id + ' 몸 색은 자던 때 그대로');
   else ok(ATTIC.every(function (a) { return dist(a, r.color) >= 50; }), '미용사 색이 다락 문어 여섯 색과 뚜렷이 다르다');
-  ok(['none', 'beret', 'apron', 'cap'].indexOf(r.hat) >= 0 && NPC.tag(id) === r.name + ' · 대본', id + ' 모자 · 이름표');
+  ok(HATS8.indexOf(r.hat) >= 0 && NPC.tag(id) === r.name + ' · 대본', id + ' 모자 · 이름표');
 });
 var L = NPC.list('2026-11-21', 12), LN = NPC.list('2026-11-21', 23);
-ok(L.length === 8 && L.every(function (x) { return x.id && /^#[0-9a-f]{6}$/.test(x.color) && ['none', 'beret', 'apron', 'cap'].indexOf(x.hat) >= 0 && ['stand', 'sleep'].indexOf(x.pose) >= 0; }), 'list 는 계약 C6 모양 (셋 · 넷 · 미용사)');
+ok(L.length === 8 && L.every(function (x) { return x.id && /^#[0-9a-f]{6}$/.test(x.color) && HATS8.indexOf(x.hat) >= 0 && ['stand', 'sleep'].indexOf(x.pose) >= 0; }), 'list 는 계약 C6 모양 (셋 · 넷 · 미용사)');
 ok(L.every(function (x) { return x.pose === 'stand' && !x.room && !x.slot; }), '낮엔 다 서 있고 자리는 장면의 시간표 (room · slot 없음)');
 ok(LN.filter(function (x) { return x.pose === 'sleep'; }).map(function (x) { return x.id; }).join() === 'sleep-1,sleep-2,sleep-3,sleep-4', '밤 (21~7) 엔 집에 사는 넷만 잔다');
 ok(NPC.phase(7) === 'day' && NPC.phase(16.9) === 'day' && NPC.phase(17) === 'evening' && NPC.phase(20.9) === 'evening' && NPC.phase(21) === 'night' && NPC.phase(3) === 'night' && NPC.phase() === 'day', '시간 칸 (V 의 시간표와 같은 경계)');
@@ -146,6 +147,7 @@ Object.keys(MARK).forEach(function (name) {
 /* 처음 만남 줄은 갈래마다 제 이름을 댄다 · 같은 줄이 두 문어에 없다 */
 NPC.residents.forEach(function (id) { NPC.variants(id, 'home.first').forEach(function (v, i) { ok(v.join(' ').indexOf(NPC.roster[id].name) >= 0, id + ' home.first ' + i + ' 제 이름을 댄다: ' + v.join(' / ')); }); });
 var twice = {}; EIGHT.forEach(function (id) { NPC.keys(id).forEach(function (k) { NPC.variants(id, k).forEach(function (v) { var w = v.join(' / '); ok(!twice[w] || twice[w] === id + k, '같은 줄이 두 번: ' + w); twice[w] = id + k; }); }); });
+ok(EIGHT.map(function (id) { return NPC.roster[id].hat; }).join() === 'beret,pencil,toque,cap,apron,none,rope,combs', '머리 여덟이 다 다르다 (시침 · 모아 · 느루 · 토리 · 소금 · 몽돌 · 뱃고동 · 소라)');
 ok(NPC.roster['sleep-3'].name === '몽돌' && NPC.roster['sleep-4'].name === '뱃고동', '이름 둘 (11-28 주인): sleep-3 몽돌 · sleep-4 뱃고동');
 
 /* 처음 세 줄: 다락 문어에 대해서는 사실 한 가지만 (깨어 있었다) */

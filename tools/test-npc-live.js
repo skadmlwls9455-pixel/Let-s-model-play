@@ -244,6 +244,19 @@ function box(p) {
     });
     ok(again.first.length === 0 && again.later.indexOf('focus') >= 0, '화면이 되돌아가는 중이었으면 0.45 s 뒤 다시 보고 민다: ' + JSON.stringify(again));
 
+    /* 11-28: 새 머리 넷이 대사창 초상에 그려진다 (그림 px 하나를 읽어 색을 본다) */
+    var hats = await p.evaluate(function () {
+      [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); });
+      function px(id, x, y) {
+        APP.npcSay(id, 'talk');
+        var cv = document.getElementById('npc-face'), k = cv.width / 16, d = cv.getContext('2d').getImageData(Math.floor(x * k + k / 2), Math.floor((y + 1) * k + k / 2), 1, 1).data;
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        return '#' + [d[0], d[1], d[2]].map(function (v) { return (v < 16 ? '0' : '') + v.toString(16); }).join('');
+      }
+      return { pencil: px('goods', 12, 4), eraser: px('goods', 15, 4), toque: px('cafe', 9, -1), rope: px('sleep-4', 0, 4), combs: px('stylist', 8, -1), beret: px('clothes', 6, 1) };
+    });
+    ok(hats.pencil === '#e8b04a' && hats.eraser === '#e88a9a' && hats.toque === '#efe3c8' && hats.rope === '#c9a45e' && hats.combs === '#9fc7e8' && hats.beret === '#2a3f6a', '초상의 머리: 연필 · 구름 모자 · 밧줄 매듭 · 빗 · 베레: ' + JSON.stringify(hats));
+
     /* 11-24: 집에 사는 문어 — 낮엔 처음 만남 인사 (이름표 '토리 · 대본'), 같은 날 다시 누르면 낮 말 · 저장에 만난 날 · 밤엔 '자고 있어.' 한 줄 (대사창 아님) */
     await p.evaluate(function () { window.__ppolLook = Object.assign(window.__ppolLook || {}, { hour: 12 }); });
     await p.click('#btn-npc-sleep-1');
