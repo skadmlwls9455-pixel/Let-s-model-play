@@ -278,7 +278,7 @@ var VILLAGE = (function () {
   var EXTRA = ['judge0', 'judge1', 'judge2', 'rival0', 'rival1', 'rival2'];   /* 콘테스트 때만 서는 문어 (npcSet 에 올 수 있는 id — 자리는 SHOW, npcPlace 로 옮긴다) */
 
   /* 문어 집과 시간표 (11-24 주인 결정): 낮 (7 – 17 시) 은 밖 — 지금의 잠든 자리 (NPCS) · 저녁 (17 – 21 시) 은 집 안 식탁 걸상 · 밤 (21 – 7 시) 은 집 안 침대.
-     장면의 npcSet 은 sleep-1 ~ 4 에 room · slot 이 없으면 이 시간표를 장면의 시각으로 쓴다. 집에 없을 때 문은 잠기고 '지금은 ○○에 있다' (dayName — 사실만) */
+     장면의 npcSet 은 sleep-1 ~ 4 에 room · slot 이 없으면 이 시간표를 장면의 시각으로 쓴다. 집에 없을 때 문은 잠기고 '지금은 ○○에 있어' (dayName — 사실만) */
   var HOMES = {
     'sleep-1': { room: 'home1', door: 'inHome1', dayName: '마을 문 벤치' },
     'sleep-2': { room: 'home2', door: 'inHome2', dayName: '집 앞 마루' },
@@ -291,7 +291,7 @@ var VILLAGE = (function () {
     return h < 21 && h >= 17 ? { home: true, room: H.room, slot: 'table', pose: 'sit' } : { home: true, room: H.room, slot: 'bed', pose: 'sleep' };
   }
   function homeOf(room) { var o = null; Object.keys(HOMES).forEach(function (id) { if (HOMES[id].room === room) o = id; }); return o; }
-  function lockedLine(id) { var H = HOMES[id]; return H ? '문이 잠겨 있다. 지금은 ' + H.dayName + '에 있다.' : ''; }
+  function lockedLine(id) { var H = HOMES[id]; return H ? '문이 잠겨 있어. 지금은 ' + H.dayName + '에 있어.' : ''; }   /* 11-24 리드: 집 목소리 반말 (-어) 로 맞춤 */
   var HATS = ['none', 'beret', 'apron', 'cap'], POSES = ['stand', 'sleep'];
   return { xz: xz, st: st, local: local, at: at, lot: lot, spot: spot, npc: npc, inWalk: inWalk,
     WALK: WALK, LOTS: LOTS, DECK: DECK, STALL: STALL, STAGE: STAGE, PLAZA: PLAZA, CAFE: CAFE, SPOTS: SPOTS, NPCS: NPCS, LAMPS: LAMPS, NLAMP: NLAMP, POTS: POTS, BOARD: BOARD, CIRCLES: CIRCLES, BOXES: BOXES, BENCH: BENCH, route: route, ROOMS: ROOMS, HOME_LOTS: HOME_LOTS, HOMES: HOMES, where: where, homeOf: homeOf, lockedLine: lockedLine, DOORS: DOORS, CAFE_DOOR: CAFE_DOOR, SHOW: SHOW, PLAZA_SHOW: PLAZA_SHOW, EXTRA: EXTRA, SEGMENTS: SEGMENTS, HATS: HATS, POSES: POSES };
