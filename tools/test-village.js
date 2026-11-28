@@ -124,22 +124,25 @@ V.SPOTS.forEach(function (s2) { var a2 = V.xz(s2.stand[0], s2.stand[1]); ok(!V.B
   /* 가. 검증에서 섰던 걸음들 (같은 꼴의 소품으로) */
   var h1 = V.DOORS.filter(function (d) { return d.btn === 'btn-in-home-1'; })[0], s1 = V.spot('npcSleep1'), s3 = V.spot('npcSleep3'), s4 = V.spot('npcSleep4');
   [[[5.5, 0], h1.stand, '마당 문 앞 → 집 1 문 (벤치 다리 셋을 돌아)'], [[5.5, 0], s1.stand, '마당 문 앞 → 벤치 문어'], [[10, 2.2], h1.stand, '덤불 옆 → 집 1 문'], [[10, 2.75], h1.stand, '덤불 뒤 → 집 1 문'], [[13, -1.1], h1.stand, '벤치 사이 → 집 1 문'],
-    [[51.2, -1.2], s3.stand, '모래 → 바닷가 문어 (배를 돌아)'], [[46.3, 0], s3.stand, '계단 → 바닷가 문어'], [[49, 0], s3.stand, '계단 끝 → 바닷가 문어'], [[58.4, 6], s3.stand, '바위 뒤 → 바닷가 문어'], [[49.4, -0.4], s4.stand, '표지판 옆 → 낚시 문어'], [[57.5, 2.8], s4.stand, '바위 사이 → 낚시 문어']].forEach(function (c) {
+    [[51.2, -1.2], s3.stand, '모래 → 바닷가 문어 (배를 돌아)'], [[46.3, 0], s3.stand, '계단 → 바닷가 문어'], [[49, 0], s3.stand, '계단 끝 → 바닷가 문어'], [[58.4, 6], s3.stand, '바위 뒤 → 바닷가 문어'], [[49.4, -0.4], s4.stand, '표지판 옆 → 낚시 문어'], [[57.5, 2.8], s4.stand, '바위 사이 → 낚시 문어'],
+    [[60.6, 7], V.spot('plazaStage').stand, '부두 → 광장 무대 (11-28 재검토: 부두가 걷는 곳 표에 없어 길을 못 잡았다)'], [[64, 7], s4.stand, '부두 끝 → 낚시 문어'], [[62.5, 7.2], h1.stand, '부두 → 숲길 집 1 문 (마을을 가로질러)']].forEach(function (c) {
     var r = V.route(c[0], c[1], null, cols), g = legs(c[0], r), straight = Math.hypot(c[1][0] - c[0][0], c[1][1] - c[0][1]);
     ok(near(r[r.length - 1][0], c[1][0]) && near(r[r.length - 1][1], c[1][1]) && g.walk === 0 && g.hit === 0, '길: ' + c[2] + ' — ' + r.length + ' 구간 · 걷는 곳 밖 ' + g.walk + ' · 둘레를 파고든 것 ' + g.hit);
-    ok(g.len < straight * 1.5 + 1.5, '길: ' + c[2] + ' 이 멀리 돌지 않는다 (' + g.len.toFixed(2) + ' m · 곧은 길 ' + straight.toFixed(2) + ')');
+    ok(g.len < straight * 1.5 + 1.5 || c[0][0] > 59.7, '길: ' + c[2] + ' 이 멀리 돌지 않는다 (' + g.len.toFixed(2) + ' m · 곧은 길 ' + straight.toFixed(2) + ')');   /* 부두에서는 모래로 돌아 나와야 해서 곧은 길과 견주지 않는다 */
   });
   /* 나. 격자: 숲길 · 마을 길 · 광장 · 계단 · 해변의 빈 자리 → 문 · 문어 · 가게 앞 자리. 길을 못 찾아 곧은 길로 돌아온 것 (= 둘레를 파고드는 한 구간) 도 센다 */
   var starts = [], targets = V.SPOTS.map(function (sp) { return sp.stand; }).concat(V.DOORS.map(function (d) { return d.stand; }));
   for (var s = 5.3; s <= 59.5; s += 0.9) for (var t = -11.5; t <= 11.5; t += 0.7) { var a = V.xz(s, t); if (V.inWalk(s, t, 0.1) && pen(a[0], a[1]) < -0.05) starts.push([+s.toFixed(2), +t.toFixed(2)]); }
-  var n = 0, walkBad = 0, hitBad = 0, worst = '', worstW = '';
+  for (s = 60.1; s <= 65.5; s += 0.9) [6.6, 7.0, 7.4].forEach(function (t2) { starts.push([+s.toFixed(2), t2]); });   /* 부두 */
+  var n = 0, walkBad = 0, hitBad = 0, worst = '', worstW = '', direct = 0;
   starts.forEach(function (p, pi) { targets.forEach(function (tg, ti) {
     if ((pi * 7 + ti) % GRID_EVERY) return;   /* 몇에 하나 (전부는 느리다 — 다 보려면 GRID_EVERY=1 node tools/test-village.js) */
-    n++; var r = V.route(p, tg, null, cols), g = legs(p, r);
+    n++; var r = V.route(p, tg, null, cols), g = legs(p, r); if (r.length === 1 && (g.walk || g.hit)) direct++;
     if (g.walk) { walkBad++; if (!worstW) worstW = '(' + p + ') → (' + tg.map(function (v) { return +v.toFixed(2); }) + ') ' + r.length + ' 구간'; }
     if (g.hit) { hitBad++; if (!worst) worst = '(' + p + ') → (' + tg.map(function (v) { return +v.toFixed(2); }) + ') ' + r.length + ' 구간'; }
   }); });
   ok(starts.length >= 300 && n >= 400, '길 격자: 출발 ' + starts.length + ' 자리 · ' + n + ' 갈래');
+  ok(direct === 0, '길 격자: 길을 못 잡고 곧은 길로 물러난 갈래 없음 (' + direct + ')');
   ok(walkBad === 0, '길 격자: 모든 구간이 걷는 곳 안 (어긋난 갈래 ' + walkBad + (worstW ? ' — 첫째: ' + worstW : '') + ')');
   ok(hitBad === 0, '길 격자: 어느 구간도 둘레를 파고들지 않는다 (파고든 갈래 ' + hitBad + (worst ? ' — 첫째: ' + worst : '') + ')');
   /* 다. 둘레에 붙어 선 출발 자리 (걸려서 선 그 자리에서 다시 누를 때): 둘레를 따라 한 바퀴 — 어느 쪽에 붙어 있어도 첫 구간이 더 파고들지 않고 끝까지 간다 */
@@ -152,6 +155,19 @@ V.SPOTS.forEach(function (s2) { var a2 = V.xz(s2.stand[0], s2.stand[1]); ok(!V.B
     }
   });
   ok(tot >= 60 && stuck === 0, '둘레에 붙어 선 ' + tot + ' 자리에서 다시 길을 잡는다 (막힌 것 ' + stuck + ')');
+  /* 네모 (판매대 · 무대 · 벤치) 에 붙어 선 자리도: 둘레 위 (몸 반지름만큼 떨어진 선) 와 5 mm 안쪽 (걷기가 남겨 둘 수 있는 자리) 에서 먼 자리 넷으로 — 11-28 재검토: 원에 붙은 자리만 시험해, 네모 쪽 '더 파고들지 않는 쪽이면 간다' 를 지워도 통과했다 */
+  var far = [V.spot('plazaBoard').stand, s1.stand, V.spot('cafeSeat').stand, V.spot('shopGoods').stand], btot = 0, bbad = 0, bex = '';
+  [0, 0.005].forEach(function (inset) {
+    V.BOXES.forEach(function (b0, bi) {
+      var b = [Math.min(b0[0], b0[2]), Math.min(b0[1], b0[3]), Math.max(b0[0], b0[2]), Math.max(b0[1], b0[3])], pd = BODY - inset, pts = [];
+      for (var u = 0; u <= 1.0001; u += 0.125) pts.push([b[0] - pd + (b[2] - b[0] + 2 * pd) * u, b[1] - pd], [b[0] - pd + (b[2] - b[0] + 2 * pd) * u, b[3] + pd], [b[0] - pd, b[1] - pd + (b[3] - b[1] + 2 * pd) * u], [b[2] + pd, b[1] - pd + (b[3] - b[1] + 2 * pd) * u]);
+      pts.forEach(function (q) {
+        var s2 = V.st(q[0], q[1]); if (!V.inWalk(s2[0], s2[1], 0.05) || pen(q[0], q[1]) > inset + 1e-6) return;
+        far.forEach(function (tg2) { btot++; var r = V.route(s2, tg2, null, cols), g = legs(s2, r); if (g.hit || g.walk) { bbad++; if (!bex) bex = '네모 ' + bi + ' (' + s2.map(function (v) { return v.toFixed(2); }) + ') ' + r.length + ' 구간'; } });
+      });
+    });
+  });
+  ok(btot >= 200 && bbad === 0, '네모에 붙어 선 자리 ' + btot + ' 갈래에서 길을 잡는다 (막힌 것 ' + bbad + (bex ? ' — 첫째: ' + bex : '') + ')');
   /* 라. cols 를 안 주면 예전처럼 마을 것만 (서는 자리 시험 · 문서의 그림이 쓰는 꼴) — 같은 입력에 같은 길 */
   var r0 = V.route([39, 5], V.spot('npcCafe').stand), r1 = V.route([39, 5], V.spot('npcCafe').stand, null, { circles: V.CIRCLES.map(function (c) { return W(c[0], c[1], c[2]); }), boxes: V.BOXES });
   ok(JSON.stringify(r0) === JSON.stringify(r1) && r0.length >= 2, 'cols 를 안 준 길 = 마을 것을 cols 로 준 길 (' + r0.length + ' 구간)');

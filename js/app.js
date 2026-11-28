@@ -5820,7 +5820,11 @@ var APP = (function () {
     }
     if (scene.villageNear(b.id)) return;
     e.stopImmediatePropagation(); e.preventDefault();
-    scene.villageGo(b.id).then(function (ok) { if (!ok) return; b._vilGo = true; b.click(); b._vilGo = false; });
+    var was = b.hidden;
+    scene.villageGo(b.id).then(function (ok) {
+      if (!ok || (b.hidden && !was)) return;   /* 걷는 사이에 숨겨진 단추 (그 문어가 집에 들어갔다 — 17 시 · 목록이 바뀜) 는 누르지 않는다. 11-28 재검토: 없는 문어의 말 상자가 뜨고 첫 만남 줄을 썼다 */
+      b._vilGo = true; b.click(); b._vilGo = false;
+    });
   }, true);
   /* 11-24 문어 집 넷 · 미용실 (주인 결정): 문 단추는 V 가 단다. 그 집 문어가 집에 있으면 (저녁 · 밤) 들어가고, 없으면 잠김 — 사실 한 줄 ('문이 잠겨 있어. 지금은 ○○에 있어.' — VILLAGE.lockedLine).
      미용 의자 (방 안) 는 앉기 / 일어나기 — 앉으면 장면이 'ppol:salon-seat' 을 보낸다 (목록은 S · 색은 P) */

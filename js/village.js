@@ -10,14 +10,16 @@ var VILLAGE = (function () {
   /* 건물 안 자리 (lx = 앞쪽, lz = 옆) → (s, t). mir = 오른쪽 줄 (x 와 z 를 바꿔 길 건너편에 비춘 꼴) */
   function local(c, mir, lx, lz) { var o = xz(c[0], c[1]), x = mir ? o[0] + lz : o[0] + lx, z = mir ? o[1] + lx : o[1] + lz; return st(x, z); }
 
-  /* 걷는 곳 (갈래 W 의 WIDE.AREAS 와 같은 숫자 — 내 캐릭터 가운데가 갈 수 있는 곳. 서는 자리 시험과 길 찾기가 쓴다) */
+  /* 걷는 곳 (갈래 W 의 WIDE.AREAS 와 같은 숫자 — 내 캐릭터 가운데가 갈 수 있는 곳. 서는 자리 시험과 길 찾기가 쓴다).
+     11-28 재검토: 부두가 빠져 있어, 부두에서 누른 마을 단추는 길을 못 잡고 곧장 걷다 모래 가장자리에서 2 ~ 5 초 섰다 (다시 잡은 길로 도착은 했다) */
   var WALK = [
     { key: 'road', s0: 5, s1: 20.1, t0: -3, t1: 3 },            /* 숲길 · 마을 문 */
     { key: 'street', s0: 20, s1: 38.1, t0: -2.2, t1: 2.2 },     /* 마을 길 (리드 11-21: 가게 앞이 화면에 들게 ±2.2) */
     { key: 'deck', s0: 30.3, s1: 36.7, t0: 2.1, t1: 6.9 },
     { key: 'plaza', s0: 38, s1: 46.1, t0: -8, t1: 8 },
     { key: 'steps', s0: 46, s1: 49.1, t0: -3, t1: 3 },
-    { key: 'beach', s0: 49, s1: 59.7, t0: -12, t1: 12 }
+    { key: 'beach', s0: 49, s1: 59.7, t0: -12, t1: 12 },
+    { key: 'pier', s0: 55.9, s1: 65.7, t0: 6.45, t1: 7.55 }     /* 부두 (모래에서 물 위로 — 폭 1.1) */
   ];
   function inWalk(s, t, pad) { pad = pad || 0; return WALK.some(function (w) { return s >= w.s0 + pad && s <= w.s1 - pad && t >= w.t0 + pad && t <= w.t1 - pad; }); }
 

@@ -6889,7 +6889,7 @@ var SCENE3D = (function () {
       var wz = -P.hz + 0.02, W2 = P.nz, wput = function (w, h, x, y, c2, d) { W2.push({ g: box(w, h, d || 0.03), m: M(x, y, wz + (d || 0.03) / 2), c: c2 }); };
       if (J === 'fix') {   /* 연장 상자와 망치 · 벽에 기댄 판자 둘 · 걸이 줄에 건 톱과 망치 */
         L.push({ g: box(0.5, 0.26, 0.3), m: M(1.4, 0.13, -1.6), c: VC.woodB }, { g: box(0.52, 0.03, 0.32), m: M(1.4, 0.27, -1.6), c: VC.woodD }, { g: box(0.04, 0.04, 0.3), m: M(1.35, 0.3, -1.6, 0, 0.4, 0), c: VC.woodL }, { g: box(0.12, 0.06, 0.05), m: M(1.32, 0.3, -1.46, 0, 0.4, 0), c: VC.iron });
-        L.push({ g: box(0.14, 1.0, 0.03), m: M(0.3, 0.5, -P.hz + 0.09, 0.12, 0, 0), c: VC.woodL }, { g: box(0.14, 0.86, 0.03), m: M(0.48, 0.43, -P.hz + 0.1, 0.14, 0, 0), c: VC.woodA });
+        L.push({ g: box(0.14, 1.0, 0.03), m: M(0.3, 0.5, -P.hz + 0.09, -0.12, 0, 0), c: VC.woodL }, { g: box(0.14, 0.86, 0.03), m: M(0.48, 0.43, -P.hz + 0.1, -0.14, 0, 0), c: VC.woodA });   /* 위가 벽에 닿고 발이 방 쪽으로 (11-28 재검토: 거꾸로 기울어 위가 방 쪽으로 떠 있었다) */
         wput(0.9, 0.04, 0.95, 1.8, VC.slateD); wput(0.34, 0.1, 0.8, 1.62, VC.slateA, 0.02); wput(0.1, 0.14, 0.58, 1.64, VC.woodA, 0.035); wput(0.03, 0.06, 0.8, 1.75, VC.iron, 0.02);
         wput(0.035, 0.3, 1.2, 1.62, VC.woodL, 0.035); wput(0.14, 0.06, 1.2, 1.5, VC.iron, 0.045);
       } else if (J === 'post') {   /* 우표 상자 · 벽의 길 그림 (언덕 · 물길 · 빨간 핀 — 글자 없음) */
@@ -6901,7 +6901,7 @@ var SCENE3D = (function () {
         for (i = 0; i < 4; i++) { wput(1.0, 0.035, 0.85, 1.27 + i * 0.17, VC.woodD, 0.034); for (var sj = 0; sj < 4; sj++) wput(0.09, 0.07, 0.5 + sj * 0.23 + (i % 2) * 0.06, 1.325 + i * 0.17, [VC.pink, VC.cream, VC.dusk, VC.slateA, VC.white][(i + sj) % 5], 0.045); }
       } else {   /* 통 · 벽에 기댄 낚싯대 둘 · 걸린 그물 (가는 줄 격자) */
         L.push({ g: new T.CylinderGeometry(0.18, 0.18, 0.4, 9), m: M(1.4, 0.2, -1.6), c: VC.woodB }, { g: new T.CylinderGeometry(0.19, 0.19, 0.03, 9), m: M(1.4, 0.3, -1.6), c: VC.iron });
-        L.push({ g: box(0.03, 1.5, 0.03), m: M(0.3, 0.75, -P.hz + 0.1, 0.1, 0, 0.06), c: VC.woodL }, { g: box(0.03, 1.36, 0.03), m: M(0.5, 0.68, -P.hz + 0.1, 0.1, 0, -0.05), c: VC.woodA });
+        L.push({ g: box(0.03, 1.5, 0.03), m: M(0.3, 0.75, -P.hz + 0.1, -0.1, 0, 0.06), c: VC.woodL }, { g: box(0.03, 1.36, 0.03), m: M(0.5, 0.68, -P.hz + 0.1, -0.1, 0, -0.05), c: VC.woodA });
         wput(0.8, 0.04, 1.1, 1.82, VC.woodD); for (i = 0; i < 4; i++) wput(0.76, 0.016, 1.1, 1.72 - i * 0.13, VC.cream, 0.02); for (i = 0; i < 6; i++) wput(0.016, 0.5, 0.76 + i * 0.136, 1.56, VC.cream, 0.022);
         wput(0.1, 0.1, 0.82, 1.28, VC.red, 0.05); wput(0.1, 0.1, 1.36, 1.28, VC.white, 0.05);
       }
@@ -7272,8 +7272,12 @@ var SCENE3D = (function () {
         }
         pts = VILLAGE.route(gate || [s0, t0], [(to.x + to.z) * k, (to.x - to.z) * k], skip || null, vilCols()); if (gate) pts.unshift(gate);
       }
+      var vspd = 0;   /* 이 걸음 내내 쓸 속도 (아래에서 온 길이로 정한다) */
       var leg = function (i) {
-        var last = i === pts.length - 1, q = last ? [to.x, to.z] : wideXZ(pts[i][0], pts[i][1]), p = plWalkTo(new T.Vector3(q[0], 0, q[1]), last ? face : null), w = PL.walking;
+        var last = i === pts.length - 1, q = last ? [to.x, to.z] : wideXZ(pts[i][0], pts[i][1]), ws0 = PL.walkSpeed;
+        /* 11-28 재검토: 구간마다 plWalkTo 를 새로 부르니 꺾이는 점마다 0.12 s 멈칫하고 (걷기 앞의 움찔), 구간 길이에 따라 뛰다 걷다 했다 → 둘째 구간부터는 걷던 걸음으로 잇고, 속도는 온 길이로 한 번만 정한다 (갈래 W 의 playerWalkPath 와 같은 식 — plWalkTo 가 부르는 순간에 읽는 두 값만 잠깐 준다) */
+        if (i > 0 && !st.reduced) PL.moving = true; if (vspd) PL.walkSpeed = vspd;
+        var p = plWalkTo(new T.Vector3(q[0], 0, q[1]), last ? face : null), w = PL.walking; PL.walkSpeed = ws0;
         var pr = !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); });
         return pr.then(function (r) {
           var late = VIL.walkLate; VIL.walkLate = false;
@@ -7284,9 +7288,10 @@ var SCENE3D = (function () {
       };
       var len = 0; for (var j = 1; j < pts.length; j++) len += Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1]);
       len += pts.length ? Math.hypot(PL.pos.x - wideXZ(pts[0][0], pts[0][1])[0], PL.pos.z - wideXZ(pts[0][0], pts[0][1])[1]) : 0;
-      VIL.walkEnd = ''; VIL.walkLate = false; VIL.walkDue = VIL.t + len / 1.8 * 1.6 + 2.5;   /* 11-22 리드 검토: 걷기가 가로등 둘레 같은 데 걸려 끝나지 않으면 (15 s 넘게 'walking') 이 시간에 끊는다 — vilFrameStep */
+      if (here !== 'inside') vspd = len > PL_DASH_AUTO ? PL_DASH : PL_SPEED;   /* 방 안의 걸음은 갈래 W 의 걷기가 정하는 대로 */
+      var due = VIL.walkDue = VIL.t + len / 1.8 * 1.6 + 2.5; VIL.walkEnd = ''; VIL.walkLate = false;   /* 11-22 리드 검토: 걷기가 가로등 둘레 같은 데 걸려 끝나지 않으면 (15 s 넘게 'walking') 이 시간에 끊는다 — vilFrameStep */
       PL.camGap = Math.max(1.4, S.rw / 2 / S.N - 0.8);   /* 이 걸음 동안 화면이 따라온다 (plFollow 의 혼자 걷기 몫): 스틱으로 걸을 때처럼 캐릭터를 화면 가운데 0.8 m 안에 둔다 — 1.4 m 만 주면 화면 가장자리에 붙어서야 따라와 먼 자리로 걸을 때 캐릭터가 화면 밖에 있었다 */
-      return leg(0).then(function (ok) { VIL.walkDue = 0; if (!PL.walking) PL.camGap = 0; return ok; });
+      return leg(0).then(function (ok) { if (VIL.walkDue === due) VIL.walkDue = 0; if (!PL.walking) PL.camGap = 0; return ok; });   /* 제 시간 제한만 지운다 (걷는 중에 다른 단추를 누르면 새 걸음의 것이 지워졌다 — 11-28 재검토) */
     }
     function vilNear(key) {
       if (PL.place === 'inside') return true;   /* 방 안의 자리는 갈래 W 의 방 배관이 걸어가서 누른다 — 여기선 막지 않는다 (같은 단추를 방 안팎에서 쓴다) */
