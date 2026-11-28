@@ -16,7 +16,7 @@ ok(CLAIM_RX.test('좋아') && TAP_BAN.test('단골') && !CLAIM_RX.test('조개 �
 
 var PRESS_RX = /빨리|놓치|마지막|꼭 와|서둘|얼른|어서 가|다시 와|또 와|기다릴게|기다렸/;   /* 재촉 · 다시 오라는 말 */
 var MODEL_RX = /모델|인공지능|AI|생각했|생각해|생각이|느꼈|느껴|느낌/;   /* 모델인 척 · '생각한다' */
-var PLAIN_RX = /^[가-힣0-9 .,!?…·{}a-z]+$/;   /* 한글 · 숫자 · 기본 문장부호 · 가운뎃점 (빈칸 {theme} 만 영문) */
+var PLAIN_RX = /^[가-힣0-9 .,…·{}a-z]+$/;   /* 한글 · 숫자 · 마침표 · 쉼표 · 말줄임표 · 가운뎃점 (빈칸 {theme} 만 영문). 11-28: ? ! 도 없다 (docs/NPC_BIBLE.md 7절 메모 5) */
 var C7 = { clothes: ['shop.hello', 'shop.thanks', 'shop.none', 'contest.open', 'contest.result', 'talk'],
   goods: ['shop.hello', 'shop.thanks', 'shop.none', 'contest.open', 'contest.result', 'talk'],
   cafe: ['cafe.hello', 'cafe.serve', 'cafe.gift', 'contest.open', 'contest.result', 'talk'] };
@@ -110,6 +110,44 @@ NPC.allText().forEach(function (t) {
     ok(!CLAIM_RX.test(s) && !TAP_BAN.test(s), t.where + ' 마음 낱말 없음: ' + s);
   }
 });
+/* 11-28 (docs/NPC_BIBLE.md 9절 · 메모 6): 말투 표지는 제 문어 줄에만 — 다른 문어 줄로 새면 목소리가 다시 섞인다. 표는 바이블 검사 (wip/round7/r5/npc-bible/check.js) 그대로 */
+function sentences(s) { return s.split(/(?<=[.…])\s+/).map(function (x) { return x.trim(); }).filter(Boolean); }
+function lastJong(ch) { var c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c < 11172 ? c % 28 : -1; }
+var COLOR_RX = /(회색|흰색|흰 돌|빨강|주황|노랑|초록|파랑|검정|줄무늬)/g;
+var MARK = {
+  '흠. (시침)': ['clothes', function (s) { return /흠\./.test(s); }],
+  '자, (시침 무대)': ['clothes', function (s) { return /^자, /.test(s); }],
+  '한다체 -다. (시침)': ['clothes', function (s) { return sentences(s).some(function (q) { return /다\.$/.test(q); }); }],
+  '되풀이 (모아)': ['goods', function (s) { return /(?<![가-힣])([가-힣]+(?: [가-힣]+)?)[.,]? \1(?![가-힣])/.test(s); }],
+  '… (느루)': ['cafe', function (s) { return /…/.test(s); }],
+  '-는데 · -고 끝 (느루)': ['cafe', function (s) { return sentences(s).some(function (q) { return /(는데|인데|은데|고)[.…,]$/.test(q); }) || /(는데|인데|고),$/.test(s); }],
+  '-해도 되 (느루)': ['cafe', function (s) { return /도 되/.test(s); }],
+  '있잖아 (토리)': ['sleep-1', function (s) { return /있잖아/.test(s); }],
+  '아, 로 받기 (토리)': ['sleep-1', function (s) { return /(^|[.…] )아, /.test(s); }],
+  '-대 · -래 (토리)': ['sleep-1', function (s) { return sentences(s).some(function (q) { return /(대|(?<!고)래)\.$/.test(q); }); }],
+  '툭 · 통 · 쿵 꼬리 (소금)': ['sleep-2', function (s) { return sentences(s).some(function (q) { return /^(툭|통|쿵)\.$/.test(q); }); }],
+  '색 이름 (몽돌)': ['sleep-3', function (s) { return (s.match(COLOR_RX) || []).length >= 1; }],
+  '어이 (뱃고동)': ['sleep-4', function (s) { return /어이/.test(s); }],
+  '-지. (뱃고동)': ['sleep-4', function (s) { return sentences(s).some(function (q) { return /지\.$/.test(q) && !/(편지|소식지|쪽지|가지|먼지|까지)\.$/.test(q); }) || /지,/.test(s) && /묶었지/.test(s); }],
+  '크기 견줌 (뱃고동)': ['sleep-4', function (s) { return /[가-힣]만 (한|하지|해서)(?![가-힣])|만큼/.test(s); }],
+  '끝. (소라)': ['stylist', function (s) { return sentences(s).some(function (q) { return /(^|, )끝\.$/.test(q); }); }],
+  '시킴말 (소라)': ['stylist', function (s) { return sentences(s).some(function (q) { return /(^|\s)(앉아|가만|봐|들어)\.$/.test(q); }); }],
+  '-ㄹ게 (소라)': ['stylist', function (s) { var m = s.match(/([가-힣])게\./g) || []; return m.some(function (z) { return lastJong(z[0]) === 8; }); }]
+};
+var EIGHT = NPC.keepers.concat(NPC.residents, ['stylist']);
+Object.keys(MARK).forEach(function (name) {
+  var own = MARK[name][0], t = MARK[name][1];
+  EIGHT.forEach(function (id) {
+    var hits = []; NPC.keys(id).forEach(function (k) { NPC.variants(id, k).forEach(function (v) { if (v.some(t)) hits.push(v.join(' / ')); }); });
+    if (id === own) ok(hits.length >= 2, name + ' — 제 문어 줄에 둘 이상 (지금 ' + hits.length + ')');
+    else ok(hits.length === 0, name + ' 가 ' + NPC.roster[id].name + ' 줄에 샜다: ' + hits.join(' | '));
+  });
+});
+/* 처음 만남 줄은 갈래마다 제 이름을 댄다 · 같은 줄이 두 문어에 없다 */
+NPC.residents.forEach(function (id) { NPC.variants(id, 'home.first').forEach(function (v, i) { ok(v.join(' ').indexOf(NPC.roster[id].name) >= 0, id + ' home.first ' + i + ' 제 이름을 댄다: ' + v.join(' / ')); }); });
+var twice = {}; EIGHT.forEach(function (id) { NPC.keys(id).forEach(function (k) { NPC.variants(id, k).forEach(function (v) { var w = v.join(' / '); ok(!twice[w] || twice[w] === id + k, '같은 줄이 두 번: ' + w); twice[w] = id + k; }); }); });
+ok(NPC.roster['sleep-3'].name === '몽돌' && NPC.roster['sleep-4'].name === '뱃고동', '이름 둘 (11-28 주인): sleep-3 몽돌 · sleep-4 뱃고동');
+
 /* 처음 세 줄: 다락 문어에 대해서는 사실 한 가지만 (깨어 있었다) */
 ok(NPC.intro.length === 3 && NPC.intro.every(function (s) { return Array.from(s).length <= 48; }), '처음 세 줄 · 짧다');
 ok(NPC.intro.filter(function (s) { return /다락/.test(s); }).every(function (s) { return !CLAIM_RX.test(s) && !TAP_BAN.test(s); }), '다락 문어가 나오는 줄에 마음 낱말 없음');
