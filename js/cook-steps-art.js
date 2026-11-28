@@ -65,6 +65,20 @@
   }
   /* draw sprite id at frame with its anchor on (x, y) */
   function spr(b, id, frame, x, y) { var s = sprOf(id, frame); blit(b, s.buf, (x | 0) - s.ax, (y | 0) - s.ay); return s; }
+  /* 11-24 r5 (owner: one thing to touch, clearly): the main object of a step breathes a 1 px light outline while the player
+     is idle (4 frames on, 20 off at 12 fps; under reduced motion it simply stays on) */
+  function breathing(o) { return !!o.idle && (o.still || ((o.f | 0) >> 2) % 6 === 0); }
+  function outline(b, id, frame, x, y) {
+    var s = sprOf(id, frame), B = s.buf, x0 = (x | 0) - s.ax, y0 = (y | 0) - s.ay, i, j, k, N = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    function op(u, v) { return u >= 0 && v >= 0 && u < B.w && v < B.h && B.d[(v * B.w + u) * 4 + 3] > 0; }
+    for (j = -1; j <= B.h; j++) for (i = -1; i <= B.w; i++) {
+      if (op(i, j)) continue;
+      for (k = 0; k < 4; k++) if (op(i + N[k][0], j + N[k][1])) { put(b, x0 + i, y0 + j, C.s6); break; }
+    }
+  }
+  function hot(b, o, id, frame, x, y) { var s = spr(b, id, frame, x, y); if (breathing(o)) outline(b, id, frame, x, y); return s; }
+  /* where item i is drawn: its sliding-home position while it glides back (art px), else its own */
+  function at2(o, it, i) { return o.glide && o.glide.i === i ? [Math.round(o.glide.x), Math.round(o.glide.y)] : [it.x >> 1, it.y >> 1]; }
   function frames(id) { return sprOf(id, 0).frames || 1; }
   function byShare(id, share) { var n = frames(id); return Math.max(0, Math.min(n - 1, Math.floor(share * (n - 1) + 1e-6))); }
   function silhouette(b, id, frame, x, y, col) {
@@ -118,14 +132,14 @@
     cuts: function (b, o, a, st) {
       ground(b, 'board');
       var n = cutsOf(st), c = o.J && o.J.cut;
-      spr(b, a.spr, n, 72, 86 + (c && c.f === 0 ? -1 : 0));
+      hot(b, o, a.spr, n, 72, 86 + (c && c.f === 0 ? -1 : 0));
       if (c && c.f === 0 && st.lines[c.i]) { var l = st.lines[c.i], p = half({ x: l.ax, y: l.ay }), q = half({ x: l.bx, y: l.by }); A.line(b, p[0], p[1], q[0], q[1], C.s6); }
       guideOf(b, st, o.f);
     },
     cross: function (b, o, a, st) {
       ground(b, 'board');
       var c = o.J && o.J.cut;
-      spr(b, a.spr, a.bands[o.band == null ? 1 : o.band], a.at[0], a.at[1]);
+      hot(b, o, a.spr, a.bands[o.band == null ? 1 : o.band], a.at[0], a.at[1]);
       (st.lines || []).forEach(function (l, i) {
         if (!l.cut) return;
         var p = half({ x: l.ax, y: l.ay }), q = half({ x: l.bx, y: l.by }), vert = l.ax === l.bx, d = 4;
@@ -136,9 +150,10 @@
     },
     crack: function (b, o, a, st) {
       ground(b, 'counter');
+      var nextEgg = -1; (st.marks || []).forEach(function (m, i) { if (nextEgg < 0 && m.n < st.per) nextEgg = i; });
       (st.marks || []).forEach(function (m, i) {
         var p = half(m), dy = o.hit && o.hit.m === i && o.hit.fr === 1 && !o.still ? 1 : 0;
-        spr(b, 'egg', Math.min(2, m.n), p[0], p[1] + 10 + dy);
+        (i === nextEgg ? hot : function (bb, oo, id, fr, x, y) { return spr(bb, id, fr, x, y); })(b, o, 'egg', Math.min(2, m.n), p[0], p[1] + 10 + dy);
       });
       spr(b, 'bowl', 0, a.bowl[0], a.bowl[1]);
       if (st.done) spr(b, a.mix, 0, a.bowl[0], a.bowl[1] + MIX_DY);
@@ -153,7 +168,7 @@
       if (a.pot) spr(b, 'pot.rice', 3, a.pot[0], a.pot[1]);
       spr(b, 'bowl', 0, a.bowl[0], a.bowl[1]);
       var cx = a.bowl[0], cy = a.bowl[1] + MIX_DY, wob = o.J && o.J.flash && !o.still ? 1 : 0;
-      spr(b, a.mix, byShare(a.mix, st.progress), cx, cy + wob);
+      hot(b, o, a.mix, byShare(a.mix, st.progress), cx, cy + wob);
       var deg = Math.round(st.deg || 0) % 360;
       var p = st.hand ? half(st.hand) : [cx + ((12 * A.cos(deg)) >> 12), cy + ((6 * A.sin(deg)) >> 12)];
       spr(b, 'whisk', 0, p[0], p[1]);
@@ -161,7 +176,7 @@
     glaze: function (b, o, a, st) {
       ground(b, 'stove', true, false, o.f, o.still);
       spr(b, 'pot.syrup', o.still ? 0 : ((o.f | 0) >> 2) & 1, a.pot[0], a.pot[1]);
-      spr(b, a.spr, byShare(a.spr, st.progress), a.at[0], a.at[1] + (st.q & 1));
+      hot(b, o, a.spr, byShare(a.spr, st.progress), a.at[0], a.at[1] + (st.q & 1));
     },
     pour: function (b, o, a, st) {
       ground(b, a.pan === 'none' ? 'counter' : 'stove', false, a.pan === 'round', o.f, o.still);
@@ -170,13 +185,13 @@
       if (fr >= 0) spr(b, a.spr, fr, a.at[0], a.at[1]);
       var on = !!st.hold && !st.done, jx = 98, jy = 66;
       if (on) stream(b, a.at[0] + 4, jy - 18, a.at[1] - 2, o.f);
-      spr(b, 'jug', on ? 1 : 0, jx, jy);
+      (on ? function (bb, oo, id, fr, x, y) { return spr(bb, id, fr, x, y); } : hot)(b, o, 'jug', on ? 1 : 0, jx, jy);
     },
     flip: function (b, o, a, st) {
       ground(b, 'stove', st.heat, true, o.f, o.still);
       var band = st.res === null ? st.band : st.res, arc = o.J && o.J.arc, dy = 0;
       if (arc) dy = -[5, 11, 12, 4][arc.f] - (arc.lift | 0); else if (o.J && o.J.bump) dy = -1;
-      spr(b, a.spr, a.bands[band], a.at[0], a.at[1] + dy);
+      hot(b, o, a.spr, a.bands[band], a.at[0], a.at[1] + dy);
       if (st.heat && st.res === null && !arc) A.arrow(b, G.flipArrow[0], G.flipArrow[1], o.still ? 0 : ((o.f | 0) >> 2) & 1);
       var sp = o.finger && !arc ? o.finger : G.rest.spatula;
       A.spatula(b, sp[0], sp[1]);
@@ -184,7 +199,7 @@
     roll: function (b, o, a, st) {
       ground(b, 'stove', true, false, o.f, o.still);
       spr(b, 'pan.square', 0, 72, 88);
-      spr(b, a.spr, a.from + st.n, a.at[0], a.at[1] + (o.J && o.J.bump ? -1 : 0));
+      hot(b, o, a.spr, a.from + st.n, a.at[0], a.at[1] + (o.J && o.J.bump ? -1 : 0));
       if (!st.done) A.arrow(b, 72, 116, o.still ? 0 : ((o.f | 0) >> 2) & 1);
       var sp = st.hand ? [st.hand.x >> 1, (st.hand.y >> 1) - 8] : G.rest.spatula;
       A.spatula(b, sp[0], sp[1]);
@@ -197,7 +212,7 @@
       var held = st.pen ? st.items[st.pen.i] : null, next = null;
       (st.items || []).forEach(function (it) { if (!it.on && !next && it !== held) next = it; });
       if (held) spr(b, a.item, 1, held.x >> 1, (held.y >> 1) + 4);
-      else if (next) spr(b, a.item, 0, next.hx >> 1, (next.hy >> 1) + 6);
+      else if (next) { var gi = st.items.indexOf(next), gp = o.glide && o.glide.i === gi ? at2(o, next, gi) : [next.hx >> 1, next.hy >> 1]; hot(b, o, a.item, 0, gp[0], gp[1] + 6); }
     },
     sprinkle: function (b, o, a, st) {
       ground(b, 'counter');
@@ -213,24 +228,24 @@
           if ((x - cx) * (x - cx) * 64 + (y - cy) * (y - cy) * 324 <= 324 * 64) put(b, x, y, k & 1 ? C.w1 : C.a2);
         }
       }
-      tool(b, a.tool, st.hand ? { x: st.hand.x, y: st.hand.y - 20 } : null, [104, 96]);
+      if (st.hand) tool(b, a.tool, { x: st.hand.x, y: st.hand.y - 20 }, null); else hot(b, o, a.tool, 0, 104, 96);
     },
     press: function (b, o, a, st) {
       ground(b, 'board');
       var fr = Math.min(3, Math.floor(st.hits / st.per)), sq = o.J && o.J.squash === 1 && !o.still ? 1 : 0;
-      spr(b, a.spr, fr, a.at[0], a.at[1] + sq);
+      hot(b, o, a.spr, fr, a.at[0], a.at[1] + sq);
       if (!st.done) A.marks(b, (st.marks || []).map(function (m) { return [m.x >> 1, m.y >> 1, m.n >= st.per ? 0 : 3 - m.n]; }), o.f);
     },
     wrap: function (b, o, a, st) {
       ground(b, 'board');
       spr(b, a.spr, st.done ? 4 : 3, a.at[0], a.at[1]);
-      var it = st.items[0]; if (it && !it.on) spr(b, a.item, 0, it.x >> 1, (it.y >> 1) + 10);
+      var it = st.items[0]; if (it && !it.on) { var ip = at2(o, it, 0); hot(b, o, a.item, 0, ip[0], ip[1] + 10); }
     },
     wash: function (b, o, a, st) {
       ground(b, 'counter');
       spr(b, 'basin', 0, a.basin[0], a.basin[1]);
       var wob = st.hand && !o.still ? ((o.f | 0) & 1) : 0;
-      spr(b, a.spr, Math.max(0, Math.min(2, st.third - (st.done ? 1 : 0))), a.at[0], a.at[1] + wob);
+      hot(b, o, a.spr, Math.max(0, Math.min(2, st.third - (st.done ? 1 : 0))), a.at[0], a.at[1] + wob);
       if (st.hand && !o.still) {   /* ripples under the finger */
         var p = half(st.hand), r = 3 + ((o.f | 0) & 3);
         for (var d = -r; d <= r; d += 2) { put(b, p[0] + d, p[1] - 4, C.s6); put(b, p[0] + d + 1, p[1] + 4, C.b4); }
@@ -239,24 +254,26 @@
     thread: function (b, o, a, st) {
       ground(b, 'board');
       spr(b, 'skewer', Math.min(3, st.n), a.skewer[0], a.skewer[1]);
-      (st.items || []).forEach(function (it, i) { if (!it.on) spr(b, a.item, i, it.x >> 1, (it.y >> 1) + 4); });
+      var first = -1; (st.items || []).forEach(function (it, i) { if (!it.on && first < 0) first = i; });
+      (st.items || []).forEach(function (it, i) { if (it.on) return; var ip = at2(o, it, i); (i === first ? hot : function (bb, oo, id, fr, x, y) { return spr(bb, id, fr, x, y); })(b, o, a.item, i, ip[0], ip[1] + 4); });
     },
     oven: function (b, o, a, st) {
       ground(b, 'counter');
       var band = st.res === null ? st.band : st.res;
-      spr(b, a.spr, st.heat ? 1 + band : 0, a.at[0], a.at[1]);
+      hot(b, o, a.spr, st.heat ? 1 + band : 0, a.at[0], a.at[1]);
       if (st.heat && st.res === null && !o.still && ((o.f | 0) & 4)) { put(b, a.at[0] - 30, a.at[1] - 52, F.J4); put(b, a.at[0] - 29, a.at[1] - 52, F.J5); }   /* the lamp blinks */
     },
     spread: function (b, o, a, st) {
       ground(b, 'board');
-      spr(b, a.spr, Math.min(3, st.third), a.at[0], a.at[1]);
+      hot(b, o, a.spr, Math.min(3, st.third), a.at[0], a.at[1]);
       var sp = st.hand ? [st.hand.x >> 1, (st.hand.y >> 1) - 8] : [104, 120];
       A.spatula(b, sp[0], sp[1]);
     },
     top: function (b, o, a, st) {
       ground(b, 'board');
       spr(b, a.spr, 3, a.at[0], a.at[1]);
-      (st.items || []).forEach(function (it) { spr(b, a.item, 0, it.x >> 1, (it.y >> 1) + 6); });
+      var first2 = -1; (st.items || []).forEach(function (it, i) { if (!it.on && first2 < 0) first2 = i; });
+      (st.items || []).forEach(function (it, i) { var ip = at2(o, it, i); (i === first2 ? hot : function (bb, oo, id, fr, x, y) { return spr(bb, id, fr, x, y); })(b, o, a.item, 0, ip[0], ip[1] + 6); });
     }
   };
 
@@ -266,6 +283,7 @@
     var step = o.step, st = o.st, a = step && step.art, fn = a && SCENE[a.type];
     if (!fn || !st) { ground(b, 'counter'); return b; }
     fn(b, o, a, st);
+    (o.dust || []).forEach(function (d) { put(b, d[0] | 0, d[1] | 0, C.w2); put(b, (d[0] | 0) + 1, d[1] | 0, C.w4); });   /* 11-24 r5: where a touch did nothing (a scratch, a speck) */
     return A.frame(b);
   };
   P.base = function (b, o) { ground(b, o && o.station === 'stove' ? 'stove' : o && o.station === 'board' ? 'board' : 'counter', false, false, 0, true); return A.frame(b); };
@@ -352,6 +370,23 @@
     table: ['....................', '....................', '.....ffff...........', '....fFFFFf.....ss...', '...fFFhFFFf....sS...', '...fFFFFFFf....sS...', '..wwwwwwwwww...sS...', '..wPPPPPPPPw...sS...', '...wwwwwwww....sS...', 'tttttttttttttt.sS...', 'tTTTTTTTTTTTTt.sssss', 'tttttttttttttt.sSSSs', '..tt......tt...sssss', '..tt......tt...s...s', '..tt......tt...s...s', '..tt......tt...s...s', '..tt......tt...s...s', '....................', '....................', '....................']
   };
   var END_KEY = { o: C.w0, C: CORAL, k: C.w0, f: C.r1, F: C.a2, h: C.a3, w: C.s3, P: C.s6, t: C.w1, T: C.w3, s: C.w1, S: C.w4 };
+  /* 11-24 r5 (owner: end by dragging the plate onto the octopus or the table, no big buttons): the two places drawn on the
+     plate screen. 20 x 20 art px each, centred on (x, y), on a soft round spot; hot = a dish is held over it (a light ring) */
+  var SPOT = {
+    call: ['....................', '.......oooooo.......', '.....ooCCCCCCoo.....', '....oCCCCCCCCCCo....', '...oCCCCCCCCCCCCo...', '...oCCkkCCCCkkCCo...',
+      '...oCCkWCCCCkWCCo...', '...oCCCCCCCCCCCCo...', '...oCCCCCrrCCCCCo...', '....oCCCCCCCCCCo....', '....oCCCCCCCCCCo....', '...oCCoCCoCCoCCoCo..',
+      '..oCCooCCooCCooCCo..', '..oCo.oCo.oCo.oCCo..', '..oo..oo..oo..oCo...', '...............oo...', '....................', '....................', '....................', '....................'],
+    table: ['....................', '....................', '....................', '....................', '....................', '.ttttttttttttttttt..',
+      '.tTTTTTTTTTTTTTTTt..', '.tTTTTTTTTTTTTTTTt..', '.ttttttttttttttttt..', '.tLLLLLLLLLLLLLLLt..', '..tt..........tt....', '..tt..........tt....', '..tt..........tt....',
+      '..tt..........tt....', '..tt..........tt....', '..tt..........tt....', '..tt..........tt....', '....................', '....................', '....................']
+  };
+  var SPOT_KEY = { o: C.w0, C: CORAL, k: C.w0, W: C.s6, r: C.r0, t: C.w1, T: C.w3, L: C.w2 };
+  function serveSpot(b, name, x, y, hot) {
+    x |= 0; y |= 0;
+    A.ellipse(b, x, y + 7, 13, 5, C.w4); A.ellipse(b, x, y + 6, 12, 4, C.w5);   /* where it stands */
+    if (hot) for (var a = 0; a < 360; a += 10) put(b, x + ((15 * A.cos(a)) >> 12), y + ((12 * A.sin(a)) >> 12), C.s6);
+    grid(b, SPOT[name] || SPOT.table, SPOT_KEY, x - 10, y - 12);
+  }
   function endIcon(name) { var b = A.blank(20, 20); grid(b, END[name] || END.table, END_KEY, 0, 0); return b; }
 
   /* ---------- the recipe book ----------
@@ -415,5 +450,5 @@
     return L;
   }
 
-  A.steps = { spr: spr, sprOf: sprOf, book: book, bookLay: bookLay, endIcon: endIcon, hand2: hand2, SIZE: SIZE, DISH: DISH, ICON: ICON, painter: P, fxPic: fxPic, CELL: [CELL_W, CELL_H] };
+  A.steps = { spr: spr, sprOf: sprOf, book: book, bookLay: bookLay, endIcon: endIcon, hand2: hand2, SIZE: SIZE, DISH: DISH, ICON: ICON, painter: P, fxPic: fxPic, CELL: [CELL_W, CELL_H], serveSpot: serveSpot };
 })();

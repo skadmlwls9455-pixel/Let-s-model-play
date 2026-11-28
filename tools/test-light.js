@@ -562,6 +562,122 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     ok(rm.leave[0] === true && rm.inside2 === null && rm.view2 === 'yard' && rm.area === 'village' && Math.abs(rm.back[0] - 24.8) < 0.05 && Math.abs(rm.back[1] + 2.1) < 0.05 && rm.allowed2 === true && Math.abs(rm.scr[0] - 180) < 40 && rm.scr[1] > 90, 'L11 나오면 들어간 문 밖 (s ' + rm.back[0] + ' · t ' + rm.back[1] + ') 에 서고 화면이 따라온다 ' + JSON.stringify(rm.scr) + ' (' + rm.leave[1] + ' s)');
     ok(rm.again === true && rm.built === 1 && rm.kit === true && rm.home[0] === true && rm.home[1] === 'attic' && !rm.home[2] && rm.home[3] === null && JSON.stringify(rm.ev) === '["wtest",null,"wtest",null]', 'L11 다시 들어가도 build 는 한 번 · 방 안에서 집으로 (goRoom attic) = 먼저 나온 뒤 다락 (' + rm.home[4] + ' s) · ppol:room 사건 ' + JSON.stringify(rm.ev));
     await o.ctx.close();
+    /* ── L12 (7차 다섯째 바퀴 갈래 W) 뛸 때 화면이 안 흔들린다 (주인: "뛸 때 화면이 같이 흔들려 울렁거려") ──
+       마당 길 · 마을 지그재그 · 다락에서 스틱으로 뛰고 (버벅이는 폰처럼 0.1 s 프레임을 섞어) 프레임마다 camTrace 를 잰다.
+       ① 그려진 캐릭터의 화면 자리가 앞뒤로 떨지 않는다 (방향이 뒤집힌 횟수 — 예전엔 프레임마다 0 · 1 아트px 를 오갔다)
+       ② 카메라 (반올림 전 밀기) 의 가속이 부드럽다 (2차 차분) ③ 뛰다 서도 카메라가 한 프레임에 2 아트px 넘게 튀지 않는다 ── */
+    o = await open(browser, 8, { hour: 13, weather: 'clear' }); page = o.page;
+    await yardGo(page);
+    var sh = await page.evaluate(async function () {
+      var sc = APP.scene, K = Math.SQRT1_2, tick = function () { return new Promise(function (q) { setTimeout(q, 0); }); }, out = {};
+      async function pump(p) { var v = null, f = 0; p.then(function (q) { v = q; }, function () { v = false; }); await tick(); for (; f < 300 && v === null; f++) { sc.debugSim(0.05, 1); await tick(); } return v; }
+      async function trial(name, setup, input, n, dts) {
+        setup(); sc.setPlayerInput(null); sc.debugSim(1 / 60, 90); var R = [];
+        for (var f = 0; f < n + 90; f++) { var dt = f < n && dts ? dts(f) : 1 / 60; sc.setPlayerInput(f < n ? input(f) : null); sc.debugSim(dt, 1); var c = sc.camTrace(); c.dt = dt; R.push(c); if (f % 40 === 39) await tick(); }
+        var flips = 0, back = 0, acc = 0, stopStep = 0, run = R.some(function (c) { return c.run; });
+        function quick(key) {   /* 한 칸 갔다가 4 프레임 안에 거꾸로 한 칸 = 떨림 (방향을 틀어 천천히 돌아오는 건 안 센다) */
+          var m = 0; for (var k = 0; k < 2; k++) { var ls = 0, lf = -99; for (var f = 1; f < R.length; f++) { var d = R[f][key][k] - R[f - 1][key][k], s = d > 0.5 ? 1 : d < -0.5 ? -1 : 0; if (!s) continue; if (ls && s !== ls && f - lf <= 4) m++; ls = s; lf = f; } } return m;
+        }
+        flips = quick('pl'); back = quick('cam');
+        for (f = 2; f < R.length; f++) for (var k = 0; k < 2; k++) acc = Math.max(acc, Math.abs((R[f].pan[k] - R[f - 1].pan[k]) / (R[f].dt * 60) - (R[f - 1].pan[k] - R[f - 2].pan[k]) / (R[f - 1].dt * 60)));   /* 속도 (아트px / 60분의 1 초) 의 프레임 사이 변화 — 버벅인 프레임도 같은 잣대 */
+        for (f = n + 1; f < R.length; f++) stopStep = Math.max(stopStep, Math.abs(R[f].cam[0] - R[f - 1].cam[0]), Math.abs(R[f].cam[1] - R[f - 1].cam[1]));
+        out[name] = { flips: flips, back: back, acc: +acc.toFixed(2), stop: +stopStep.toFixed(2), run: run, rest: R[R.length - 1].mode };
+      }
+      await trial('yard', function () { sc.debugPlayerAt(6 * K, 6 * K); sc.wideFocus(); }, function () { return { x: 0, y: -1 }; }, 150, function (f) { return f % 9 === 4 ? 0.1 : 1 / 60; });
+      await trial('village', function () { sc.debugPlayerAt(25 * K, 25 * K); sc.wideFocus(); }, function (f) { return f % 60 < 30 ? { x: 0.7, y: -0.7 } : { x: -0.7, y: -0.7 }; }, 180);
+      await pump(APP.goRoom('attic')); sc.debugSim(0.05, 20);
+      await trial('attic', function () { }, function (f) { return f < 80 ? { x: -1, y: 0.2 } : { x: 1, y: -0.4 }; }, 160);
+      return out;
+    });
+    ['yard', 'village', 'attic'].forEach(function (k) { var v = sh[k], lim = k === 'village' ? 8 : 2;   /* 마을은 0.5 s 마다 방향을 튼다 (여섯 번) — 틀 때 한 번씩까지 (고치기 전 같은 길 100 번 남짓) */
+      ok(v && v.flips <= lim && v.back <= 2 && v.acc <= 1.5 && v.stop <= 2 && v.rest === '', 'L12 ' + k + ' 뛰기: 캐릭터 화면 떨림 ' + (v && v.flips) + ' 번 (≤ ' + lim + ' — 예전 수십 번) · 땅 떨림 ' + (v && v.back) + ' 번 (≤ 2) · 카메라 가속 최대 ' + (v && v.acc) + ' 아트px/프레임² (≤ 1.5) · 서고 나서 한 프레임 ' + (v && v.stop) + ' 아트px (≤ 2) · 쉬면 멈춤 ' + JSON.stringify(v)); });
+    ok(sh.yard.run && sh.village.run, 'L12 시험이 실제로 뛰었다 (스틱 0.6 s 넘게)');
+    await o.ctx.close();
+    /* ── L13 (7차 다섯째 바퀴 갈래 W · 갈래 V 알림) 숲길 · 광장 집 문을 누르면 서는 자리까지 걸어가 들어간다 ──
+       예전: 숲길 집 1 문 바로 앞 그루터기 + 울타리 밖에선 장애물을 돌지 않는 걸음 → 문 2 m 앞에서 섰다 (건너편에서 누르면 20 s 넘게 끼었다).
+       18 시 (집 문어가 집에 있어 문이 열림) · 앱과 같은 길 (단추 → villageGo → enterRoom) */
+    o = await open(browser, 8, { hour: 18, weather: 'clear' }); page = o.page;
+    await yardGo(page);
+    var dr = await page.evaluate(async function () {
+      var sc = APP.scene, K = Math.SQRT1_2, tick = function () { return new Promise(function (q) { setTimeout(q, 0); }); }, out = [];
+      if (typeof VILLAGE === 'undefined' || !VILLAGE.DOORS) return null;
+      function st() { var a = sc.player().at; return [(a[0] + a[2]) * K, (a[0] - a[2]) * K]; }
+      var D = {}; VILLAGE.DOORS.forEach(function (d) { D[d.btn] = d; });
+      var CASES = [['btn-in-home-1', [8, 0]], ['btn-in-home-1', [16, 0]], ['btn-in-home-1', [12, 2.5]], ['btn-in-home-1', [16, 2.6]], ['btn-in-home-4', [12, -2.5]], ['btn-in-home-4', [16, -2.6]], ['btn-in-home-3', [38, 0]], ['btn-in-salon', [44, -4]]];
+      for (var c = 0; c < CASES.length; c++) {
+        var btn = CASES[c][0], s0 = CASES[c][1], d = D[btn]; if (!d) { out.push([btn, 'no door']); continue; }
+        sc.debugPlayerAt((s0[0] + s0[1]) * K, (s0[0] - s0[1]) * K); sc.wideFocus(); sc.debugSim(0.05, 10);
+        document.getElementById(btn).click(); var f = 0, end = st();
+        for (; f < 160 && !sc.inRoom(); f++) { sc.debugSim(0.05, 1); if (!sc.inRoom()) end = st(); if (f % 20 === 19) await tick(); }
+        out.push([btn, s0, !!sc.inRoom(), +(f * 0.05).toFixed(2), +Math.hypot(end[0] - d.stand[0], end[1] - d.stand[1]).toFixed(2)]);
+        if (sc.inRoom()) {
+          for (var i = 0; i < 40; i++) { sc.debugSim(0.05, 1); if (i % 10 === 9) await tick(); }
+          for (var tries = 0; tries < 5 && sc.inRoom(); tries++) { var lv = null; APP.goOutside().then(function (q) { lv = q; }); for (i = 0; i < 200 && (lv === null || sc.inRoom()); i++) { sc.debugSim(0.05, 1); await tick(); } }
+          sc.debugSim(0.05, 10);
+        }
+      }
+      return out;
+    });
+    if (dr === null) ok(true, 'L13 마을 없음 — 건너뜀');
+    else { var bad13 = dr.filter(function (q) { return !(q[2] === true && q[3] <= 6 && q[4] <= 0.2); });
+      ok(bad13.length === 0, 'L13 집 문 넷 · 출발 자리 ' + dr.length + ' 곳: 서는 자리 (20 cm 안) 까지 걸어가 6 s 안에 들어간다 — [단추, 출발 (s, t), 들어감, 초, 서는 자리까지 m] ' + JSON.stringify(bad13.length ? bad13 : dr.map(function (q) { return [q[0].replace('btn-in-', ''), q[3], q[4]]; }))); }
+    await o.ctx.close();
+    /* ── L14 (7차 다섯째 바퀴 갈래 W · 주인 11-24 '길 찾기 + 막히면 폴짝') 문어가 가구를 뚫고 걷지 않는다 ──
+       프레임마다 (1/60 s) 문어 가운데에서 가구 발자국까지의 틈 < 0.15 m 인데 몸이 그 가구 키보다 낮으면 '뚫음'.
+       ① 소파 · 상자로 문을 둘러싼 배치에서 출발 의식 (예전: 소파 · 상자를 뚫고 문으로) ② 문어 둘레로 가구를 바짝 붙인 뒤 문으로 ③ 가구 모드로 옮긴 소파 (칸 지도를 다시 짓는다) ④ 위층 거울로 */
+    o = await open(browser, 8, { hour: 13, weather: 'clear' }); page = o.page;
+    var nv = await page.evaluate(async function () {
+      var sc = APP.scene, tick = function () { return new Promise(function (q) { setTimeout(q, 0); }); }, out = {};
+      async function pump(p, n) { var v = null, f = 0; p.then(function (q) { v = q; }, function () { v = false; }); await tick(); for (; f < (n || 300) && v === null; f++) { sc.debugSim(0.05, 1); await tick(); } return v; }
+      function rd(x, z, b) { var dx = Math.max(b[0] - x, 0, x - b[1]), dz = Math.max(b[2] - z, 0, z - b[3]); return Math.hypot(dx, dz); }
+      async function watch(act, frames) {
+        var B = sc.octNav().rects || [], bad = 0, minC = 9, maxHop = 0, fr = 0, done = false, p = act(); if (p && p.then) p.then(function () { done = true; });
+        for (; fr < frames && !done; fr++) {
+          sc.debugSim(1 / 60, 1); var o2 = sc.octNav(); if (!o2.attic && !o2.up) break;
+          B.forEach(function (r) { if (r[5]) return; var d = rd(o2.at[0], o2.at[2], r); if (d < minC) minC = d; if (d < 0.15 && o2.hop < r[4]) bad++; }); maxHop = Math.max(maxHop, o2.hop);
+          if (fr % 60 === 59) await tick();
+        }
+        return { bad: bad, minC: +minC.toFixed(3), hop: +maxHop.toFixed(2), frames: fr, last: sc.octNav().last };
+      }
+      var DEF = { sofa: [-1.9, 2.0, 0, 1], crate: [2.0, -0.75, 0, 1] };
+      /* ④ 위층 먼저 (의식이 남기 전에) */
+      sc.setLayout(DEF); sc.debugSim(1 / 60, 2); sc.jumpTo('center'); sc.debugSim(1 / 60, 2);
+      await pump(APP.goRoom('loft'), 200); sc.debugSim(0.05, 20);
+      out.loftUp = sc.octNav().up; out.loft = out.loftUp ? await watch(function () { return sc.moveTo('salon'); }, 600) : null;
+      await pump(APP.goRoom('attic'), 200); sc.debugSim(0.05, 20);
+      /* ② 문어 둘레로 가구를 바짝 (저장된 배치를 불러온 것처럼 — 가구 모드는 문어 몸 둘레엔 못 놓는다) */
+      sc.setLayout(DEF); sc.debugSim(1 / 60, 2); sc.jumpTo('center'); sc.debugSim(1 / 60, 2);
+      var c0 = sc.octNav().at; sc.setLayout({ sofa: [c0[0] - 0.7, c0[2], 0, 1], crate: [c0[0] + 0.8, c0[2] - 0.3, 90, 1] }); sc.debugSim(1 / 60, 2);
+      out.tight = sc.octNav().rects.filter(function (r) { return !r[5]; }).map(function (r) { return +rd(c0[0], c0[2], r).toFixed(2); });
+      out.gap = await watch(function () { return sc.moveTo('door'); }, 900);
+      /* ③ 가구 모드: 소파를 골라 방향키로 네 칸 옮기고 저장 → 칸 지도를 다시 짓고 그 둘레로 */
+      sc.setLayout(DEF); sc.debugSim(1 / 60, 2); sc.jumpTo('window'); sc.debugSim(1 / 60, 2); sc.octNav([0, 0], [1, 1]);
+      var b0 = sc.octNav().builds, k0 = JSON.stringify(sc.octNav().rects);
+      out.fm = sc.furnMode(true); sc.furnSelect('crate'); var moved = 0, tries = [[0, -1], [0, -1], [0, -1], [0, -1], [0, -1], [0, -1], [0, -1], [1, 0]];   /* 상자를 창가 → 문 곧은 길 위로 (방향키 (0, −1) = 바닥 −x · (1, 0) = −z) */
+      for (var i = 0; i < tries.length; i++) if (sc.furnNudge(tries[i][0], tries[i][1])) moved++; sc.furnSave(); sc.debugSim(1 / 60, 2);
+      out.moved = moved; out.fmLayout = sc.layout().crate;
+      out.fmWalk = await watch(function () { return sc.moveTo('door'); }, 900);
+      out.rebuilt = sc.octNav().builds > b0 && JSON.stringify(sc.octNav().rects) !== k0;
+      /* ⑤ 막힌 주머니 (가구 모드로 놓을 수 있는 배치 — 소파를 왼벽 가운데 · 상자를 뒷벽 왼쪽): 상자 옆 자리가 소파 · 상자 · 벽 사이에 갇힌다 (예전: 길이 없어 상자를 뚫고 곧장) */
+      sc.setLayout({ sofa: [-1.92, -0.5, 0, 1], crate: [-0.6, -1.9, 0, 1] }); sc.debugSim(1 / 60, 2); sc.jumpTo('crate'); sc.debugSim(1 / 60, 2); out.pocketAt = sc.octNav().at;
+      out.pocket = await watch(function () { return sc.moveTo('door'); }, 900);
+      /* ⑥ 계단 곁 (가구 모드 규칙 안 — 작게 돌린 소파 · 크게 한 상자를 계단 앞에): 예전 자리 정하기는 계단을 몰라 상자 옆 자리가 계단 발치 0.06 m 에 놓였고 길이 없어 소파를 뚫었다 */
+      sc.setLayout({ sofa: [-1.75, 2.0, 90, 0.7], crate: [0, 2.75, 0, 1.4] }); sc.debugSim(1 / 60, 2); sc.jumpTo('window'); sc.debugSim(1 / 60, 2);
+      out.stairTo = await watch(function () { return sc.moveTo('crate'); }, 900); out.stairAt = sc.octNav().at;
+      out.stairBack = await watch(function () { return sc.moveTo('window'); }, 900);
+      /* ① 문을 둘러싼 배치 (가구 모드 규칙 안 — 문 앞 금지 구역 둘레: 상자를 왼쪽 · 소파를 돌려 크게 앞을 막고 오른쪽 벽까지) 에서 출발 */
+      sc.setLayout({ crate: [0.78, -1.95, 0, 1], sofa: [2.2, -1.09, 90, 1.2] }); sc.debugSim(1 / 60, 2); sc.jumpTo('center'); sc.debugSim(1 / 60, 2);
+      out.depart = await watch(function () { return sc.departCeremony(); }, 900);
+      sc.cancelCeremony(); sc.setLayout(DEF); sc.debugSim(1 / 60, 2);
+      return out;
+    });
+    ok(nv.depart.bad === 0 && nv.depart.hop >= 0.79, 'L14 문을 둘러싼 배치에서 출발: 가구를 뚫은 프레임 ' + nv.depart.bad + ' · 가장 낮은 가구 (1.2 배 소파 — 등받이 0.98 m) 위로 폴짝 (몸이 ' + nv.depart.hop + ' m 까지) ' + JSON.stringify(nv.depart.last));
+    ok(nv.stairTo.bad === 0 && nv.stairBack.bad === 0 && nv.stairTo.last && nv.stairTo.last.mode !== 'none' && nv.stairBack.last && nv.stairBack.last.mode !== 'none', 'L14 계단 곁 배치: 상자 옆 자리 ' + JSON.stringify(nv.stairAt) + ' 오가며 뚫은 프레임 ' + nv.stairTo.bad + ' · ' + nv.stairBack.bad + ' ' + JSON.stringify([nv.stairTo.last, nv.stairBack.last]));
+    ok(nv.pocket.bad === 0 && nv.pocket.minC >= 0.15, 'L14 막힌 주머니 (상자 옆 자리 ' + JSON.stringify(nv.pocketAt) + ') 에서 문으로: 뚫은 프레임 ' + nv.pocket.bad + ' · 가장 좁은 틈 ' + nv.pocket.minC + ' m (폴짝 중 포함 · 0.38 m 틈은 몸보다 좁아 비집지 않고 소파 쪽으로 넘는다) · ' + JSON.stringify(nv.pocket.last));
+    ok(nv.gap.bad === 0 && Math.min.apply(null, nv.tight) < 0.42 && nv.gap.last && nv.gap.last.mode !== 'none', 'L14 문어 둘레로 가구를 바짝 붙여도 (틈 ' + JSON.stringify(nv.tight) + ' m) 문으로 가는 길에 뚫은 프레임 ' + nv.gap.bad + ' · 가장 좁은 틈 ' + nv.gap.minC + ' m · ' + JSON.stringify(nv.gap.last));
+    ok(nv.fm === true && nv.moved >= 6 && nv.rebuilt === true && nv.fmWalk.bad === 0 && nv.fmWalk.last && nv.fmWalk.last.mode === 'walk', 'L14 가구 모드로 옮긴 상자 (' + nv.moved + ' 칸 → ' + JSON.stringify(nv.fmLayout) + ' — 창가에서 문으로 가는 곧은 길 위): 칸 지도를 다시 짓고 (' + nv.rebuilt + ') 돌아서 가며 뚫은 프레임 ' + nv.fmWalk.bad + ' · ' + JSON.stringify(nv.fmWalk.last));
+    ok(nv.loftUp === true && nv.loft && nv.loft.bad === 0, 'L14 위층 거울로 가는 길도 가구를 안 뚫는다 (뚫은 프레임 ' + (nv.loft && nv.loft.bad) + ' · ' + JSON.stringify(nv.loft && nv.loft.last) + ')');
+    await o.ctx.close();
   } catch (e) {
     fails++; console.error('CRASH ' + (e && e.stack || e));
   } finally { await browser.close(); }

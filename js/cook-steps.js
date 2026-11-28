@@ -41,6 +41,9 @@ var COOK_STEPS = (function () {
   }
 
   /* every number of the new kinds (kept out of COOK.TUNE: TUNE_HASH and every legacy pot stay as they were) */
+  /* 11-24 r5: after 15 s with no progress a kinder judgement (input 'e'). Kept OUT of NUM: NUM is hashed into every saved pot
+     (tuneText), and a half-made dish of an earlier build must still resume */
+  var EASE = freeze({ ms: 15000, stir: 0.5, pour: 0.5, rub: 0.4, swipe: 0.5, snap: 56 });
   var NUM = freeze({
     stir: { turns: 3, rMin: 8, quarter: 90 },          /* samples closer than 8 logical px to the centre do not count */
     pour: { ms: 2400, parts: 3 },                      /* about 2.4 s of holding in total */
@@ -192,7 +195,7 @@ var COOK_STEPS = (function () {
     KIND.stir = {
       multi: false, sayHalf: true,
       init: function (step, seed, food) {
-        return base('stir', { box: boxOf(food), cx: food.cx * SC, cy: food.cy * SC, need: turnsOf(step) * 360, deg: 0, q: 0, pen: null, hand: null });
+        return base('stir', { box: boxOf(food), cx: food.cx * SC, cy: food.cy * SC, need: turnsOf(step) * 360, turns: turnsOf(step), deg: 0, q: 0, pen: null, hand: null });
       },
       down: function (st, s) { if (st.done) return; st.pen = { id: s.id, a: angOf(st, s) }; st.hand = at(s); },
       move: function (st, s) {
@@ -206,7 +209,12 @@ var COOK_STEPS = (function () {
       cancel: function (st, s) { if (!s || (st.pen && st.pen.id === s.id)) { st.pen = null; st.hand = null; } },
       tick: function () {},
       alt: function (st, t) { stirBy(st, 360, t); },   /* one press = one turn */
-      look: function (st) { return { turns: Math.round(st.need / 360) }; },
+      ease: function (st, t) {   /* half the turns that are left, whole quarters */
+        st.ease = true; st.prog = t;
+        st.need = Math.max(st.deg, Math.ceil((st.deg + (st.need - st.deg) * EASE.stir) / NUM.stir.quarter) * NUM.stir.quarter, NUM.stir.quarter);
+        rise(st, st.deg / st.need, t);
+      },
+      look: function (st) { return { turns: st.turns }; },
       tag: function () { return null; }
     };
 
@@ -234,6 +242,11 @@ var COOK_STEPS = (function () {
       multi: false, sayHalf: true,
       init: function (step, seed, food) {
         return base('pour', { box: boxOf(food), need: clampI(step.ms, 300, 60000, NUM.pour.ms), ms: 0, shown: 0, fill: 0, hold: null });
+      },
+      ease: function (st, t) {   /* the jug pours faster: what is left takes half the time */
+        st.ease = true; pourRise(st, t); if (st.done) return;
+        var cur = st.shown; st.ms = Math.min(st.need, cur + Math.ceil((st.need - cur) * (1 - EASE.pour))); if (st.hold) st.hold.at = t;
+        pourRise(st, t);
       },
       down: function (st, s) {
         if (st.done || st.hold) return;
@@ -278,7 +291,7 @@ var COOK_STEPS = (function () {
       var it = st.items[i], k = freeSlot(st, it);
       if (k < 0) return false;
       var near = false, z = st.zone;   /* near any free slot, or inside the step's zone: the item goes to slot k */
-      for (var j = 0; j < st.slots.length; j++) if (st.slots[j].by < 0 && dist(it.x, it.y, st.slots[j].x, st.slots[j].y) <= NUM.drag.snap) near = true;
+      for (var j = 0; j < st.slots.length; j++) if (st.slots[j].by < 0 && dist(it.x, it.y, st.slots[j].x, st.slots[j].y) <= (st.ease ? EASE.snap : NUM.drag.snap)) near = true;
       if (!near && !(z && it.x >= z[0] && it.x <= z[2] && it.y >= z[1] && it.y <= z[3])) return false;
       place(st, i, k, t);
       return true;
@@ -323,6 +336,7 @@ var COOK_STEPS = (function () {
         if (st.done || !tryPlace(st, p.i, s.t)) goHome(st, false);
       },
       cancel: function (st, s) { if (!s || (st.pen && st.pen.id === s.id)) goHome(st, true); },
+      ease: function (st, t) { st.ease = true; st.prog = t; },   /* a drop twice as far from a free slot still goes on */
       tick: function () {},
       alt: function (st, t) {   /* one press = the next item goes to its slot */
         if (st.done) return;
@@ -380,6 +394,12 @@ var COOK_STEPS = (function () {
       move: function (st, s) { if (st.pen && st.pen.id === s.id) rubTo(st, s); },
       up: function (st, s) { if (st.pen && st.pen.id === s.id) { rubTo(st, s); st.pen = null; st.hand = null; } },
       cancel: function (st, s) { if (!s || (st.pen && st.pen.id === s.id)) { st.pen = null; st.hand = null; } },
+      ease: function (st, t) {   /* a smaller share of the food is enough; the rest fills itself */
+        st.ease = true; st.prog = t;
+        st.need = Math.max(1, Math.min(st.need, Math.ceil(st.bins.length * EASE.rub)));
+        if (st.n >= st.need) { for (var k = 0; k < st.bins.length; k++) st.bins[k] = 1; st.n = st.bins.length; rubThirds(st); }
+        rise(st, Math.min(1, st.n / st.need), t);
+      },
       tick: function () {},
       alt: function (st, t) {   /* one press = a third of the bins, in reading order */
         if (st.done) return;
@@ -405,14 +425,15 @@ var COOK_STEPS = (function () {
     }
     KIND.swipe = {
       multi: false, sayHalf: false,
-      init: function (step, seed, food) { return base('swipe', { box: boxOf(food), need: strokesOf(step), n: 0, dir: 'up', stroke: null, hand: null }); },
+      init: function (step, seed, food) { return base('swipe', { box: boxOf(food), need: strokesOf(step), strokes: strokesOf(step), n: 0, dir: 'up', stroke: null, hand: null }); },
       down: function (st, s) { if (st.done) return; st.stroke = { id: s.id, x0: s.x, y0: s.y, used: false }; st.hand = at(s); },
       move: function (st, s) { if (st.stroke && st.stroke.id === s.id) { st.hand = at(s); swipeTest(st, s); } },
       up: function (st, s) { if (st.stroke && st.stroke.id === s.id) { swipeTest(st, s); st.stroke = null; st.hand = null; } },
       cancel: function (st, s) { if (!s || (st.stroke && st.stroke.id === s.id)) { st.stroke = null; st.hand = null; } },
       tick: function () {},
       alt: function (st, t) { roll(st, t); },
-      look: function (st) { return { n: st.need }; },
+      ease: function (st, t) { st.ease = true; st.prog = t; st.need = Math.max(st.n + 1, Math.ceil(st.n + (st.need - st.n) * EASE.swipe)); rise(st, st.n / st.need, t); },
+      look: function (st) { return { n: st.strokes }; },
       tag: function () { return null; }
     };
 
@@ -450,7 +471,7 @@ var COOK_STEPS = (function () {
     return true;
   }
 
-  return { NUM: NUM, WORDS: WORDS, RECIPES: RECIPES, NEXT: NEXT, FREE: FREE, KINDS: ['stir', 'pour', 'drag', 'rub', 'swipe', 'bake'],
+  return { NUM: NUM, EASE: EASE, WORDS: WORDS, RECIPES: RECIPES, NEXT: NEXT, FREE: FREE, KINDS: ['stir', 'pour', 'drag', 'rub', 'swipe', 'bake'],
     recipe: recipe, pageWords: pageWords, tuneText: tuneText, defaultLook: defaultLook, validLook: validLook, validTag: validTag, between: between,
     verb: verb, hintAt: hintAt, install: install };
 })();

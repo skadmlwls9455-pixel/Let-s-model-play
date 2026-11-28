@@ -69,7 +69,7 @@ var VILLAGE = (function () {
 
   /* NPC 문어 자리: face = 보는 쪽 (rad, 0 = +z = 화면 왼쪽 아래 · π/2 = +x = 화면 오른쪽 아래) · y = 올라앉은 높이 (가게 문어는 판매대 뒤 발판 위 — 얼굴이 판매대 위로 보이게).
      가게 문어 셋은 판매대 · 계산대 뒤, 잠든 문어 넷은 마을 문 벤치 · 빈 집 현관 · 바닷가 바위 · 부두 발치 (C6) */
-  var sp = at('empty', 1.75, -0.45);
+  var sp = at('empty', 1.9, 0.45);   /* 빈 집 마루의 문 옆 (문 바로 앞이면 문 단추와 문어 단추가 23 px 로 겹쳤다 — 11-28 검토: 44 px 넘게 떼려고 마루 끝 쪽으로) */
   var NPCS = [
     { id: 'clothes', s: kc[0], t: kc[1], y: 0.3, face: Math.PI / 2, r: 0.3 },
     { id: 'goods', s: kg[0], t: kg[1], y: 0.3, face: 0, r: 0.3 },
@@ -80,6 +80,13 @@ var VILLAGE = (function () {
     { id: 'sleep-4', s: 55.3, t: 5.7, y: 0, face: 0.2, r: 0.3 }
   ];
   function npc(id) { for (var i = 0; i < NPCS.length; i++) if (NPCS[i].id === id) return NPCS[i]; return null; }
+  /* 11-24 집 문어 넷의 대화 단추 (N 이 #btn-npc-sleep-N 에 대본을 단다): 낮 자리 위 — 집에 들어가 있으면 장면이 끈다 (on). 서는 자리는 걷는 곳 안 */
+  (function () {
+    var n2 = npc('sleep-2'), st2 = [n2.s, -2.0];   /* 빈 집 마루는 길에서 2.4 m 들어가 있다 — 길 가장자리의 가장 가까운 곳에 선다 */
+    [['sleep-1', [19.6, -2.7]], ['sleep-2', st2], ['sleep-3', [55, -7.9]], ['sleep-4', [55.3, 4.7]]].forEach(function (q, i) {
+      var n = npc(q[0]); SPOTS.push({ key: 'npcSleep' + (i + 1), btn: 'btn-npc-sleep-' + (i + 1), label: '집 문어', npc: q[0], s: n.s, t: n.t, y: n.y + 0.35, r: 0.42, stand: q[1] });
+    });
+  })();
 
   /* 길가 소품 (s, t): 가로등 · 화분 */
   var LAMPS = [[21.6, -2.9], [21.6, 2.9], [28.9, -2.9], [28.9, 2.9], [37.3, -2.9], [38.6, 7.2], [45.4, -7.2]];   /* 길가 다섯 (앞 넷은 둘씩 마주 서서 깃발 줄을 건다) · 광장 둘 */
@@ -119,11 +126,14 @@ var VILLAGE = (function () {
     PLAZA.benches.forEach(function (q) { bx(xz(q[0], q[1]), (q[2] ? BENCH.w : BENCH.d) / 2, (q[2] ? BENCH.d : BENCH.w) / 2); });
   })();
 
-  /* 길 찾기 (누른 자리까지 혼자 걸을 때): from · to = (s, t) → 거쳐 갈 점들 [(s, t) …] (끝 점 포함). 곧은 길이 원 · 네모에 막히면 그 둘레의 점들로 돌아간다 (작은 가시성 그래프 — 가까운 장애물만).
-     몸 반지름 0.25 를 더해 잰다. 길이 없으면 곧은 길 하나 (걷다 막히면 그 자리에 선다 — 장면의 걷기가 그렇게 끝낸다) */
-  var BODY = 0.25;
+  /* 길 찾기 (누른 자리까지 혼자 걸을 때): from · to = (s, t) → 거쳐 갈 점들 [(s, t) …] (끝 점 포함). 곧은 길이 원 · 네모에 막히면 그 둘레의 점들로 돌아간다 (작은 가시성 그래프 — 가까운 장애물부터).
+     몸 반지름 0.25 를 더해 잰다. 길이 없으면 곧은 길 하나 (걷다 막히면 그 자리에 선다 — 장면의 걷기가 그렇게 끝낸다).
+     cols = { circles: [[x, z, r] …], boxes: [[x0, z0, x1, z1] …] } (x · z 축 · 몸 반지름은 더하지 않은 값 — 장면의 등록부) 를 주면 마을 것 대신 그것으로 잰다: 숲길 · 해변의 소품 (갈래 W 의 벤치 · 그루터기 · 배 · 바위) 까지 돌아간다.
+     11-28 검증: 길이 마을 것만 돌아가고 둘레를 0.02 m 까지 스치게 두었더니, 먼 데서 누른 걸음이 숲길 벤치 · 해변 바위 · 배 옆에서 섰다 (숲길 722 걸음에 6 · 해변 711 에 11 — 다시 눌러도 그 자리인 것도 있었다).
+     장면의 걷기 (plMove) 는 둘레를 조금이라도 더 파고드는 걸음을 물리므로 길은 둘레에서 CLEAR 만큼 띄운다. 단 이미 둘레에 붙어 선 출발 자리에서는 멀어지는 쪽으로만, 둘레에 바짝 붙은 서는 자리까지는 그 자리만큼만 다가간다 */
+  var BODY = 0.25, CLEAR = 0.01;
   function segPt(ax, az, bx2, bz, px, pz) { var dx = bx2 - ax, dz = bz - az, l = dx * dx + dz * dz, u = l ? Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / l)) : 0; return Math.hypot(ax + dx * u - px, az + dz * u - pz); }
-  function segBox(ax, az, bx2, bz, b, pad) {   /* 선분이 (pad 만큼 키운) 네모를 지나나 */
+  function segBox(ax, az, bx2, bz, b, pad) {   /* 선분이 (pad 만큼 키운) 네모 속을 지나나 (둘레에 닿기만 하는 것은 아니다) */
     var t0 = 0, t1 = 1, d = [bx2 - ax, bz - az], o = [ax, az], lo = [b[0] - pad, b[1] - pad], hi = [b[2] + pad, b[3] + pad];
     for (var i = 0; i < 2; i++) {
       if (Math.abs(d[i]) < 1e-9) { if (o[i] <= lo[i] || o[i] >= hi[i]) return false; continue; }
@@ -132,39 +142,80 @@ var VILLAGE = (function () {
     }
     return true;
   }
-  function route(from, to, skip) {   /* skip = 이 원 (s, t 가 같은 것) 은 빼고 잰다 (그 문어 · 걸상 앞에 서는 길) */
-    var A = xz(from[0], from[1]), B = xz(to[0], to[1]), CS = [], i, j;
-    CIRCLES.forEach(function (c) { if (skip && Math.abs(c[0] - skip[0]) < 1e-6 && Math.abs(c[1] - skip[1]) < 1e-6) return; var q = xz(c[0], c[1]); CS.push([q[0], q[1], c[2] + BODY]); });
-    function free(ax, az, bx2, bz) {
-      for (var k = 0; k < CS.length; k++) if (segPt(ax, az, bx2, bz, CS[k][0], CS[k][1]) < CS[k][2] - 0.02) return false;
-      for (k = 0; k < BOXES.length; k++) if (segBox(ax, az, bx2, bz, BOXES[k], BODY - 0.02)) return false;
-      var n = Math.max(1, Math.ceil(Math.hypot(bx2 - ax, bz - az) / 0.08));
-      for (k = 1; k < n; k++) { var q = st(ax + (bx2 - ax) * k / n, az + (bz - az) * k / n); if (!inWalk(q[0], q[1], -0.02)) return false; }
+  function boxIn(x, z, b, pad) { return [x - (b[0] - pad), b[2] + pad - x, z - (b[1] - pad), b[3] + pad - z]; }   /* (pad 만큼 키운) 네모의 네 변까지 안쪽으로 잰 거리 — 가장 작은 값이 파고든 깊이 (밖이면 음수) */
+  function route(from, to, skip, cols) {   /* skip = 이 원 (s, t 가 같은 것) 은 빼고 잰다 (그 문어 · 걸상 앞에 서는 길) */
+    var A = xz(from[0], from[1]), B = xz(to[0], to[1]), sk = skip ? xz(skip[0], skip[1]) : null, CS = [], BX = [], i, j;
+    (cols && cols.circles ? cols.circles : CIRCLES.map(function (c) { var q = xz(c[0], c[1]); return [q[0], q[1], c[2]]; })).forEach(function (c) {
+      if (sk && Math.abs(c[0] - sk[0]) < 1e-4 && Math.abs(c[1] - sk[1]) < 1e-4) return;
+      var r = c[2] + BODY + CLEAR, dB = Math.hypot(B[0] - c[0], B[1] - c[1]);
+      CS.push([c[0], c[1], r, dB < r ? Math.max(dB, c[2] + BODY - 0.02) : r]);   /* [3] = 서는 자리로 들어가는 마지막 구간이 재는 반지름: 서는 자리가 둘레에 바짝 붙어 있으면 (걸상 앞) 그 자리까지 */
+    });
+    (cols && cols.boxes ? cols.boxes : BOXES).forEach(function (b) {
+      var q = [Math.min(b[0], b[2]), Math.min(b[1], b[3]), Math.max(b[0], b[2]), Math.max(b[1], b[3])], pad = BODY + CLEAR, pB = Math.min.apply(null, boxIn(B[0], B[1], q, pad));
+      BX.push([q[0], q[1], q[2], q[3], pad, pB > 0 ? Math.max(pad - pB, BODY - 0.02) : pad]);   /* [5] = 마지막 구간이 재는 여유 (위와 같다) */
+    });
+    function walkSeg(ax, az, bx2, bz) {   /* 선분이 처음부터 끝까지 걷는 곳 (0.02 넓힌 네모들의 합) 안인가 — 네모마다 선분이 그 안에 있는 토막을 구해 이어 붙인다 (11-28: 0.08 m 마다 찍어 보던 것은 모서리를 살짝 베는 길을 놓쳤다) */
+      var p = st(ax, az), q = st(bx2, bz), d = [q[0] - p[0], q[1] - p[1]], iv = [], k, m;
+      for (k = 0; k < WALK.length; k++) {
+        var w = WALK[k], lo = [w.s0 - 0.02, w.t0 - 0.02], hi = [w.s1 + 0.02, w.t1 + 0.02], u0 = 0, u1 = 1, okk = true;
+        for (m = 0; m < 2 && okk; m++) {
+          if (Math.abs(d[m]) < 1e-12) { if (p[m] < lo[m] || p[m] > hi[m]) okk = false; continue; }
+          var a0 = (lo[m] - p[m]) / d[m], a1 = (hi[m] - p[m]) / d[m]; if (a0 > a1) { var sw = a0; a0 = a1; a1 = sw; }
+          u0 = Math.max(u0, a0); u1 = Math.min(u1, a1); if (u0 > u1) okk = false;
+        }
+        if (okk) iv.push([u0, u1]);
+      }
+      iv.sort(function (x, y) { return x[0] - y[0]; });
+      var reach = 0; for (k = 0; k < iv.length; k++) { if (iv[k][0] > reach + 1e-9) return false; if (iv[k][1] > reach) reach = iv[k][1]; }
+      return reach >= 1 - 1e-9;
+    }
+    function clear(x, z) {   /* 점이 어느 둘레에도 닿지 않나 */
+      var k; for (k = 0; k < CS.length; k++) if (Math.hypot(x - CS[k][0], z - CS[k][1]) < CS[k][2] - 1e-9) return false;
+      for (k = 0; k < BX.length; k++) if (Math.min.apply(null, boxIn(x, z, BX[k], BX[k][4])) > 1e-9) return false;
       return true;
     }
-    if (!inWalk(from[0], from[1], -0.3) || free(A[0], A[1], B[0], B[1])) return [to.slice()];
-    var N = [A, B], near = function (x, z) { return segPt(A[0], A[1], B[0], B[1], x, z) < 3; };
-    CS.forEach(function (c) { if (!near(c[0], c[1])) return; for (var k = 0; k < 8; k++) { var a = k * Math.PI / 4 + Math.PI / 8, r = c[2] + 0.12; N.push([c[0] + Math.cos(a) * r, c[1] + Math.sin(a) * r]); } });
-    BOXES.forEach(function (b) { if (!near((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)) return; var p = BODY + 0.12; N.push([b[0] - p, b[1] - p], [b[2] + p, b[1] - p], [b[0] - p, b[3] + p], [b[2] + p, b[3] + p]); });
-    /* 걷는 곳끼리 만나는 자리 (길 ↔ 덱 · 길 ↔ 광장 …) 와 네모의 안쪽 모서리도 거쳐 갈 점이다 — 없으면 ㄱ 자로 꺾인 길 (광장 → 카페, 덱 → 잡화점) 을 못 찾고 가장자리에 가서 섰다 (검증 11-21) */
-    WALK.forEach(function (a, ai) {
-      [[a.s0 + 0.15, a.t0 + 0.15], [a.s0 + 0.15, a.t1 - 0.15], [a.s1 - 0.15, a.t0 + 0.15], [a.s1 - 0.15, a.t1 - 0.15]].forEach(function (c) { N.push(xz(c[0], c[1])); });
-      WALK.slice(ai + 1).forEach(function (b) {
-        var s0 = Math.max(a.s0, b.s0), s1 = Math.min(a.s1, b.s1), t0 = Math.max(a.t0, b.t0), t1 = Math.min(a.t1, b.t1); if (s1 - s0 < 0.04 || t1 - t0 < 0.04) return;
-        var ms = (s0 + s1) / 2, mt = (t0 + t1) / 2, long = s1 - s0 > t1 - t0, n = Math.max(1, Math.min(6, Math.round((long ? s1 - s0 : t1 - t0) / 1.2)));
-        for (var k = 0; k <= n; k++) { var u = n ? k / n : 0.5; N.push(long ? xz(s0 + 0.15 + (s1 - s0 - 0.3) * u, mt) : xz(ms, t0 + 0.15 + (t1 - t0 - 0.3) * u)); }
-      });
-    });
-    N = N.filter(function (n, k) { if (k < 2) return true; var q = st(n[0], n[1]); return inWalk(q[0], q[1], 0) && free(n[0], n[1], n[0], n[1]); });
-    var D = N.map(function () { return Infinity; }), prev = N.map(function () { return -1; }), done = N.map(function () { return false; }); D[0] = 0;
-    for (;;) {
-      var u = -1; for (i = 0; i < N.length; i++) if (!done[i] && D[i] < Infinity && (u < 0 || D[i] < D[u])) u = i;
-      if (u < 0 || u === 1) break; done[u] = true;
-      for (j = 0; j < N.length; j++) { if (done[j]) continue; var w = Math.hypot(N[u][0] - N[j][0], N[u][1] - N[j][1]); if (D[u] + w < D[j] && free(N[u][0], N[u][1], N[j][0], N[j][1])) { D[j] = D[u] + w; prev[j] = u; } }
+    function free(ax, az, bx2, bz, last) {   /* last = 서는 자리로 들어가는 구간 */
+      var dx = bx2 - ax, dz = bz - az, x0 = Math.min(ax, bx2), x1 = Math.max(ax, bx2), z0 = Math.min(az, bz), z1 = Math.max(az, bz), k, f, c, b, r;
+      if (!walkSeg(ax, az, bx2, bz)) return false;
+      for (k = 0; k < CS.length; k++) {
+        c = CS[k]; r = last ? c[3] : c[2]; if (c[0] < x0 - r || c[0] > x1 + r || c[1] < z0 - r || c[1] > z1 + r || segPt(ax, az, bx2, bz, c[0], c[1]) >= r - 1e-9) continue;
+        if (Math.hypot(ax - c[0], az - c[1]) < r && dx * (ax - c[0]) + dz * (az - c[1]) >= 0) continue;   /* 둘레에 붙어 선 출발 자리: 멀어지는 쪽이면 간다 */
+        return false;
+      }
+      for (k = 0; k < BX.length; k++) {
+        b = BX[k]; r = last ? b[5] : b[4]; if (!segBox(ax, az, bx2, bz, b, r)) continue;
+        var d4 = boxIn(ax, az, b, r), pen = Math.min.apply(null, d4), sl = [dx, -dx, dz, -dz], away = false;
+        if (pen > 0) for (f = 0; f < 4; f++) if (d4[f] <= pen + 1e-9 && sl[f] <= 1e-12) away = true;   /* 네모 둘레에 붙어 선 출발 자리: 더 파고들지 않는 쪽이면 간다 */
+        if (!away) return false;
+      }
+      return true;
     }
-    if (D[1] === Infinity) return [to.slice()];
-    var out = []; for (i = 1; i > 0; i = prev[i]) out.unshift(i === 1 ? to.slice() : st(N[i][0], N[i][1]));
-    return out;
+    if (!inWalk(from[0], from[1], -0.3) || free(A[0], A[1], B[0], B[1], true)) return [to.slice()];
+    function path(reach) {   /* reach = 곧은 길에서 이 거리 안의 장애물 둘레에만 거쳐 갈 점을 둔다 (가까운 것부터 — 길이 안 나오면 넓힌다) */
+      var N = [A, B], near = function (x, z, r) { return segPt(A[0], A[1], B[0], B[1], x, z) < reach + r; };
+      CS.forEach(function (c) { if (!near(c[0], c[1], c[2])) return; var r = Math.max(c[2] + 0.11, (c[2] + 0.03) / Math.cos(Math.PI / 8)); for (var k = 0; k < 8; k++) { var a = k * Math.PI / 4 + Math.PI / 8; N.push([c[0] + Math.cos(a) * r, c[1] + Math.sin(a) * r]); } });   /* 팔각형: 이웃한 점끼리 이은 변도 둘레 밖이다 */
+      BX.forEach(function (b) { if (!near((b[0] + b[2]) / 2, (b[1] + b[3]) / 2, Math.hypot(b[2] - b[0], b[3] - b[1]) / 2)) return; var p = b[4] + 0.11; N.push([b[0] - p, b[1] - p], [b[2] + p, b[1] - p], [b[0] - p, b[3] + p], [b[2] + p, b[3] + p]); });
+      /* 걷는 곳끼리 만나는 자리 (길 ↔ 덱 · 길 ↔ 광장 …) 와 네모의 안쪽 모서리도 거쳐 갈 점이다 — 없으면 ㄱ 자로 꺾인 길 (광장 → 카페, 덱 → 잡화점) 을 못 찾고 가장자리에 가서 섰다 (검증 11-21) */
+      WALK.forEach(function (a, ai) {
+        [[a.s0 + 0.15, a.t0 + 0.15], [a.s0 + 0.15, a.t1 - 0.15], [a.s1 - 0.15, a.t0 + 0.15], [a.s1 - 0.15, a.t1 - 0.15]].forEach(function (c) { N.push(xz(c[0], c[1])); });
+        WALK.slice(ai + 1).forEach(function (b) {
+          var s0 = Math.max(a.s0, b.s0), s1 = Math.min(a.s1, b.s1), t0 = Math.max(a.t0, b.t0), t1 = Math.min(a.t1, b.t1); if (s1 - s0 < 0.04 || t1 - t0 < 0.04) return;
+          var ms = (s0 + s1) / 2, mt = (t0 + t1) / 2, long = s1 - s0 > t1 - t0, n = Math.max(1, Math.min(6, Math.round((long ? s1 - s0 : t1 - t0) / 1.2)));
+          for (var k = 0; k <= n; k++) { var u = n ? k / n : 0.5; N.push(long ? xz(s0 + 0.15 + (s1 - s0 - 0.3) * u, mt) : xz(ms, t0 + 0.15 + (t1 - t0 - 0.3) * u)); }
+        });
+      });
+      N = N.filter(function (n, k) { if (k < 2) return true; var q = st(n[0], n[1]); return inWalk(q[0], q[1], 0) && clear(n[0], n[1]); });
+      var D = N.map(function () { return Infinity; }), prev = N.map(function () { return -1; }), done = N.map(function () { return false; }); D[0] = 0;
+      for (;;) {
+        var u = -1; for (i = 0; i < N.length; i++) if (!done[i] && D[i] < Infinity && (u < 0 || D[i] < D[u])) u = i;
+        if (u < 0 || u === 1) break; done[u] = true;
+        for (j = 0; j < N.length; j++) { if (done[j]) continue; var w = Math.hypot(N[u][0] - N[j][0], N[u][1] - N[j][1]); if (D[u] + w < D[j] && free(N[u][0], N[u][1], N[j][0], N[j][1], j === 1)) { D[j] = D[u] + w; prev[j] = u; } }
+      }
+      if (D[1] === Infinity) return null;
+      var out = []; for (i = 1; i > 0; i = prev[i]) out.unshift(i === 1 ? to.slice() : st(N[i][0], N[i][1]));
+      return out;
+    }
+    return path(3) || path(8) || [to.slice()];
   }
 
   /* 가려 숨길 덩어리 (s 범위) */
@@ -223,18 +274,19 @@ var VILLAGE = (function () {
       circles: [[-1.25, -1.3, 0.14], [1.25, -1.3, 0.14], [2.75, -0.75, 0.2], [2.75, -0.05, 0.2], [2.75, 0.65, 0.2], [-3.22, 2.45, 0.22], [3.15, 1.6, 0.22]] }
   };
   /* 11-24 다섯째 바퀴: 문어 집 넷 (한 틀 — 침대 뒤 왼쪽 · 식탁과 걸상 둘 · 뒷벽 창 · 깔개 · 오른쪽 벽의 '그 문어의 일' 자리) · 미용실.
-     look = 그 집의 색과 일 (장면이 읽는다: wall · floor · quilt · trim · job = 'garden' | 'post' | 'shell' | 'fish'). 사는 문어 자리: table (깬 채 걸상) · bed (자는) */
-  function homeRoom(name, look) {
+     look = 그 집의 색과 일 (장면이 읽는다: wall · floor · quilt · trim · job = 'post' (편지) | 'fix' (집 고치기) | 'shell' (돌 · 조개) | 'fish' (밧줄 · 그물) — 갈래 N 의 대본과 맞춘 것). 사는 문어 자리: table (깬 채 걸상) · bed (자는) */
+  function homeRoom(name, look, num) {
     return { name: name, home: true, look: look, half: [2.2, 2.0], wallH: 2.2, door: [1.3, 1.4], face: Math.PI, lights: [[-0.7, 1.9, -0.3], [1.2, 1.9, 0.7]],
       slots: { bed: [-1.45, 0.44, -1.5, HP], table: [-1.55, 0.32, 0.45, HP], tableTop: [-0.85, 0.5, 0.45, 0], job: [1.85, 0, -0.6, -HP], exit: [1.3, 0, 1.85, 0] },
-      spots: [{ key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 1.3, y: 0.5, z: 1.9, r: 0.5, stand: [1.3, 1.4] }],
+      spots: [{ key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 1.3, y: 0.5, z: 1.9, r: 0.5, stand: [1.3, 1.4] },
+        { key: 'roomResident', btn: 'btn-npc-sleep-' + num, label: '집 문어', x: -1.55, y: 0.75, z: 0.45, r: 0.42, stand: [-0.45, -0.55] }],   /* 사는 문어 (식탁 · 침대 — 장면이 따라 옮기고, 집에 없으면 끈다) */
       boxes: [[-2.15, -1.95, -0.75, -1.05], [1.75, -1.75, 2.15, 0.45]],   /* 침대 · 일 자리 선반 (오른쪽 벽) */
-      circles: [[-0.85, 0.45, 0.42], [-1.55, 0.45, 0.17], [-0.85, 1.15, 0.17], [-1.75, 1.55, 0.2]] };   /* 식탁 · 걸상 둘 · 화분 */
+      circles: [[-0.85, 0.45, 0.42], [-1.55, 0.45, 0.17], [-0.85, 1.15, 0.17], [-1.75, 1.55, 0.2], [1.4, -1.6, 0.24]] };   /* 식탁 · 걸상 둘 · 화분 · 바닥의 일 물건 (상자 · 바구니 · 통) */
   }
-  ROOMS.home1 = homeRoom('숲길 집', { wall: 'moss', floor: 'woodL', quilt: 'cream', trim: 'woodD', job: 'garden' });
-  ROOMS.home2 = homeRoom('빈 집', { wall: 'slateA', floor: 'woodB', quilt: 'rose', trim: 'slateD', job: 'post' });
-  ROOMS.home3 = homeRoom('광장 집', { wall: 'sand', floor: 'white', quilt: 'sky', trim: 'woodA', job: 'shell' });
-  ROOMS.home4 = homeRoom('숲길 건너 집', { wall: 'blueD', floor: 'woodA', quilt: 'yellow', trim: 'woodD', job: 'fish' });
+  ROOMS.home1 = homeRoom('숲길 집', { wall: 'moss', floor: 'woodL', quilt: 'cream', trim: 'woodD', job: 'post' }, 1);
+  ROOMS.home2 = homeRoom('마을 길 집', { wall: 'slateA', floor: 'woodB', quilt: 'rose', trim: 'slateD', job: 'fix' }, 2);
+  ROOMS.home3 = homeRoom('광장 집', { wall: 'sand', floor: 'white', quilt: 'sky', trim: 'woodA', job: 'shell' }, 3);
+  ROOMS.home4 = homeRoom('숲길 건너 집', { wall: 'blueD', floor: 'woodA', quilt: 'yellow', trim: 'woodD', job: 'fish' }, 4);
   /* 미용실: 뒷벽 가운데 큰 거울과 미용 의자 (거울을 본다) · 왼쪽 세면대와 수건 선반 · 오른쪽 머리 색 병 선반 · 앞 오른쪽 기다리는 벤치. 미용사 (npc 'stylist') 는 의자 오른쪽 */
   ROOMS.salon = { name: '미용실', half: [2.4, 2.1], wallH: 2.3, door: [1.5, 1.5], face: Math.PI, lights: [[-0.3, 2.0, -0.6], [1.3, 2.0, 0.9]],
     slots: { chair: [-0.3, 0.5, -1.15, Math.PI], aisle: [-0.3, 0, -0.35, Math.PI], mirror: [-0.3, 1.25, -2.07, 0], keeper: [0.55, 0, -1.2, -HP + 0.3], stylistWork: [0.3, 0, -1.25, -HP], sink: [-1.7, 0.8, -1.75, 0], bottles: [2.15, 1.0, -1.1, -HP], bench: [1.95, 0.4, 0.15, -HP], exit: [1.5, 0, 1.95, 0] },
@@ -249,14 +301,14 @@ var VILLAGE = (function () {
   var DOORS = (function () {
     var c = at('clothes', 1.45, 0.3), g2 = at('goods', 1.45, 0.3), f = CAFE_DOOR;
     function homeDoor(key, btn, label, room, lotId) {   /* 문 = 앞벽 (빈 집은 현관 마루 끝) · 서는 자리 = 걷는 곳 가장자리 (|t| 를 걷는 곳 반폭 − 0.15 로) */
-      var L = lot(lotId), d = lotId === 'empty' ? at(lotId, 2.55, -0.45) : at(lotId, 1.45, -0.4), w = Math.abs(L.c[0] - 15.4) < 3 ? 3 : L.c[0] > 37 ? 8 : 2.2, sg = L.c[1] < 0 ? -1 : 1;
+      var L = lot(lotId), d = lotId === 'empty' ? at(lotId, 2.55, -0.7) : at(lotId, 1.45, -0.4), w = Math.abs(L.c[0] - 15.4) < 3 ? 3 : L.c[0] > 37 ? 8 : 2.2, sg = L.c[1] < 0 ? -1 : 1;
       return { key: key, btn: btn, label: label, room: room, s: d[0], t: d[1], y: 0.7, r: 0.45, stand: [d[0], sg * (w - (w < 3 ? 0.2 : 0.3))], lot: lotId };
     }
     return [
       { key: 'inClothes', btn: 'btn-in-clothes', label: '옷가게 들어가기', room: 'clothes', s: c[0], t: c[1], y: 0.7, r: 0.45, stand: [c[0] + 0.75, -2.15] },
       { key: 'inGoods', btn: 'btn-in-goods', label: '잡화점 들어가기', room: 'goods', s: g2[0], t: g2[1], y: 0.7, r: 0.45, stand: [g2[0] + 0.75, 2.15] },
       { key: 'inCafe', btn: 'btn-in-cafe', label: '카페 들어가기', room: 'cafe', s: f[0], t: f[1], y: 1.0, r: 0.5, stand: [38.35, f[1] - 0.95] },   /* 11-24 리드 검토: 나오면 무대 뒤틀의 왼쪽 기둥 (t 4.4) · 깃발 줄이 몸 앞에 걸리지 않게 왼쪽에 선다 */
-      homeDoor('inHome1', 'btn-in-home-1', '숲길 집 들어가기', 'home1', 'home1'), homeDoor('inHome2', 'btn-in-home-2', '빈 집 들어가기', 'home2', 'empty'),
+      homeDoor('inHome1', 'btn-in-home-1', '숲길 집 들어가기', 'home1', 'home1'), homeDoor('inHome2', 'btn-in-home-2', '마을 길 집 들어가기', 'home2', 'empty'),   /* 예전 '빈 집' (터 이름 empty 는 그대로) — 이제 문어가 산다 */
       homeDoor('inHome3', 'btn-in-home-3', '광장 집 들어가기', 'home3', 'home3'), homeDoor('inHome4', 'btn-in-home-4', '숲길 건너 집 들어가기', 'home4', 'home4'),
       homeDoor('inSalon', 'btn-in-salon', '미용실 들어가기', 'salon', 'salon'),
       { key: 'inHall', btn: 'btn-in-hall', label: '공연장 들어가기', room: 'hall', s: STAGE.c[0] + 2.4 * K, t: STAGE.c[1] + 1.9 * K, y: 0.9, r: 0.5, stand: [STAGE.c[0] + 3.3 * K, STAGE.c[1] + 1.0 * K] }];
