@@ -8,7 +8,7 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..'), SHOTS = process.argv.includes('--shots') ? path.join(ROOT, 'wip', 'round7', 'shots', 'S') : null;
 const DAY = '2026-11-21', NEXT = '2026-11-22', BORN = '2026-11-06T10:00:00.000Z', RED = '#e0564b';
 let pass = 0, fail = 0;
-function ok(c, name) { if (c) pass++; else { fail++; console.log('  FAIL ' + name); } }
+function ok(c, name, info) { if (c) pass++; else { fail++; console.log('  FAIL ' + name + (info !== undefined ? ' ' + JSON.stringify(info) : '')); } }   /* info: 실패할 때만 보이는 값 */
 function rec(shells) {
   return { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 3, days: ['2026-11-06', '2026-11-07', '2026-11-08'], affinity: {}, visits: {}, state: 'idle', color: RED, colors: [{ at: BORN, date: '2026-11-06', color: RED, how: 'first', by: 'player' }] },
     room: { lantern: 3, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
@@ -271,6 +271,10 @@ async function roomRun(browser) {
   const said = () => page.evaluate(() => window.__said.slice()), saidV = k => page.evaluate(k => window.__saidV.filter(x => x[1] === k), k);
   await page.evaluate(() => { window.__said.length = 0; window.__saidV.length = 0; });
   await page.evaluate(() => { const sc = APP.scene; sc.player = () => ({ at: [0, 0, 0], height: 1.5 }); sc.project = (x, y) => ({ x: 180, y: y > 0.5 ? 300 : 380 }); });   /* 앉은 내 캐릭터의 화면 자리 대역 (장면 안 300~380px) */
+  const tall = !SHOTS;   /* 11-28 (검토): 2D 기본 실행은 장면이 240px 이라 대역 캐릭터가 장면 밖이었다 (덮는지 재기가 늘 통과) → 한 화면 배치처럼 장면을 700px 로 */
+  await page.evaluate(t => { const sc = document.getElementById('scene'); if (t) sc.style.height = '700px';
+    const mk = (id, x, y) => { let b = document.getElementById(id); if (!b) { b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'scene-spot'; b.setAttribute('aria-label', id); sc.appendChild(b); } b.hidden = false; b.style.cssText = 'left:' + x + 'px;top:' + y + 'px;outline:2px dashed #0a0'; };
+    mk('btn-salon-chair', 166, 330); mk('btn-room-exit', 300, 20); }, tall);   /* 의자 단추 (앉은 캐릭터 아래 · 카드를 접으면 포커스가 돌아갈 곳) · '밖으로' (건물 갈래 것 대역) */
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })));
   await page.waitForTimeout(200);
   await page.waitForFunction(() => window.__said.length > 0, null, { timeout: 3000 }).catch(() => {});   /* 카드가 자리 잡은 뒤 (길어야 1.5 s) */
@@ -279,10 +283,10 @@ async function roomRun(browser) {
     const sc = APP.scene, s = document.getElementById('scene').getBoundingClientRect(), c = document.getElementById('shop-card').getBoundingClientRect(), pi = sc.player(), f = sc.project(pi.at[0], 0, pi.at[2]), hd = sc.project(pi.at[0], pi.height || 1.5, pi.at[2]);
     const vis = id => { const e = document.getElementById(id); return e && !e.hidden && e.offsetParent ? e.getBoundingClientRect() : null; }, st = vis('status'), go = vis('btn-go');
     const top = (st && st.top <= s.top + 8 && st.bottom > s.top ? st.bottom : s.top) + 8, bot = (go && go.top > s.top && go.top < s.bottom ? go.top : s.bottom) - 8, pt = s.top + hd.y - 8, pbm = s.top + f.y + 4;
-    const room = Math.max(pt - 8 - top, bot - (pbm + 8)); return { room: Math.round(room), clear: c.bottom <= pt + 0.5 || c.top >= pbm - 0.5, cls: document.getElementById('shop-card').className };
+    const room = Math.max(pt - 8 - top, bot - (pbm + 8)); return { room: Math.round(room), clear: (c.bottom <= pt + 0.5 || c.top >= pbm - 0.5) && c.bottom <= s.bottom + 0.5, maxH: Math.round(parseFloat(document.getElementById('shop-card').style.maxHeight)), cls: document.getElementById('shop-card').className, pin: pt >= s.top && pbm <= s.bottom };
   });
   const sm = await seeMe();
-  ok(/see-me/.test(sm.cls) && sm.room >= 220 && sm.clear, '미용실 카드는 앉은 내 캐릭터를 덮지 않는다 (몸 위 · 아래 중 넓은 쪽 ' + sm.room + 'px · 대역 자리라 늘 220 이상)');
+  ok(/see-me/.test(sm.cls) && sm.pin && sm.room >= 196 && sm.clear && sm.maxH === sm.room, '미용실 카드는 앉은 내 캐릭터를 덮지 않는다 (장면 안의 대역 · 몸 위 · 아래 중 넓은 쪽 ' + sm.room + 'px 까지 줄임)', sm);
   rows = await lsRows(page);
   ok(rows.some(x => /^hair:/.test(x.key)) && rows.some(x => /^hairColor:/.test(x.key)) && rows.filter(x => x.off).length === 2, '미용실: 앉으면 머리 모양 · 색 목록 (지금 것은 표시)');
   const hc = rows.find(x => /^hairColor:/.test(x.key) && !x.off).key, hs = rows.find(x => /^hair:/.test(x.key) && !x.off).key, hs2 = rows.filter(x => /^hair:/.test(x.key) && !x.off)[1].key;
@@ -315,12 +319,38 @@ async function roomRun(browser) {
   await lsAdd(page, hs3); await lsBuy(page); await page.waitForTimeout(300);
   ok((await page.evaluate(() => APP.state.settings.player.hair)) === hs3.split(':')[1] && !(await said()).includes('stylist|salon.after'), '머리 모양만 바꾸면 salon.after 없음');
   await page.waitForTimeout(1700);
+  /* 11-28 (검토): 목록을 접는 길마다 미리 보기를 벗긴다 (예전엔 카드 밖 톡 · Esc 가 LST 만 비워 입혀 본 것이 남았다) · 대사창 톡은 말 넘기기라 목록을 접지 않는다 */
+  const seatPick = async () => { await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } }))); await lsWait(page); const k = (await lsRows(page)).find(x => /^hair:/.test(x.key) && !x.off).key; await lsAdd(page, k); await page.waitForTimeout(100); return k.split(':')[1]; };
+  const tr = () => page.evaluate(() => Object.assign({}, window.__try));
+  let hk = await seatPick();
+  ok((await tr()).hair === hk, '(대역) 고르면 미리 입혀 본다 (tryOn)');
+  await page.evaluate(() => document.getElementById('npc-box').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })));
+  ok(!!(await LS(page)) && (await tr()).hair === hk, '대사창 (소라의 말) 을 눌러도 목록 · 미리 보기는 그대로');
+  await page.evaluate(() => document.getElementById('scene').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })));
+  ok(!(await LS(page)) && !(await tr()).hair, '카드 밖 톡 (의자 · 손잡이로 일어날 때의 첫 누름) 으로 접어도 미리 보기를 벗긴다');
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: false } })));
+  await page.waitForTimeout(700);
+  hk = await seatPick();
+  await page.evaluate(() => document.querySelector('#shop-list .ls-row').focus()); await page.keyboard.press('Escape'); await page.waitForTimeout(100);
+  ok(!(await LS(page)) && !(await tr()).hair && await page.evaluate(() => document.activeElement && document.activeElement.id === 'btn-salon-chair'), 'Esc: 접고 미리 보기를 벗기고 포커스는 의자 단추로');
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: false } })));
+  for (const ev of [['ppol:room-leaving', { key: 'salon' }], ['ppol:room', { key: null }]]) {
+    await page.waitForTimeout(700); hk = await seatPick();
+    await page.evaluate(e => document.dispatchEvent(new CustomEvent(e[0], { detail: e[1] })), ev);
+    ok(!(await LS(page)) && !(await tr()).hair, ev[0] + ' (앉은 채 방을 나섬 — 일어남 신호 없음): 목록 · 미리 보기를 접는다');
+  }
+  await page.waitForTimeout(700); hk = await seatPick();
+  await page.evaluate(() => document.getElementById('btn-room-exit').click());   /* 키보드로 '밖으로' (누름 없이 click 만) */
+  ok(!(await LS(page)) && !(await tr()).hair, "키보드로 '밖으로': 걸어 나가는 동안에도 카드가 남지 않는다");
+  await page.evaluate(() => { window.__try.hair = 'stale'; document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: false } })); });
+  ok(!(await tr()).hair, '일어나면 목록이 이미 접혀 있어도 미리 보기는 벗긴다');
+  await page.waitForTimeout(700);
   /* 값 있는 새 색 — 캐릭터 갈래가 알린 규칙 그대로 (11-28): salonCatalogue() → { styles, colors: [{ id, name, hex, price, owned }] } (값 0 = 가진 것, 새 색만 값) ·
      salonBuy(kind, id) → '가짐' 만 적고 저장 (조개는 이쪽이 뺀다 · 모르는 것 false · 가진 것 true) · 안 가진 새 색은 setPlayerPart 가 false (옷과 같은 규칙).
      그래서 새 색 하나를 장면의 머리 색 목록에 값 (shop 칸) 과 함께 끼운다 — 사기 전엔 못 입는다 */
   await page.evaluate(() => {
     window.__sb = []; window.__scOld = [APP.salonCatalogue, APP.salonBuy];
-    SCENE3D.PLAYER_PARTS.hairColor.push({ id: 'test-sea', name: '시험 바다색', hex: '#2b7a9a', shop: { price: 7 } });
+    SCENE3D.PLAYER_PARTS.hairColor.push({ id: 'test-sea', name: '시험 바다색', hex: '#2b7a9a', shop: { price: 7 } }, { id: 'test-sun', name: '시험 해색', hex: '#e0a33b', shop: { price: 7 } });
     const own = (k, id) => { const x = APP.playerParts()[k].find(q => q.id === id); return !!x && (!x.shop || !!(APP.state.user.owned || {})[k + ':' + id]); };
     APP.salonCatalogue = () => { const P = APP.playerParts(); return { styles: P.hair.map(x => ({ id: x.id, name: x.name, price: 0, owned: true })), colors: P.hairColor.map(x => ({ id: x.id, name: x.name, hex: x.hex, price: x.shop ? x.shop.price : 0, owned: own('hairColor', x.id) })) }; };
     APP.salonBuy = (k, id) => { window.__sb.push([k, id]); if (!APP.playerParts()[k].some(q => q.id === id)) return false; const u = APP.state.user; if (!u.owned) u.owned = {}; if (!u.owned[k + ':' + id]) { u.owned[k + ':' + id] = window.__ppolTest.today; APP.save(); } return true; };
@@ -336,6 +366,13 @@ async function roomRun(browser) {
   ok(!Object.keys((await LS(page)).cart).length && (await lsMsg(page)) === '조개가 2개 모자라' && await saidV('salon.short').then(v => v.length === 1 && v[0][2].need === 2), '조개가 모자라면 안 담기고 salon.short { need: 2 }');
   await setShells(page, 10); await lsAdd(page, nk); await page.waitForTimeout(100);
   ok((await LS(page)).total === 7 && await saidV('salon.pick').then(v => v.length === 1 && v[0][2].color === '시험 바다색'), '조개가 되면 담김 (합계 7) · salon.pick { color }');
+  /* 11-28 (검토): 값 있는 새 색 둘 사이를 바꿔 고르기 — 바뀌어 빠질 색 값까지 더해 '모자라' 던 것 (조개 10 · 7 + 7) */
+  const nk2 = 'hairColor:test-sun';
+  await lsAdd(page, nk2); await page.waitForTimeout(100);
+  L = await LS(page);
+  ok(Object.keys(L.cart).join() === nk2 && L.total === 7 && (await lsMsg(page)) === '' && (await saidV('salon.short')).length === 1 && await saidV('salon.pick').then(v => v.length === 2 && v[1][2].color === '시험 해색'), '값 있는 새 색 A 를 담은 채 B 를 누르면 B 로 바뀐다 (모자라지 않음 · salon.short 더 없음)', { cart: L.cart, total: L.total, msg: await lsMsg(page), short: await saidV('salon.short'), pick: await saidV('salon.pick') });
+  await lsAdd(page, nk); await page.waitForTimeout(100);
+  ok(Object.keys((await LS(page)).cart).join() === nk && (await LS(page)).total === 7, '다시 A 로');
   await setShells(page, 3); await lsBuy(page); await page.waitForTimeout(150);
   ok((await lsMsg(page)) === '조개가 4개 모자라' && !(await page.evaluate(() => window.__sb.length)) && await saidV('salon.short').then(v => v.length === 2 && v[1][2].need === 4), "'바꾸기' 때 모자라면 안 사고 salon.short { need: 4 }");
   await setShells(page, 10);
@@ -345,17 +382,43 @@ async function roomRun(browser) {
   ok(ub.shells === 3 && pb.hairColor === 'test-sea' && (await page.evaluate(() => JSON.stringify(window.__sb))) === JSON.stringify([['hairColor', 'test-sea']]) && ub.owned[nk] === DAY && ub.shop.got[nk] === DAY, '새 색: 조개 7 을 내고 (salonBuy 한 번 = 가짐) 그 색으로 · 영수증 (shop.got) 에도');
   ok(await page.evaluate(() => /냈어/.test(document.getElementById('shop-list').textContent)) && await saidV('salon.after').then(v => v.length === 1 && v[0][2].shells === 7), "영수증 '7 냈어' · salon.after { shells: 7 }");
   await page.waitForTimeout(1700);
-  /* 두 탭: 사기 전의 기록이 다른 탭에서 늦게 오면 값 (−7) · 영수증 · 가짐을 함께 다시 얹는다 (공짜 색 · 잃은 조개 없음) */
+  /* 두 탭: 사기 전의 기록이 다른 탭에서 늦게 오면 값 (−7) · 영수증 · 가짐을 함께 다시 얹는다 (공짜 색 · 잃은 조개 없음)
+     11-28 (검토): 그 사이 옷가게에 들렀다 와도 (shopSync() — 예전엔 이 탭의 산 것 목록을 비웠다) 그대로 */
+  await enter(page, 'clothes'); await page.waitForTimeout(150); await enter(page, null); await page.waitForTimeout(150);
   await page.evaluate(raw => { localStorage.setItem('ppolppol_v2', raw); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: raw, storageArea: localStorage })); }, stale);
   await page.waitForTimeout(1300);
   const ut = await U(page);
-  ok(ut.shells === 3 && ut.shop.got[nk] === DAY && (ut.owned || {})[nk] === DAY, '두 탭: 사기 전 기록이 늦게 와도 새 색은 값 · 영수증 · 가짐과 함께 다시 얹힌다 (조개 ' + ut.shells + ')');
+  ok(ut.shells === 3 && ut.shop.got[nk] === DAY && (ut.owned || {})[nk] === DAY, '두 탭: 사기 전 기록이 늦게 와도 (옷가게에 들렀다 와도) 새 색은 값 · 영수증 · 가짐과 함께 다시 얹힌다 (조개 ' + ut.shells + ')');
+  ok((await page.evaluate(() => JSON.stringify(window.__sb))) === JSON.stringify([['hairColor', 'test-sea'], ['hairColor', 'test-sea']]), '다시 얹을 때 salonBuy 를 한 번 더 부른다 (가짐 다시 — 이미 가졌으면 그대로)');
   await page.evaluate(() => { const v = localStorage.getItem('ppolppol_v2'); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v, storageArea: localStorage })); });
   await page.waitForTimeout(1300);
   ok((await U(page)).shells === 3, '같은 기록을 또 받아도 두 번 빼지 않는다');
   const sv = JSON.parse(await page.evaluate(() => localStorage.getItem('ppolppol_v2')));
   ok(sv.user.shells === 3 && sv.user.shop.got[nk] === DAY && (sv.user.owned || {})[nk] === DAY, '저장에도 다시 적힌다');
-  await page.evaluate(() => { APP.salonCatalogue = window.__scOld[0]; APP.salonBuy = window.__scOld[1]; const l = SCENE3D.PLAYER_PARTS.hairColor, i = l.findIndex(x => x.id === 'test-sea'); if (i >= 0) l.splice(i, 1); });
+  ok((await page.evaluate(() => window.__sb.length)) === 2, '같은 기록을 또 받으면 salonBuy 도 다시 안 부른다');
+  /* 11-28 (검토): 두 탭이 같은 조개를 함께 썼다 (이 탭: 새 색 7 · 다른 탭: 다른 것에 6, 조개 10 에서) — 다른 탭 기록 (조개 4) 에 이 탭의 산 색을 다시 얹을 조개가 모자란다.
+     가진 것은 두 탭 합치기 (ownedMerge) 로 남으니 버리지 않고 남은 조개를 다 낸다 (예전: 버려서 값 없이 가진 채 남았다) */
+  await setShells(page, 10);
+  const stale2 = await page.evaluate(() => { const o = JSON.parse(localStorage.getItem('ppolppol_v2')); o.user.shells = 4; return JSON.stringify(o); });
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })));
+  await lsWait(page); await lsAdd(page, nk2); await page.waitForTimeout(100); await lsBuy(page); await page.waitForTimeout(300);
+  ok((await U(page)).shells === 3 && (await U(page)).shop.got[nk2] === DAY, '(두 번째 새 색) 조개 7 을 내고 샀다');
+  await page.waitForTimeout(1700);
+  await page.evaluate(raw => { localStorage.setItem('ppolppol_v2', raw); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: raw, storageArea: localStorage })); }, stale2);
+  await page.waitForTimeout(1300);
+  const ud = await U(page);
+  ok(ud.shells === 0 && ud.shop.got[nk2] === DAY && (ud.owned || {})[nk2] === DAY, '두 탭이 같은 조개를 썼으면: 산 색은 영수증과 함께 남고 남은 조개 (4) 를 다 낸다 — 공짜로 남지 않는다', { shells: ud.shells, got: ud.shop.got[nk2], owned: (ud.owned || {})[nk2] });
+  await page.evaluate(() => { APP.salonCatalogue = window.__scOld[0]; APP.salonBuy = window.__scOld[1]; const l = SCENE3D.PLAYER_PARTS.hairColor; ['test-sea', 'test-sun'].forEach(id => { const i = l.findIndex(x => x.id === id); if (i >= 0) l.splice(i, 1); }); });
+  /* 11-28 (검토): 가로 화면 (넓고 낮은 장면) — 위 · 아래 칸이 모자라면 카드를 좁혀 몸 옆에 · 대사창이 설 자리가 없으니 목록이 떠 있는 동안 소라는 말하지 않는다 (대사창이 바꾸기 · 닫기를 가렸다) */
+  await page.evaluate(() => { const sc = document.getElementById('scene'); sc.style.width = '740px'; sc.style.height = '244px'; const s = APP.scene; s.project = (x, y) => ({ x: 370, y: y > 0.5 ? 60 : 140 }); document.getElementById('btn-salon-chair').style.cssText = 'left:356px;top:100px'; document.getElementById('btn-room-exit').hidden = true; window.__said.length = 0; window.__saidV.length = 0; });
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })));
+  await page.waitForTimeout(1900);
+  const ls = await page.evaluate(() => { const s = document.getElementById('scene').getBoundingClientRect(), c = document.getElementById('shop-card').getBoundingClientRect(); return { sw: Math.round(s.width), w: Math.round(c.width), left: c.left - s.left, right: c.right - s.left, top: c.top - s.top, bottom: c.bottom - s.top }; });
+  ok(ls.w >= 280 && ls.w < 340 && (ls.right <= 370 - 36 + 0.5 || ls.left >= 370 + 36 - 0.5) && ls.top >= 0 && ls.bottom <= 244, '가로 화면: 카드는 좁혀서 내 캐릭터 옆 (덮지 않음)', ls);
+  rows = await lsRows(page);
+  await lsAdd(page, rows.find(x => /^hairColor:/.test(x.key) && !x.off).key); await page.waitForTimeout(150);
+  ok(!(await said()).some(x => /^stylist\|salon\.(sit|pick|short)$/.test(x)), '가로 화면: 대사창이 설 자리가 없으니 목록이 떠 있는 동안 소라는 말하지 않는다', await said());
+  await page.evaluate(() => { document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: false } })); const sc = document.getElementById('scene'); sc.style.width = ''; sc.style.height = ''; document.getElementById('btn-room-exit').hidden = false; });
   await ctx.close();
 }
 

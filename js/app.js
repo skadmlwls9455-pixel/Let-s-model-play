@@ -5900,22 +5900,22 @@ var APP = (function () {
   }
   function shopMineAdd(m) { m.at = Date.now(); m.pt = performance.now(); m.born = S.octopus.born || 0; shopMine.push(m); }   /* m.d = 조개 수의 변화 (산 것 −값 · 주운 것 +1): 다시 얹을 때 조개도 함께 (산 것만 남고 값은 빠지는 일이 없게) */
   function shopSync(remote) {   /* remote = 다른 탭의 저장을 받은 뒤: 내 것 다시 얹기 (불러오기 · 초기화 뒤에는 얹지 않는다 — 시트를 열 때는 영수증대로 옷장 고치기만) */
-    if (!window.SHOP) return; if (!remote) shopMine = []; var u = shopU(), now = Date.now(), born = S.octopus.born || 0, dk = todayKey(), mine = { shop: { got: {} }, beach: { day: dk, picked: [] } };
-    shopMine = shopMine.filter(function (m) { return now - m.at < 60000 && m.born === born && !(m.pt <= importAt); });   /* 불러오기 앞의 것은 버린다 (불러온 기록에 얹지 않게) */
+    if (!window.SHOP) return; var u = shopU(), now = Date.now(), born = S.octopus.born || 0, dk = todayKey(), mine = { shop: { got: {} }, beach: { day: dk, picked: [] } };
+    shopMine = shopMine.filter(function (m) { return now - m.at < 60000 && m.born === born && !(m.pt <= importAt); });   /* 불러오기 앞의 것은 버린다 (불러온 기록에 얹지 않게) */   /* 11-28 (검토): 시트를 열 때 · 옷가게에 들어갈 때 (remote 아님) 도 비우지 않는다 — 비우면 미용실에서 산 뒤 60 s 안에 옷가게에 들르기만 해도 다른 탭의 늦은 저장이 그 산 것을 공짜로 만들었다. 얹기 · 합치기는 remote 일 때만 */
     var sh0 = u.shells, sd0 = u.seeds;
     if (remote) shopMine.forEach(function (m) {   /* 다른 탭의 기록이 이 탭의 사기 · 줍기를 모르면: 그것과 함께 조개 (와 씨앗) 도 다시. 조개가 모자라면 그 산 것은 버린다 */
       var miss = m.t === 'got' ? typeof u.shop.got[m.key] !== 'string' : m.day !== dk ? false : m.t === 'pick' ? !(u.beach.day === dk && Array.isArray(u.beach.picked) && u.beach.picked.indexOf(m.i) >= 0) : m.t === 'seed' ? !(isObj(u.shop.day) && u.shop.day.key === dk && (u.shop.day.seeds | 0) >= m.n) : false;
       m.drop = false; m.miss = miss; if (!miss) return; var d = m.d | 0;
-      if (u.shells + d < 0) { m.drop = true; return; }
+      if (u.shells + d < 0) { if (m.t === 'got' && isObj(u.owned) && u.owned[m.key]) { u.shells = 0; return; } m.drop = true; return; }   /* 11-28 (검토): 산 옷 · 색이 두 탭 합치기 (ownedMerge — 줄지 않는다) 로 이미 내 것이면 버리지 않고 남은 조개를 다 낸다 (버리면 값 없이 가진 채 남았다). 아직 안 가졌으면 예전대로 버린다 */
       u.shells += d; if (m.t === 'seed') u.seeds += 1;
     });
-    shopMine.forEach(function (m) {
+    if (remote) shopMine.forEach(function (m) {
       if (m.drop) return;
       if (m.t === 'got') mine.shop.got[m.key] = m.day;
       else if (m.t === 'seed' && m.day === dk) mine.shop.day = { key: dk, seeds: Math.max(m.n, mine.shop.day ? mine.shop.day.seeds : 0) };
       else if (m.t === 'pick' && m.day === dk && mine.beach.picked.indexOf(m.i) < 0) mine.beach.picked.push(m.i);
     });
-    var was = JSON.stringify([u.shop, u.beach]), mg = shopMine.length ? SHOP.merge({ shop: u.shop, beach: u.beach }, mine) : null, ch = false;
+    var was = JSON.stringify([u.shop, u.beach]), mg = remote && shopMine.length ? SHOP.merge({ shop: u.shop, beach: u.beach }, mine) : null, ch = false;
     if (mg && JSON.stringify([mg.shop, mg.beach]) !== was) { u.shop = mg.shop; u.beach = mg.beach; ch = true; }
     if (u.shells !== sh0 || u.seeds !== sd0) ch = true;
     var A = shopApi(), w = A && Object.keys(u.shop.got).length ? shopCat() : null;
@@ -6055,7 +6055,7 @@ var APP = (function () {
     try { var R = roomScene('roomSlots') ? scene.roomSlots('clothes') : null; list.forEach(function (m) { var sl = R && R.slots && R.slots[m.slot]; if (Array.isArray(sl)) m.pos = sl.slice(0, 4); }); } catch (e) { /* noop */ }   /* 자리도 함께 넘긴다 (마네킹 쪽이 방 칸을 못 읽어도 서게 — 계약 C11 의 pos) */
     try { scene.mannequins('clothes', list); } catch (e) { console.warn('[app] mannequins', e); }
   }
-  function roomCardClose(byTap) { if (LST && LST.card && LST.card === room.card) LST = null; if (room.card) { var cr = room.card.getBoundingClientRect(); room.shutRect = { l: cr.left - 12, r: cr.right + 12, t: cr.top - 12, b: cr.bottom + 12 }; room.card.remove(); room.card = null; if (byTap) room.shutAt = performance.now(); if (room.key && roomScene('roomHome')) { try { scene.roomHome(); } catch (e) { console.warn('[app] roomHome', e); } } } }   /* 카드를 띄울 때 roomFocus 로 옮긴 화면을 내 캐릭터 쪽으로 되돌린다 (바깥 갈래 — 있을 때만) */   /* byTap: 카드 안 단추로 닫혔다 → 0.6 s 동안 장면 누름은 쉰다 (빠른 두 번 톡이 밑의 다른 마네킹 · 선반에 떨어지지 않게) */
+  function roomCardClose(byTap) { if (LST && LST.card && LST.card === room.card) { listClose(byTap); return; } if (room.card) { var cr = room.card.getBoundingClientRect(); room.shutRect = { l: cr.left - 12, r: cr.right + 12, t: cr.top - 12, b: cr.bottom + 12 }; room.card.remove(); room.card = null; if (byTap) room.shutAt = performance.now(); if (room.key && roomScene('roomHome')) { try { scene.roomHome(); } catch (e) { console.warn('[app] roomHome', e); } } } }   /* 카드를 띄울 때 roomFocus 로 옮긴 화면을 내 캐릭터 쪽으로 되돌린다 (바깥 갈래 — 있을 때만) */   /* byTap: 카드 안 단추로 닫혔다 → 0.6 s 동안 장면 누름은 쉰다 (빠른 두 번 톡이 밑의 다른 마네킹 · 선반에 떨어지지 않게) */   /* 11-28 (검토): 목록 카드는 listClose 로 — 카드 밖 톡 · Esc · 앉은 채 일어나기 · 방 바뀜 어느 길로 접어도 onClose (미용실 미리 보기 벗기) 와 포커스 돌려주기가 돈다 (예전엔 LST 만 비워 미리 입혀 본 것이 남았다) */
   function roomCardPlace() {   /* 그 단추 (마네킹 · 계산대 · 선반 위에 놓인) 의 화면 자리 바로 위, 장면 안쪽 8px, 기기 px 에 맞춰 */
     var c = room.card, sc = $('scene'); if (!c || !sc) return; var a = $(c.dataset.anchor || ''), dpr = window.devicePixelRatio || 1, sr = sc.getBoundingClientRect(), ar = a && !a.hidden ? a.getBoundingClientRect() : null, w = c.offsetWidth, hh = c.offsetHeight;
     /* 세로 자리는 장면 안에서도 위 상태 줄 아래 · 큰 단추 위 칸만 (장면이 화면을 다 채워 그 둘 밑으로 깔린다 — 이름이 잘리고 위 단추를 덮었다) */
@@ -6067,8 +6067,11 @@ var APP = (function () {
     var pb = null;
     try { if (roomScene('player') && roomScene('project')) { var pi = scene.player(), ph = pi && pi.height || 1.5, f = pi && pi.at ? scene.project(pi.at[0], 0, pi.at[2]) : null, hd = f ? scene.project(pi.at[0], ph, pi.at[2]) : null;
       if (f && hd && isFinite(f.x) && isFinite(hd.y)) { var half = Math.max(24, (f.y - hd.y) * 0.45); pb = { l: f.x - half, r: f.x + half, t: hd.y - 8, b: f.y + 4 }; } } } catch (e) { pb = null; }
-    var seeMe = !!pb && c.classList.contains('see-me'), up = pb ? pb.t - 8 - top : 0, dn = pb ? bot - (pb.b + 8) : 0;   /* see-me (미용실 목록): 앉은 내 캐릭터가 보여야 미리 입혀 보기가 보인다 — 몸 위 · 아래 중 넓은 쪽 높이까지 줄인다 (줄은 카드 안에서 굴러감) */
-    if (seeMe && Math.max(up, dn) >= 220) { c.style.maxHeight = Math.floor(Math.max(up, dn)) + 'px'; hh = c.offsetHeight; Y1 = Math.max(top, bot - hh); } else seeMe = false;
+    var seeMe = !!pb && c.classList.contains('see-me'), up = pb ? pb.t - 8 - top : 0, dn = pb ? bot - (pb.b + 8) : 0, mode = '', sideL = 0, sideR = 0, sw = 0;   /* see-me (미용실 목록): 앉은 내 캐릭터가 보여야 미리 입혀 보기가 보인다 — 몸 위 · 아래 중 넓은 쪽 높이까지 줄인다 (줄은 카드 안에서 굴러감) */
+    if (seeMe && Math.max(up, dn) >= 196) mode = 'v';   /* 196px = 머리 · 단추 줄 · 줄 하나 (11-28: 220 이면 320×568 폰에서 카드가 캐릭터를 덮었다) */
+    else if (seeMe) { sideL = pb.l - 16; sideR = sr.width - pb.r - 16; sw = Math.floor(Math.min(340, Math.max(sideL, sideR))); if (sw >= 280 && bot - top >= 196) mode = 'side'; }   /* 11-28 (검토): 가로 화면 — 위 · 아래 칸이 모자라면 몸 옆에 (카드를 좁혀서). 예전엔 칸을 다 채워 캐릭터를 덮었다 */
+    if (seeMe) { var sww = mode === 'side' ? sw + 'px' : ''; if (c.style.width !== sww) { c.style.width = sww; w = c.offsetWidth; X1 = Math.max(8, sr.width - w - 8); cx = clamp((ar ? ar.left + ar.width / 2 - sr.left : sr.width / 2) - w / 2, X0, X1); } }
+    if (mode) { c.style.maxHeight = Math.floor(mode === 'v' ? Math.max(up, dn) : bot - top) + 'px'; hh = c.offsetHeight; Y1 = Math.max(top, bot - hh); } else seeMe = false;
     var keep = pb ? [pb] : [];   /* 덮지 않을 것: 내 캐릭터 · 조개 칩 · '밖으로' 자리 */
     ['btn-bag', 'btn-room-exit'].forEach(function (id) { var e = $(id); if (!e || e.hidden || !e.offsetParent) return; var q = e.getBoundingClientRect(); if (q.width) keep.push({ l: q.left - sr.left - 2, r: q.right - sr.left + 2, t: q.top - sr.top - 2, b: q.bottom - sr.top + 2 }); });
     var hit = function (x, y) { return keep.some(function (k) { return x < k.r && x + w > k.l && y < k.b && y + hh > k.t; }); };
@@ -6078,9 +6081,16 @@ var APP = (function () {
     if (pb) { cands.push([cx, pb.t - hh - 8], [cx, pb.b + 8], [pb.l - w - 8, (top + bot - hh) / 2], [pb.r + 8, (top + bot - hh) / 2], [pb.l - w - 8, top], [pb.r + 8, top]); }   /* 위 · 아래가 안 되면 옆 */
     var x = cands[0][0], y = cands[0][1], ok = false;
     for (var ci = 0; ci < cands.length && !ok; ci++) { var tx = cands[ci][0], ty = cands[ci][1]; if (tx < X0 - 0.5 || tx > X1 + 0.5 || ty < top - 0.5 || ty > Y1 + 0.5 || hit(tx, ty)) continue; x = tx; y = ty; ok = true; }
-    if (!ok && seeMe) { x = clamp(x, X0, X1); y = clamp(dn >= up ? pb.b + 8 : pb.t - hh - 8, top, Y1); }   /* see-me: 조개 칩 · '밖으로' 자리를 덮더라도 내 캐릭터는 덮지 않는다 (넓은 쪽) */
+    if (!ok && mode === 'v') { x = clamp(x, X0, X1); y = clamp(dn >= up ? pb.b + 8 : pb.t - hh - 8, top, Y1); }   /* see-me: 조개 칩 · '밖으로' 자리를 덮더라도 내 캐릭터는 덮지 않는다 (넓은 쪽) */
+    else if (!ok && mode === 'side') { x = clamp(sideL >= sideR ? pb.l - w - 8 : pb.r + 8, X0, X1); y = top; }
     else if (!ok) { x = clamp(x, X0, X1); y = clamp(ar && ar.top - sr.top - hh - 8 >= top ? ar.top - sr.top - hh - 8 : ar ? ar.bottom - sr.top + 8 : y, top, Y1); }   /* 자리가 어디에도 없으면 예전대로 (대상 위 · 아래) */
     if (!seeMe) c.style.maxHeight = Math.max(160, bot - top) + 'px';   /* 상태 줄 아래 · 큰 단추 위 칸보다 크지 않게 (목록은 줄만 굴러간다 — 가로 화면) */
+    var line = false;   /* 11-28 (검토): 대사창 (NPC 갈래 npcPlace — 가운데 · 위아래로만 비켜 선다) 이 이 카드 반대쪽에 설 자리가 있나. 없으면 (가로 화면 · 몸 옆 · 칸을 다 채움) 목록이 떠 있는 동안 미용사는 말하지 않는다 — 대사창이 바꾸기 · 닫기를 가렸다 */
+    if (mode === 'v') {
+      var fl = 36; ['status', 'brain-tag', 'btn-bag', 'scene-ctl'].forEach(function (id) { var e = $(id); if (!e || e.hidden || !e.offsetWidth) return; var q = e.getBoundingClientRect(); if (q.bottom > 0 && q.bottom < window.innerHeight / 2) fl = Math.max(fl, q.bottom + 32); });   /* 대사창이 올라설 수 있는 가장 위 (그쪽과 같은 셈) */
+      line = y >= pb.b ? sr.top + y - fl >= 112 : bot - (y + hh) - 28 >= 112;   /* 112 = 대사창 높이 (얼굴 · 두 줄) */
+    }
+    room.lineOk = line;
     c.style.left = Math.round(x * dpr) / dpr + 'px'; c.style.top = Math.round(y * dpr) / dpr + 'px';
   }
   var ROOM_SLOT = { 'btn-mq-0': 'mq0', 'btn-mq-1': 'mq1', 'btn-mq-2': 'mq2', 'btn-mq-3': 'mq3', 'btn-room-counter': 'counter', 'btn-shelf-0': 'shelf0', 'btn-shelf-1': 'shelf1', 'btn-shelf-2': 'shelf2', 'btn-shelf-3': 'shelf3', 'btn-shelf-4': 'shelf4', 'btn-shelf-5': 'shelf5' };
@@ -6175,7 +6185,7 @@ var APP = (function () {
       } else if ((m = /^btn-shelf-(\d)$/.exec(b.id))) roomShelf(+m[1]);
       if (b.id === 'btn-room-counter' || b.id === 'btn-npc-' + room.key) shopListOpen(room.key, 'card');   /* 11-24: 계산대 · 가게 문어 → 목록 (걸어가기는 건물 갈래가 먼저) */
     });
-    document.addEventListener('pointerdown', function (e) { if (room.card && !room.card.contains(e.target)) roomCardClose(); }, true);
+    document.addEventListener('pointerdown', function (e) { var t = e.target; if (room.card && !room.card.contains(t) && !(t && t.closest && t.closest('#npc-box'))) roomCardClose(); }, true);   /* 대사창 (NPC 갈래 — body 에 뜬다) 톡은 말 넘기기라 카드를 접지 않는다 (미용실: 소라가 말하는 동안 대사창을 누르면 목록이 접혔다) */
     document.addEventListener('keydown', function (e) { if (e.key !== 'Escape' || !room.card || document.querySelector('dialog[open]')) return; var ae = document.activeElement; if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return; roomCardClose(); e.preventDefault(); });   /* 열린 창 · 글 칸이 있으면 그쪽 Esc 가 먼저 */   /* Esc 로도 카드를 접는다 */
     /* 카드 안 단추로 카드가 닫힌 직후 0.6 s: 장면 안 누름 (마네킹 · 선반 단추 · 그림 위 톡) 은 받지 않는다 — 창 (window) 의 잡기 단계라 건물 · 바깥 갈래의 처리보다 먼저 */
     ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'click'].forEach(function (ev) {
@@ -6210,7 +6220,8 @@ var APP = (function () {
   function listAdd(x, d, el) {   /* 담기 · 빼기. 담으면 조개가 모자라는 것은 안 담고 (값이 흔들리고) 한 줄 */
     if (!LST || x.mark) return; listClamp(); var n = LST.cart[x.key] | 0, max = Math.max(1, x.max | 0), nx = clamp(n + d, 0, max);
     if (nx === n) { if (d > 0 && n >= max) listSay(max === 1 && !x.qty ? '' : '오늘은 이게 다야'); return; }
-    if (nx > n) { var need = listTotal() + (nx - n) * x.price, have = shopU().shells; if (need > have) { listSay('조개가 ' + (need - have) + '개 모자라'); var t = document.querySelector('#shop-list [data-key="' + x.key + '"] .ls-price'); furnShake(t || el); listHook('onShort', x, need - have); return; } }
+    if (nx > n) { var swap = 0; if (x.group) listLines().forEach(function (l) { if (l.x.group === x.group && l.x.key !== x.key) swap += l.n * l.x.price; });   /* 갈래마다 하나: 이걸 담으면 빠질 같은 갈래 것은 빼고 센다 (값 있는 새 색 A 를 담은 채 B 로 바꿀 때 A 값까지 더해 '모자라' 던 것) */
+      var need = listTotal() - swap + (nx - n) * x.price, have = shopU().shells; if (need > have) { listSay('조개가 ' + (need - have) + '개 모자라'); var t = document.querySelector('#shop-list [data-key="' + x.key + '"] .ls-price'); furnShake(t || el); listHook('onShort', x, need - have); return; } }
     if (nx && x.group) LST.o.items().forEach(function (y) { if (y.group === x.group && y.key !== x.key) delete LST.cart[y.key]; });   /* 갈래마다 하나 (머리 모양 · 색) */
     LST.cart[x.key] = nx; if (!nx) delete LST.cart[x.key]; listSay(''); listRender(); listHook('onChange');
     if (nx > n) listHook('onPick', x);
@@ -6386,22 +6397,25 @@ var APP = (function () {
     listOpen({ id: 'stylist', title: (who && who.name ? who.name + ' · ' : '') + '머리 색 · 모양', host: 'card', anchor: 'btn-salon-chair', buyText: '바꾸기', seeMe: true,
       items: salonItems, buy: salonBuyLines,
       onChange: salonPreview,
-      onPick: function (x) { if (x.group === 'hairColor') roomSayAs('stylist', 'salon.pick', { color: x.name }); },
-      onShort: function (x, need) { if (x ? x.group === 'hairColor' : listLines().some(function (l) { return l.x.group === 'hairColor' && l.x.price > 0; })) roomSayAs('stylist', 'salon.short', { need: need }); },
+      onPick: function (x) { if (x.group === 'hairColor') salonSay('salon.pick', { color: x.name }); },
+      onShort: function (x, need) { if (x ? x.group === 'hairColor' : listLines().some(function (l) { return l.x.group === 'hairColor' && l.x.price > 0; })) salonSay('salon.short', { need: need }); },
       onDone: function (res, paid) { salonUnpreview(); roomPose('pose'); if (res.got.some(function (g) { return g.x.group === 'hairColor'; })) roomSayAs('stylist', 'salon.after', { shells: paid }); },
       onClose: salonUnpreview });
   }
+  function salonSay(key, vars) { if (LST && LST.o.id === 'stylist' && LST.card && !LST.done && !room.lineOk) return; roomSayAs('stylist', key, vars); }   /* 목록이 떠 있는 동안: 대사창이 카드 반대쪽에 설 자리가 없으면 말하지 않는다 (roomCardPlace 가 잰다 — 가로 화면 · 아주 작은 폰). 영수증 (done) 뒤의 말은 그대로 */
   function salonSaySettled(key) {   /* 카드가 자리를 잡은 뒤에 말한다 — 앉는 폴짝 동안 카드가 내 캐릭터를 따라 옮겨 가서, 그 전에 뜬 대사창이 처음 자리 (카드 위) 에 남았다. 세 프레임 그대로면 (길어야 1.5 s). 그 사이 목록을 접었으면 말하지 않는다 */
     var L = LST, last = '', same = 0, t0 = performance.now();
     (function tick() {
-      if (!L || LST !== L || L.done) return;
+      if (!L || LST !== L || L.done || Object.keys(L.cart).length || L.msg) return;   /* 그 사이 벌써 골랐거나 (담기 · 모자람 한 줄) 했으면 인사는 건너뛴다 — 늦은 인사가 고른 색 줄 (salon.pick · short) 을 접었다 */
       var r = L.card ? L.card.getBoundingClientRect() : null, k = r ? [Math.round(r.left), Math.round(r.top), Math.round(r.height)].join() : '';
       same = k === last ? same + 1 : 0; last = k;
-      if (same >= 3 || performance.now() - t0 > 1500) { roomSayAs('stylist', key); return; }
+      if ((same >= 3 && room.lineOk) || performance.now() - t0 > 1500) { salonSay(key); return; }   /* 자리를 잡았는데 대사창 자리가 아직 없으면 (폴짝 앞 자리 · 화면이 아직 돌아가는 중) 1.5 s 까지 더 기다린다 — 그때도 없으면 salonSay 가 건너뛴다 */
       requestAnimationFrame(tick);
     })();
   }
-  document.addEventListener('ppol:salon-seat', function (e) { var on = !!(e && e.detail && e.detail.on); if (on) { salonOpen(); salonSaySettled('salon.sit'); } else if (LST && LST.o.id === 'stylist') listClose(); });   /* 목록이 먼저 자리를 잡은 뒤에 말한다 (대사창이 카드를 비켜 선다) */
+  document.addEventListener('ppol:salon-seat', function (e) { var on = !!(e && e.detail && e.detail.on); if (on) { salonOpen(); salonSaySettled('salon.sit'); } else if (LST && LST.o.id === 'stylist') listClose(); else salonUnpreview(); });   /* 목록이 먼저 자리를 잡은 뒤에 말한다 (대사창이 카드를 비켜 선다) */   /* 일어나면: 목록이 이미 접혔어도 (영수증 뒤 · 다른 길) 미리 보기는 벗긴다 (안 산 색이 남지 않게 — 두 번 벗겨도 그대로) */
+  ['ppol:room', 'ppol:room-leaving'].forEach(function (ev) { document.addEventListener(ev, function () { if (LST && LST.o.id === 'stylist') listClose(); }); });   /* 앉은 채 '밖으로' (키보드 — 장면이 일어남을 보내지 않는다): 방을 나서면 목록 · 미리 보기를 접는다 (마당 위에 카드가 남아 '바꾸기' 가 되던 것) */
+  window.addEventListener('click', function (e) { var t = e.target; if (LST && LST.o.id === 'stylist' && t && t.closest && t.closest('#btn-room-exit')) listClose(); }, true);   /* 키보드로 '밖으로' (누름 없이 click 만): 걸어 나가는 동안에도 카드가 남지 않게 (장면의 room-leaving 은 들어온 동안 한 번뿐) */
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(shopInit, 0); }); else setTimeout(shopInit, 0);
 
 
