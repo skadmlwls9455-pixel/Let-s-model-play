@@ -3333,8 +3333,10 @@ var SCENE3D = (function () {
       if (to === 'attic' || isRoomP(to)) {
         var g = groupOf(to); if (plG.parent !== g) g.add(plG); fpClear(g);
         var an = to === 'play' ? 'playAtticDoor' : to === 'loft' ? 'loftStair' : to === 'yard' ? 'yardAttic' : from === 'loft' ? 'atticStair' : from === 'yard' ? 'atticYard' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
-        PL.sit = false; PL.hop = null; PL.tbl = false; var mb0 = TB.meBite; TB.meBite = null; if (mb0) mb0.done(false); plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false;
-        /* 11-18 주인: 돌린 각에서 들어와도 방 안쪽을 본 채 (카메라 쪽으로 돌려 세우던 11-15 규칙은 뺐다) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = PL_CLEAR[an] ? 'clear:' + an : ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
+        var ax = a[0], az = a[2], cl = PL_CLEAR[an], aside = an === 'atticYard' && !!cl && octG.parent === atticG && octG.visible && Math.hypot(oct.pos.x - a[0], oct.pos.z - a[2]) < PL_OCT_R + 0.3;   /* [7-C] 11-24 (검토): 출발 의식 중 문어가 그 문간을 지나는 중이면 문어 위가 아니라 한 걸음 비킨 자리에 선다 */
+        if (aside) { ax = cl[0]; az = cl[1]; }
+        PL.sit = false; PL.hop = null; PL.tbl = false; var mb0 = TB.meBite; TB.meBite = null; if (mb0) mb0.done(false); plStop(); PL.place = to; PL.pos.set(ax, 0, az); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false;
+        /* 11-18 주인: 돌린 각에서 들어와도 방 안쪽을 본 채 (카메라 쪽으로 돌려 세우던 11-15 규칙은 뺐다) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = PL_CLEAR[an] && !aside ? 'clear:' + an : ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
       } else { if (plG.parent !== atticG) atticG.add(plG); fpClear(atticG); PL.place = 'attic'; plRest(true); }
     }
     var WIDE_WALK = 8;   /* 11-19 넓은 바깥: 울타리 밖에서 집 문까지 남은 길 (m — 여기 → 울타리 문 → 계단 발치 → 문 앞, 곧은 선으로) 이 이보다 길면 걷지 않는다. 울타리 문에서 문 앞까지가 6.48 m 라 울타리 문 1.5 m 안에서만 걸어 들어온다 (걸음 5 s 쯤까지 — 마당 안의 가장 긴 걸음 6.6 s 보다 짧다) */
@@ -4829,7 +4831,7 @@ var SCENE3D = (function () {
       it.until = function () { return !tr || PLACE.trans !== tr; };
       return it;
     }
-    function yardDoorBusy() { return !!(CER && CER.active && (CER.name === 'depart' || CER.name === 'return')); }   /* 11-15: 문어가 산책 문을 쓰는 동안 (출발 · 귀가 의식) — 마당 문 단추는 숨고 goRoom('yard') 는 기다리라고 돌려준다 */
+    function yardDoorBusy() { return !!(CER && CER.active && CER.name === 'return'); }   /* 11-24 (주인: "문어 산책 보낸 뒤에 … 캐릭터는 캐릭터대로 할 일"): 출발 의식 동안엔 마당 문을 막지 않는다 — 캐릭터가 먼저 나가도 문어는 다락에서 제 걸음으로 나간다. 귀가 의식 동안만 (문어가 그 문간으로 들어온다) — 그동안 마당 문 단추는 숨고 goRoom('yard') 는 기다리라고 돌려준다 (11-15 엔 출발 의식 동안도 막았다) */
     function goRoom(room, o) {
       o = o || {};
       var enter = isRoomP(room), stair = room === 'loft' || (!enter && PLACE.room === 'loft');   /* 위층은 문이 아니라 계단: 문짝 · 끼익 없이 위아래로 미끄러진다 */
@@ -4840,7 +4842,7 @@ var SCENE3D = (function () {
       if (enter ? PLACE.room === room : !PLACE.room) return no('here');
       if (enter && (PLACE.room || (room === 'loft' && PLACE.vis !== 'attic'))) return no('far');   /* 방에서 방으로 바로는 못 간다 (거실을 거친다) · 계단은 거실에만 있다 */
       var yard = room === 'yard' || (!enter && PLACE.room === 'yard');   /* 11-15 마당: 문어 산책 문을 같이 쓴다 */
-      if (yard && yardDoorBusy()) return no('ceremony');   /* 문어가 그 문으로 나가거나 들어오는 동안 마당 문은 (나가는 쪽도 들어오는 쪽도) 기다린다 */
+      if (yard && yardDoorBusy()) return no('ceremony');   /* 문어가 그 문으로 들어오는 동안 (귀가 의식) 마당 문은 (나가는 쪽도 들어오는 쪽도) 기다린다. 11-24: 나가는 동안 (출발 의식) 은 열려 있다 */
       var anchor = stair ? (enter ? 'atticStair' : 'loftStair') : yard ? (enter ? (PLACE.vis === 'attic' && !PLACE.trans ? 'atticYard' : null) : 'yardAttic') : enter ? (PLACE.vis === 'attic' && !PLACE.trans ? 'atticPlayDoor' : null) : 'playAtticDoor';
       var walk = typeof o.walkFirst === 'function' ? o.walkFirst : o.walkFirst ? playerWalkTo : null;
       if (stair) enter = enter ? 'up' : 'down';

@@ -179,13 +179,13 @@ var APP = (function () {
   function cornerName(c) { return (W && W.corners && W.corners[c] && W.corners[c].name) || c; }
   function greetingByHour(hr) { return hr < 6 ? '밤이 깊었네' : hr < 9 ? '좋은 아침' : hr < 17 ? '좋은 오후' : hr < 19 ? '노을이 지네' : '밤이네'; }
   var toastTimer = null, toastRow = false;   /* toastRow: 지금 떠 있는 게 '새 줄 알림'(rowToast)인가 */
-  function toast(msg, raw) {   /* <output aria-live=polite> 하나, 한 번에 하나, 2.5초 (UI R21). raw = { part, by }: 그 안의 남의 글(위키 제목 등)만 data-raw. 11-15 (검증 U-4): msg 가 배열이면 글 · 노드 그대로 (조개 그림 + 수) */
+  function toast(msg, raw, top) {   /* top (11-24): 문어 이야기 알림은 화면 위에 (octToast — 주인). <output aria-live=polite> 하나, 한 번에 하나, 2.5초 (UI R21). raw = { part, by }: 그 안의 남의 글(위키 제목 등)만 data-raw. 11-15 (검증 U-4): msg 가 배열이면 글 · 노드 그대로 (조개 그림 + 수) */
     var t = $('toast'); if (!t) return;
-    clearTimeout(rowTimer); rowWait = null; toastRow = false; t.classList.remove('row');   /* 보통 알림이 새 줄 알림을 밀어낸다 (거꾸로는 아니다 — rowToast) */
+    clearTimeout(rowTimer); rowWait = null; toastRow = false; t.classList.remove('row'); t.classList.toggle('top', !!top);   /* 보통 알림이 새 줄 알림을 밀어낸다 (거꾸로는 아니다 — rowToast) */
     var moved = raiseToast(t);
     if (moved && !t.classList.contains('show')) void t.offsetWidth;   /* 옮긴 직후에도 나타나는 전환이 돌게 */
     t.textContent = ''; (Array.isArray(msg) ? msg : partRaw(msg, raw && raw.part, raw && raw.by)).forEach(function (n) { if (n != null) t.appendChild(typeof n === 'string' ? document.createTextNode(n) : n); }); toastPlace(t); t.classList.add('show'); toastSnap(t);   /* 11-15 (UI 점검): 글 시작을 기기 px 에 */
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2500);
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); toastTopOff(t); }, 2500);
   }
   /* 알림 글 시작을 기기 px 에 (UIART.snapLeft) — 11-18: 글 뒤에 오는 조개 그림 + 수 (.shell-amt) 도 따로 맞춘다. 앞 글 ('오늘 선물: ') 의 폭이 기기 px 정수가 아닌 환경
      (글자 폭을 CSS px 로 반올림하는 곳 — CI 기계가 그렇다: 100 CSS px = 262.5 기기 px @2.625) 에선 그림과 수가 반 px 에 걸려 흐렸다. 그림 32 + 여백 4 + 틈 4 = 40 CSS px 라 묶음의 시작만 맞추면 수도 맞는다 */
@@ -708,16 +708,17 @@ var APP = (function () {
   function rowToast() {
     var row = rowWait, t = $('toast'); rowWait = null;
     if (!row || !t || !document.body.contains(row) || !layoutOne() || logOpen()) return;
+    var ck = $('cook-overlay'); if (ck && ck.open) return;   /* 11-24: 부엌 (글자 0) 위에는 새 줄 알림을 띄우지 않는다 — 오늘 단추의 점은 그대로 */
     if (t.classList.contains('show') && !toastRow) return;   /* 보통 알림(저장 · 복사 …)은 밀어내지 않는다. 점은 이미 켜져 있다 */
     var lab = row.querySelector('.ltool'), txt = row.querySelector('.ltext'), src = document.querySelector('#btn-today .snd-box svg'), body = h('span', { class: 't-txt' });
     if (!txt) return;
     if (lab && lab.textContent) body.appendChild(document.createTextNode(lab.textContent + ' · '));
     rowLine(txt, body);
     var moved = raiseToast(t); if (moved && !t.classList.contains('show')) void t.offsetWidth;
-    t.textContent = ''; t.classList.add('row');
+    t.textContent = ''; t.classList.add('row'); t.classList.add('top');   /* 11-24 (주인: 뚜루 관련 메세지는 위에): 산책 행 알림은 화면 위 */
     if (src) { var ic = src.cloneNode(true); ic.setAttribute('class', 't-ico'); ic.setAttribute('width', '16'); ic.setAttribute('height', '16'); ic.setAttribute('aria-hidden', 'true'); t.appendChild(ic); }
     t.appendChild(body); toastRow = true; toastPlace(t); t.classList.add('show'); toastSnap(t);   /* 11-15 (UI 점검): 글 시작을 기기 px 에 */
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); toastRow = false; }, 2500);
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); toastRow = false; toastTopOff(t); }, 2500);
   }
   /* 알림 자리: 기본은 바닥 줄 바로 위(--stack-b). 떠 있는 대사 · '돌아왔어' 쪽지와 겹치면 그 위로 올린다 (--toast-b).
      등장 애니메이션(transform)에 속지 않게 자리는 offset 으로 잰다. 시트 안으로 옮겨 간 알림은 건드리지 않는다 */
@@ -728,6 +729,7 @@ var APP = (function () {
     return { left: x, top: y, right: x + el.offsetWidth, bottom: y + el.offsetHeight };
   }
   function toastPlace(t) {
+    if (t.classList.contains('top')) { t.style.removeProperty('--toast-b'); toastTopPlace(t); return; }   /* 11-24: 위 알림은 위 띠 밑에 */
     t.style.removeProperty('--toast-b');
     if (!layoutOne() || t.parentNode !== document.body) return;
     var vw = window.innerWidth, vh = window.innerHeight, w = t.offsetWidth, hh = t.offsetHeight, i, pass;
@@ -857,7 +859,7 @@ var APP = (function () {
   function openSalon() {
     var d = $('salon-sheet');
     /* 11-11 미용실은 위층: 3D 에서는 문어가 위층에 따라 올라와 있을 때만 연다. 다락(거울 없음)에서는 열리지 않고, 위층인데 문어가 아래층에서 자고 있으면 한 줄만 (깨우지 않는다 · 기록 0) */
-    if (sceneMode === '3d' && !octWithMe()) { if (SAL && scene && d && roomNow() === 'loft' && !salonRun && !busy && !roomJob) toast(oct.state === 'sleep' ? SLEEP_DOWN_SAY : oct.state === 'away' ? AWAY_SAY : DOWN_SAY); return false; }   /* 11-12 (검증): 깨어서 아래층에 있을 때도 한 줄 (혼자 올라오게 하지는 않는다) */
+    if (sceneMode === '3d' && !octWithMe()) { if (SAL && scene && d && roomNow() === 'loft' && !salonRun && !busy && !roomJob) octToast(oct.state === 'sleep' ? SLEEP_DOWN_SAY : oct.state === 'away' ? AWAY_SAY : DOWN_SAY); return false; }   /* 11-12 (검증): 깨어서 아래층에 있을 때도 한 줄 (혼자 올라오게 하지는 않는다) */
     if (!SAL || !scene || !d || salonRun || busy || (inPlay() && !octWithMe()) || roomJob || introUp() || furnMode) return false;   /* 방(놀이방 · 위층)에서는 문어가 따라 올라와 있을 때만 (11-11 미용실은 위층) · furnMode = 가구 배치 중 */
     if (d.open) return true;
     syncFromStore();   /* 다른 탭이 오늘 이미 물었으면 시트 대신 토스트 */
@@ -1181,12 +1183,14 @@ var APP = (function () {
   var SPOT_DESC = { window: '창가', center: '방 가운데', crate: '나무 상자 옆', blanket: '담요 위', board: '포스터 판 앞', door: '문 앞', salon: (SAL && SAL.TEXT.spot) || '거울 옆' };
   var DOING_DESC = { idle: '쉬고 있어', stay: '쉬고 있어', sleep: '자고 있어', pet: '쓰다듬받고 있어', happy: '통통 뛰고 있어', anticipate: '나갈 채비 중이야', hang: '포스터를 붙이고 있어', carry: '포스터를 들고 있어' };
   function partOfDay(hr) { return hr < 5 ? '밤' : hr < 9 ? '아침' : hr < 17 ? '낮' : hr < 19 ? '저녁' : '밤'; }
+  var HOME_DESC = '문어는 산책에서 돌아왔어. 다락에 가면 귀가를 볼 수 있어.';   /* 11-24 (검토): 귀가 장면을 기다리는 동안 (homeWait) — 쪽지 · 알림과 같은 사실 */
+  function octOutDesc() { return homeWaitOn ? HOME_DESC : oct.state === 'away' || sceneCeremony() === 'depart' ? '문어는 산책 나갔어.' : '문어는 다락방에 있어.'; }
   function sceneDescText() {
     if (sceneView() === 'yard')   /* 11-15 마당: 문어는 따라 나오지 않는다 */
-      return '마당, ' + (WX_DESC[weatherFor(S.room.lantern)] ? WX_DESC[weatherFor(S.room.lantern)] + ' ' : '') + partOfDay(hourNow()) + '. 집 앞에 텃밭 ' + gardenOpen() + '칸이 있어. ' + (oct.state === 'away' || sceneCeremony() === 'depart' ? '문어는 산책 나갔어.' : '문어는 다락방에 있어.');
+      return '마당, ' + (WX_DESC[weatherFor(S.room.lantern)] ? WX_DESC[weatherFor(S.room.lantern)] + ' ' : '') + partOfDay(hourNow()) + '. 집 앞에 텃밭 ' + gardenOpen() + '칸이 있어. ' + octOutDesc();
     if (sceneView() === 'play') {   /* 놀이방 (8물결): 문어는 다락(또는 산책). 11-18: 식탁에 불렀으면 맞은편 · 식탁의 요리 · 따라다니는 효과 (3D 만 — 2D 엔 식탁이 없다) */
       var atT = octAtTable(), md = sceneMode === '3d' && MEALR ? MEALR.sceneDesc(S, todayKey(), S.octopus.name, atT) : '';
-      return '놀이방, ' + partOfDay(hourNow()) + '. 다락방 달리기 오락기랑 작은 부엌이 있어. ' + (md ? md + (atT ? '' : ' ') : '') + (atT ? '' : (oct.state === 'away' || sceneCeremony() === 'depart' ? '문어는 산책 나갔어.' : '문어는 다락방에 있어.'));
+      return '놀이방, ' + partOfDay(hourNow()) + '. 다락방 달리기 오락기랑 작은 부엌이 있어. ' + (md ? md + (atT ? '' : ' ') : '') + (atT ? '' : octOutDesc());
     }
     var lv = S.room.lantern, outside = sceneMode === '3d' && !!scene && typeof scene.place === 'function' && scene.place() === 'exterior';   /* 2D 무대는 바깥을 그리지 않는다 (장소 값만 기억) → 늘 다락 */
     var loft = !outside && sceneView() === 'loft', up = loft && octWithMe();   /* 11-12 (검증): 위층에서도 다락 · 다락 자리를 읽었다 — 위층이면 위층, 문어가 따라 올라와 있으면 '위층', 아래층에 있으면 '아래층' */
@@ -1194,7 +1198,7 @@ var APP = (function () {
     var wx = WX_DESC[weatherFor(lv)], st = oct.state, cname = sceneCeremony();
     /* 출발·귀가 의식은 장면이 스스로 걷고 장소를 바꾼다 (APP 의 oct.state 는 의식이 끝나야 바뀐다) → 의식 이름대로 */
     var who = cname === 'depart' ? '문어는 나가는 중이야.' : cname === 'return' ? '문어는 돌아오는 중이야.'
-      : st === 'away' ? '문어는 산책 나갔어.' : st === 'walk' ? (loft && !up ? '문어는 아래층에서 걸어가는 중이야.' : '문어는 걸어가는 중이야.')   /* 11-12 (검증): 위층에서 들으면 아래층에서 걷는 줄 몰랐다 */
+      : st === 'away' ? (homeWaitOn ? HOME_DESC : '문어는 산책 나갔어.') : st === 'walk' ? (loft && !up ? '문어는 아래층에서 걸어가는 중이야.' : '문어는 걸어가는 중이야.')   /* 11-12 (검증): 위층에서 들으면 아래층에서 걷는 줄 몰랐다 */
       : '문어는 ' + (up ? (oct.anchor === 'salon' ? '위층 ' + SPOT_DESC.salon : '위층') : (loft ? '아래층 ' : '') + (SPOT_DESC[oct.anchor] || '방 가운데')) + '에서 ' + (DOING_DESC[st] || '쉬고 있어') + '.';
     /* 몸 색 한 마디 (docs/SALON.md §3.8 — 색이 문어의 일이 됐으니 못 보는 사람도 안다): 집에 있을 때만 · 지금 장면에 보이는 색 (미용실 연출 중엔 첨벙 전까지 옛 색) */
     var home = !cname && st !== 'away', hex = home && SAL ? (scene && typeof scene.color === 'function' ? scene.color() : S.octopus.color) : null, cn = hex ? SAL.colorName(hex) : null;
@@ -1692,7 +1696,7 @@ var APP = (function () {
   function setBusy(on) {
     if (on && salonRun) salonFinish();   /* 미용실 연출 중에 산책이 시작되면 (데모 조작 · 이벤트 재생) 남은 연출을 끝 상태로 먼저 */
     busy = on; oct.busy = on;
-    if (!on) { flying = null; if (remoteDirty) { remoteDirty = false; renderAll(); applyMotion(); applyFont(); syncSceneLook(); } }
+    if (!on) { flying = null; foreignTrip = null; if (remoteDirty) { remoteDirty = false; renderAll(); applyMotion(); applyFont(); syncSceneLook(); } }
     var go = $('btn-go');
     clearTimeout(skipTimer); skipReady = on ? Date.now() + SKIP_GUARD : 0;
     if (go) {
@@ -1713,6 +1717,7 @@ var APP = (function () {
     salonFinish();   /* 미용실 연출 중이면 남은 연출을 한 번에 감고 (새 색 · 대야 치움 · 남은 행) 초대는 평소대로 */
     var now = Date.now(), rapid = goRapid(now), quick = now - lastGo < SKIP_GUARD; lastGo = now;   /* 11-24 quick: 앞 누름에서 SKIP_GUARD 안 — 모션 줄이기면 출발이 한 프레임이라 두 번 톡의 둘째가 skipReady 를 지나 산책을 바로 끝냈다 */
     if (quick) return;   /* 11-24: 앞 톡에서 600 ms 안의 톡은 무엇도 하지 않는다 — 출발이 늦게 켜지는 기기에선 둘째 톡이 아직 '집에 있음' 을 보고 초대를 또 불러 산책이 바로 끝났다 (점검: 412 · 모션 줄이기 · 19.5시) */
+    if (homeWaitOn) { if (inPlay() || roomJob) backToOctRoom(); return; }   /* 11-24: 문어는 이미 돌아와 귀가 장면을 기다린다 — 다락으로만 (거기서 귀가 장면 전부. 데려오기로 줄이지 않는다). 막 다락에 들어선 0.25 초 안의 톡도 데려오기가 되지 않게 */
     if (inPlay() || roomJob) {   /* 놀이방이면 먼저 문으로 문어 방에 돌아와서 (8물결). 누른 *그때* 의 뜻대로: 다녀오는 중이었으면 데려오기(건너뛰기)만 — 문을 지나는 사이 산책이 끝났으면 아무것도 안 한다 (새 산책이 되지 않게) */
       var wasBusy = busy;
       backToOctRoom().then(function (ok) {
@@ -1824,10 +1829,10 @@ var APP = (function () {
       var planned = res[0];
       if (!planned) {
         S.trips = S.trips.filter(function (t) { return t !== trip; }); save();
-        pre.remove(); setBusy(false); settleOct(); toast('두뇌가 잠깐 멈췄어. 다시 불러 줘');
+        pre.remove(); setBusy(false); settleOct(); octToast('두뇌가 잠깐 멈췄어. 다시 불러 줘');
         return null;
       }
-      if (!woke) questMark('ask');   /* 이번 주 할 일: 묻는 것만 센다 (나갈지는 문어가 정한다). 11-12 (검증 F10): 차례가 정해진 뒤에 — 두뇌가 멈춰 없던 일이 된 물음은 세지 않는다. 11-12 주인 (검증 W5 (b)): 자는 문어를 깨운 누름은 세지 않는다 (그 차례 동안 다시 눌러도 초대가 아니다 — busy) */
+      if (!woke && trip !== foreignTrip) questMark('ask');   /* 이번 주 할 일: 묻는 것만 센다 (나갈지는 문어가 정한다). 11-12 (검증 F10): 차례가 정해진 뒤에 — 두뇌가 멈춰 없던 일이 된 물음은 세지 않는다. 11-12 주인 (검증 W5 (b)): 자는 문어를 깨운 누름은 세지 않는다 (그 차례 동안 다시 눌러도 초대가 아니다 — busy) */
       if (trip.status !== 'done') mergePlan(trip, planned);   /* done = 그사이 다른 탭이 데려왔다 (adoptRemote) → 그 기록 그대로 보여 준다 */
       save();
       /* 외출: 움츠림 뒤 출발 의식(다락 문 → 바깥 → 화면 밖) → 끝나면 로그 공개. 바깥은 나가 있는 동안 그대로 (계절 입자). 집·빈 차례는 의식 없음 */
@@ -1882,7 +1887,7 @@ var APP = (function () {
         if (i > 0) { showTyping(); return gapWait((out ? 1100 + rng() * 1300 : 2200 + rng() * 2300) * speed()).then(function () { if (!out || skipFlag) hideTyping(); }); }
       }).then(function () {
         var row = eventRow(trip, ev);
-        if (window.AUDIO) AUDIO.on('row', { ev: ev, trip: trip, outside: out && !skipFlag, skip: skipFlag });   /* 소리: 공개되는 이벤트마다 (바깥 기웃은 peek 훅) */
+        if (window.AUDIO) AUDIO.on('row', { ev: ev, trip: trip, outside: out && !skipFlag, skip: skipFlag, later: ev.type === 'return' && homeLater() });   /* later (11-24): 귀가 장면을 미룬다 → 귀가 소리는 그 장면에서 한 번 */   /* 소리: 공개되는 이벤트마다 (바깥 기웃은 peek 훅) */
         if (out && !skipFlag) return peekOut(ev, function () { hideTyping(); if (row) appendLogRow(today, row); });
         if (row) appendLogRow(today, row);
         return sceneFor(trip, ev);
@@ -1926,16 +1931,9 @@ var APP = (function () {
     });
     return revealing.ceremony;
   }
-  /* 이벤트별 장면 연출. skipFlag 면 즉시 */
-  function sceneFor(trip, ev) {
-    var fast = skipFlag || reduced();
-    switch (ev.type) {
-      case 'depart':
-        if (oct.state === 'away') return Promise.resolve();   /* 초대: 의식은 공개 전에 끝났다 */
-        if (fast) { octState('away'); return Promise.resolve(); }
-        return departOut().then(function () { return sleep(400 * speed()); });   /* 이벤트 JSON 재생 등 */
-      case 'return':
-        commitTrip(trip);
+  /* 귀가 장면 (sceneFor 'return' 에서 기록을 남긴 뒤): 다락 문으로 들어와 보드까지 · 포스터. 11-24 에 미룰 수 있게 함수로 뺐다 (안은 그대로) */
+  function returnScene(trip) {
+        var fast = skipFlag || reduced();
         /* 들고 오는 포스터 = 이 여행의 것 (id: 장면이 걸 때 그 포스터의 벽 칸으로 날린다 — 건너뛰기·데모 재생처럼 벽에 먼저 붙었어도) */
         var mode = trip.poster ? 'carry' : 'walk', carryX = trip.poster ? { svg: posterSVG(trip, 48, 64, { mini: true, noExternal: true }), id: trip.id } : null;
         var wasOut = !!(revealing && revealing.outside);
@@ -1985,13 +1983,65 @@ var APP = (function () {
           (wasOut ? runCeremony('leave') : Promise.resolve()).then(function () {
             if (over) return;
             dropOverlay();
-            return runCeremony('return').then(function () {
+            return (homeLater() ? homeWait() : Promise.resolve()).then(function () {   /* 11-24 (검토): 퇴장 의식 동안 마당으로 나갔으면 귀가 의식은 다락에 들어설 때 (마당에 갇히지 않게) */
               if (over) return;
-              over = true; if (R) R.back = null;
-              atHome().then(resolve);
+              return runCeremony('return').then(function () {
+                if (over) return;
+                over = true; if (R) R.back = null;
+                atHome().then(resolve);
+              });
             });
           });
         });
+  }
+  /* 11-24 (주인: "문어 산책 보낸 뒤에 방에만 있지 않고 캐릭터는 캐릭터대로 할 일 할 수 있도록"): 문어가 돌아왔을 때 캐릭터가 다락 밖 (마당 · 마을 · 가게 · 카페 · 바닷가 · 놀이방 · 위층) 이면
+     귀가 장면은 미루고 한 줄만 ('…돌아왔어.' — 놀이방 · 마당은 구석 쪽지, 그 밖은 알림). 캐릭터가 다락 (이야기 장소) 으로 돌아오면 그때 귀가 장면 · 포스터.
+     큰 버튼 ('보러 갈래?') 은 캐릭터를 다락으로 데려가고, 거기서 귀가 장면 전부 (데려오기로 줄이지 않는다). 기록은 이미 저장했다 — 미루는 것은 장면뿐 (새로 고치면 문어는 집에서 연다: 문어의 '나가 있음' 은 저장하지 않는다).
+     바깥 기웃 자리에 서 있던 문어는 기다림이 시작될 때 (캐릭터가 안 보는 동안) 물러난다 — 다락에 들어서면 '돌아왔어' 다음에 멀어지는 걸음 없이 귀가 길만 (검토 11-24) */
+  var homeWaitOn = false;
+  var foreignTrip = null;   /* 11-24 (검토): 다른 탭이 다른 기록으로 바꾼 뒤에도 이 탭에서 이어지던 산책 — 남은 장면은 빨리 감고, 반영 · 저장은 하지 않는다 (commitTrip · finalPose) */
+  function tripAway(T) {
+    foreignTrip = T;
+    if (revealing && revealing.trip === T) revealing.deferred = null;   /* 귀가 연출 (포스터 날리기 · 등불 칸) 도 옛 기록의 것이라 하지 않는다 */
+    setTimeout(function () { if (busy && flying === T) skip(); }, 0);   /* 기다림 (homeWait) 도 여기서 끝난다 — skipFlag */
+  }
+  function homeLater() { return !skipFlag && sceneMode === '3d' && hasCeremony() && oct.state === 'away' && inPlay(); }
+  function homeLine() { var nm = S.octopus.name || ''; return typeof STR.backNote === 'function' ? STR.backNote(nm) : (nm || '문어') + ' 돌아왔어.'; }
+  function homeGo(waiting) {   /* 기다리는 동안 큰 버튼: '보러 갈래?' (누르면 다락으로 — 거기서 귀가 장면). 끝나면 '다녀오는 중…' 으로 (귀가 장면이 도는 동안) */
+    var go = $('btn-go'); if (!go || !busy) return;
+    go.innerHTML = '<span class="go-txt">' + (waiting ? '보러 갈래?' : '다녀오는 중…') + '</span>';
+    go.setAttribute('aria-label', waiting ? '보러 갈래? ' + homeLine() + ' 누르면 다락으로' : '다녀오는 중. 누르면 바로 돌아오게');   /* 보이는 글이 이름 맨 앞에 (음성 조작 · 화면 낭독기가 같은 말을 듣게) */
+  }
+  function homeWait() {
+    homeWaitOn = true; homeGo(true); updateSceneDesc();
+    var v = sceneView(); if (v === 'play' || v === 'yard') noteBack(); else octToast(homeLine());
+    return new Promise(function (res) {
+      var t = setInterval(function () {
+        if (!skipFlag && inPlay()) {   /* 쪽지는 놀이방 · 마당에서 늘 (가게 · 카페에 들어갔다 나와도 다시) */
+          var n = $('back-note'), w = sceneView(); if ((w === 'play' || w === 'yard') && !roomJob && n && n.hidden) noteBack();
+          return;
+        }
+        clearInterval(t); homeWaitOn = false; homeGo(false); updateSceneDesc(); res();
+      }, 250);
+    });
+  }
+  function homeAway() {   /* 기다림이 시작될 때: 바깥 기웃 자리의 문어는 지금 물러난다 (안 보는 동안 — 다락에 들어서면 귀가 길만) */
+    if (!(revealing && revealing.outside)) return Promise.resolve();
+    revealing.outside = false;
+    return runCeremony('leave');
+  }
+  /* 이벤트별 장면 연출. skipFlag 면 즉시 */
+  function sceneFor(trip, ev) {
+    var fast = skipFlag || reduced();
+    switch (ev.type) {
+      case 'depart':
+        if (oct.state === 'away') return Promise.resolve();   /* 초대: 의식은 공개 전에 끝났다 */
+        if (fast) { octState('away'); return Promise.resolve(); }
+        return departOut().then(function () { return sleep(400 * speed()); });   /* 이벤트 JSON 재생 등 */
+      case 'return':
+        commitTrip(trip);   /* 기록은 돌아온 그 시각에 (장면을 미뤄도) */
+        if (homeLater()) return Promise.all([homeAway(), homeWait()]).then(function () { return returnScene(trip); });   /* 11-24: 캐릭터가 집 (다락) 밖이면 귀가 장면은 다락에 들어설 때 */
+        return returnScene(trip);
       case 'hang_poster':
         if (!trip.poster) return Promise.resolve();
         if (revealing && revealing.homing) { renderWall(); return Promise.resolve(); }   /* 데려온 귀가: 문 앞에서 벽에 바로 (보드까지 걸어가 붙이지 않는다) */
@@ -2000,7 +2050,7 @@ var APP = (function () {
       case 'wrap_up':
         /* 반응이 있을 때만 말풍선 (없으면 말 없이 담담하게 — 반응을 지어내지 않는다). 모델·사람이 쓴 줄은 40자 + '…' 까지 (전체는 로그·일기에) */
         var rx = reactionOf(trip, ev), say1 = rx.line ? (rx.given ? clip(rx.line, REACT_RAW_SHOW) : rx.line) : rx.word;
-        if (say1) bubble(say1, 3000, rx.given && REACT_EXPR[rx.r] ? REACT_EXPR[rx.r] : 'say', { raw: rx.line ? (rx.given ? rawBy(trip) : null) : (rx.raw ? (rawBy(trip) || 'model') : null) });   /* 반응은 단어만 (예전 이모지 머리는 뺐다) · 그들이 쓴 줄 · 네 가지 밖의 반응은 그대로 (reactionSayHTML 과 같은 규칙) */
+        if (say1 && trip !== foreignTrip) bubble(say1, 3000, rx.given && REACT_EXPR[rx.r] ? REACT_EXPR[rx.r] : 'say', { raw: rx.line ? (rx.given ? rawBy(trip) : null) : (rx.raw ? (rawBy(trip) || 'model') : null) });   /* 반응은 단어만 (예전 이모지 머리는 뺐다) · 그들이 쓴 줄 · 네 가지 밖의 반응은 그대로 (reactionSayHTML 과 같은 규칙) */
         octState(reactFace(rx) === 'happy' ? 'happy' : 'idle');   /* 11-15 (주인 C6 b): 웃는 장면 얼굴은 모델 · 사람이 폴짝 · 우쭐을 골랐을 때만 */
         if (trip.status !== 'done') commitTrip(trip);
         var cer = startCeremony();                      /* 로그가 끝났으니 연출 시작 — 문어가 담요로 가는 동안 같이 */
@@ -2026,6 +2076,7 @@ var APP = (function () {
      trip 이 기록이 아니면(복구 resumeRunning 의 { kind }) 마지막 쉬는 차례로 */
   function finalPose(trip) {
     ensureAttic(); dropOverlay();
+    if (trip === foreignTrip) { octState(S.octopus.state === 'sleep' ? 'sleep' : 'idle'); return; }   /* 11-24: 옛 산책의 끝 — 받은 기록의 문어 상태를 바꾸거나 저장하지 않는다 */
     if (trip.kind === 'empty') { octState(S.octopus.state === 'sleep' ? 'sleep' : 'idle'); return; }
     var t = trip.events ? trip : (lastRestTrip() || trip);
     S.octopus.state = 'sleep'; save();   /* 쉬는 중 (깨어 있는 틈이든 낮잠이든) — 지금 새로고침해도 담요에서 */
@@ -2038,7 +2089,7 @@ var APP = (function () {
   }
   /* 상태 반영: 등불 · 방문 · 취향 · 기념품 · 함께한 날 (한 번만) */
   function commitTrip(trip) {
-    if (trip.status === 'done') return;
+    if (trip.status === 'done' || trip === foreignTrip) return;   /* 11-24: 다른 탭이 바꾼 기록에는 옛 산책을 반영하지 않는다 (tripAway) */
     var prevL = applyTrip(trip);
     lastNewPoster = trip.poster ? trip.id : null;
     save(); mine.push({ trip: trip, at: Date.now() });
@@ -2114,7 +2165,7 @@ var APP = (function () {
      다른 문어의 기록(born 이 다름 = 다른 탭에서 초기화·불러오기)이면 mine 은 버린다 (지운 기록을 되살리지 않게) */
   function adoptRemote(raw, obj) {
     var R; try { R = normalize(obj || JSON.parse(raw)); } catch (err) { return false; }   /* obj = storage 이벤트가 이미 읽은 것 (11-13 C6) */
-    var T = busy ? flying : null, same = (S.octopus.born || 0) === (R.octopus.born || 0), now = Date.now();
+    var F = busy && flying && flying !== foreignTrip ? flying : null, same = (S.octopus.born || 0) === (R.octopus.born || 0), now = Date.now(), T = null;
     /* 미용실 물음 (docs/SALON.md §7.5): 이 탭이 쓴 물음(mineAsks, 60 s)이 받은 기록에 빠졌으면 colors 줄과 함께 다시 얹고, 같은 날 물음이 둘이면 이른 것이 정한다 (늦은 것은 dropped).
        다른 문어(born 이 다름)면 SALON.merge 가 mine 을 버린다 */
     var sm = SAL ? SAL.merge(S, R, mineAsks, now) : null;
@@ -2126,6 +2177,11 @@ var APP = (function () {
     if (same) cafeAdopt(S, R);   /* [7-C] 11-21 7차: 이 탭이 센 카페 기록 (먹은 수 · 선물 · 튼 레코드) 을 다른 탭의 저장이 덮지 않게 (CAFE.adopt) */
     S = R; lastSaved = raw;
     var dyeIn = dyeAdopt();   /* 옛 빌드 탭이 물들인 색 (dye 만 바뀜) 을 받아들인다 */
+    /* 11-24 (검토): 다녀오는 중인 여행 (flying) 은 같은 문어의 기록에만 얹는다. 이미 돌아와 기록된 여행 (귀가 장면을 기다리는 동안 — homeWait, 몇 시간일 수도 있다) 은
+       그쪽 기록에도 있거나, 없더라도 돌아온 지 MINE_MS (mine 과 같은 60 초) 안일 때만 — 그 뒤에 그 여행이 빠진 기록이 오면 일부러 바꾼 기록 (다른 탭의 옛 파일 불러오기) 이다.
+       얹지 않을 때 (다른 문어 = 다른 탭의 초기화 · 다른 문어 불러오기 포함) 는 이 탭에 남은 장면만 빨리 감는다 (tripAway — 기록에는 아무것도 쓰지 않는다).
+       예전엔 늘 얹어, 새로 시작한 기록에 옛 문어의 산책 · 등불 · 포스터가 들어갔다 (기다림이 길어지며 쉽게 닿게 됨) */
+    if (F) { if (same && (F.status !== 'done' || !!tripById(F.id) || now - (F.endedAt || 0) <= MINE_MS)) T = F; else tripAway(F); }
     var redo = !!T && carry(T);
     mine = !same ? [] : mine.filter(function (m) {
       if (now - m.at > MINE_MS) return false;
@@ -2143,7 +2199,7 @@ var APP = (function () {
   function takeRemote(raw, obj) {
     if (!adoptRemote(raw, obj)) return false;
     weekTell();   /* 11-11 (검증 W1): 다른 탭이 주를 넘기며 지난주 선물을 넣었고 아직 알리지 못했으면 (그 탭이 가려져 있다) 보이는 이 탭이 알린다 */
-    if (busy) { remoteDirty = true; applyGarden(); return true; }   /* 공개 중엔 로그·등불을 다시 그리지 않는다 → 끝날 때 한 번 (setBusy). 11-13: 바깥 밭 (단추 이름 · 심은 것) 만은 지금 — 산책 중에만 떠 있고, 이름만 바꾸면 거둔 꽃이 그대로 그려져 이름과 그림이 엇갈렸다 */
+    if (busy) { remoteDirty = true; applyGarden(); renderBagChip(); applyMotion(); applyFont(); syncSceneLook(); return true; }   /* 11-24 (검토): 조개 · 옷 · 움직임 · 글꼴은 지금 (산책 중에도 캐릭터는 가게 · 마당에 있다). 로그 · 벽 · 등불은 끝날 때 한 번 */   /* 공개 중엔 로그·등불을 다시 그리지 않는다 → 끝날 때 한 번 (setBusy). 11-13: 바깥 밭 (단추 이름 · 심은 것) 만은 지금 — 산책 중에만 떠 있고, 이름만 바꾸면 거둔 꽃이 그대로 그려져 이름과 그림이 엇갈렸다 */
     /* 이 탭이 연출 중인 물음이 방금 밀렸다 (두 탭이 서로 보기 전에 물었고 그쪽이 일렀다 — dropped): 남은 연출을 여기서 접는다 (검증 11-10 E10).
        예전엔 밀린 색으로 걷기 · 대야를 끝까지 한 뒤 몸이 그쪽 색으로 툭 바뀌었다. 감기는 행을 붙이지 않고 (stageRows) 장면 몸색은 기록 (그쪽 답) 으로 맞춘다 */
     if (salonRun) { var mineNow = askById(salonRun.ask.id); if (mineNow && mineNow.status === 'dropped') salonFinish(); }
@@ -2515,7 +2571,7 @@ var APP = (function () {
      soon = 지금 넘겨도 된다 (새로 초대할 때). 아니면 (1분 틱) 방금 끝난 산책은 2분 동안 그대로 보이게 둔다 → 넘겼으면 true */
   function checkDay(soon) {
     if (busy || !logDay || todayKey() === logDay) return false;
-    if (!soon) { var last = null; S.trips.forEach(function (t) { if (t.status === 'done' && (!last || (t.endedAt || 0) > (last.endedAt || 0))) last = t; }); if (last && Date.now() - (last.endedAt || 0) < 120000) return false; }
+    if (!soon) { var last = null; S.trips.forEach(function (t) { if (t.status === 'done' && (!last || (t.endedAt || 0) > (last.endedAt || 0))) last = t; }); if (last && Date.now() - Math.max(last.endedAt || 0, backAt) < 120000) return false; }   /* 11-24 (검토): 미룬 귀가 장면이 끝난 때 (backAt) 부터도 2분 — 방금 본 행이 바로 앨범으로 넘어가지 않게 */
     setDayGreeting(); renderLog(); renderAlbum(); renderShelf();
     renderBagChip();   /* 11-11 (검증 W1): 주가 바뀐 날이면 여기서 새 주로 (열어 둔 탭 — 안 받은 지난주 선물 넣기 · 꼬리표 점 다시) */
     return true;
@@ -3338,7 +3394,7 @@ var APP = (function () {
   var WALK_FILE_RE = /^(\d{4}-\d{2}-\d{2})-(\d+)\.json$/;
   function walkDone(file, last) { var x = WALK_FILE_RE.exec(file || ''), y = WALK_FILE_RE.exec(last || ''); return !!x && !!y && (y[1] > x[1] || (y[1] === x[1] && +y[2] >= +x[2])); }
   function claudeSync(manual) {
-    var r = claudeRoom(); if (!r || claudeSyncing) return;
+    var r = claudeRoom(); if (!r || claudeSyncing) { if (r && manual && homeWaitOn) toast(homeLine() + ' 다락에서 귀가를 본 뒤에 이어서 가져올게'); return; }   /* 11-24 (검토): 기다리는 동안 누르면 말없이 지나가지 않게 */
     claudeSyncing = true;
     var q = r.last ? '?after=' + encodeURIComponent(r.last) : '';
     fetch('/api/walks/' + encodeURIComponent(r.key) + q, { cache: 'no-store' })
@@ -3352,11 +3408,12 @@ var APP = (function () {
         if (typeof j.lang === 'string' || j.lang === null) { r0.lang = typeof j.lang === 'string' ? j.lang : null; r0.pin = !!j.pin; save(); }   /* 방의 언어 (설정 화면이 보여 준다) */
         var list = (j.walks || []).filter(function (w) { return w && typeof w.file === 'string' && Array.isArray(w.events) && w.events.length; });
         if (!list.length) { claudeSyncing = false; if (manual && !farPending) toast('새로 다녀온 산책이 없어'); farAsk(); return; }
+        var waitTold = false;
         (function next() {
           var w = list.shift();
           if (!w) { claudeSyncing = false; if (j.more) setTimeout(function () { claudeSync(false); }, 800); else farAsk(); return; }
           (function tryImport() {
-            if (busy) return setTimeout(tryImport, 700);
+            if (busy) { if (manual && homeWaitOn && !waitTold) { waitTold = true; toast(homeLine() + ' 다락에서 귀가를 본 뒤에 이어서 가져올게'); } return setTimeout(tryImport, 700); }
             /* 11-18 (주인: "새 주제인데 이전 포스터랑 그대로 … 저장되는 경우"): 게임이 탭 둘 (탭 + 설치한 앱) 에 열려 있으면 여기까지 온 사이 S 가 바뀌어, 예전 코드는 버려진 객체에 '어디까지 받았나' 를 적었다
                → 다음에 같은 산책을 또 받아 같은 포스터가 새 차례로 한 번 더 저장됐다. ① 지금의 방 객체에 적고 ② 이미 들어온 산책 파일은 다시 재생하지 않는다 (여행에 walk 꼬리표) */
             syncFromStore();   /* 재생을 기다린 사이 (busy) 다른 탭이 같은 산책을 들였을 수 있다 — 꼬리표를 보기 전에 저장소의 지금 기록을 받는다 */
@@ -3386,10 +3443,11 @@ var APP = (function () {
     if (giftBusy) return;
     var name = S.octopus.name || '문어', list = giftList(), c = null; list.forEach(function (x) { if (x.id === id) c = x; });
     if (sceneMode !== '3d' || !scene || typeof scene.setOctWear !== 'function') { toast('지금 화면에서는 내밀 수 없어'); return; }
-    if (oct.state === 'away' || busy) { toast(name + '가 나가 있어'); return; }
-    if (oct.state === 'sleep') { toast(name + '가 자고 있어'); return; }
+    if (homeWaitOn) { octToast(homeLine() + ' 다락에서 귀가를 본 뒤에 내밀어 줘'); return; }   /* 11-24 (검토): 기다리는 동안 '나가 있어' 와 '돌아왔어' 가 엇갈리지 않게 */
+    if (oct.state === 'away' || busy) { octToast(name + '가 나가 있어'); return; }
+    if (oct.state === 'sleep') { octToast(name + '가 자고 있어'); return; }
     var wear = Object.assign({}, giftWear());
-    if (!c && !wear.head && !wear.back) { toast(name + '는 아무것도 안 쓰고 있어'); return; }
+    if (!c && !wear.head && !wear.back) { octToast(name + '는 아무것도 안 쓰고 있어'); return; }
     var sh = $('settings-sheet'); if (sh && sh.open) sh.close();
     /* 11-11: 문어의 대답은 그날 하루 그대로 선다 — 같은 것을 같은 날 다시 내밀어도 주사위를 새로 굴리지 않는다 (예전엔 내밀 때마다 새 주사위라, 거절해도 몇 번 누르면 '쓰기로 했어' 가 나왔다 = 문어의 선택이 아니었다).
        다른 것은 그날에도 내밀 수 있다. 시드에서 '몇 번째 누름' 을 빼서 같은 날 · 같은 물건이면 답이 같다 */
@@ -3827,7 +3885,7 @@ var APP = (function () {
                            11-13: 불러온 순간 (그 기록의 lastSeen, 지금보다 크면 지금) — 불러오기 전에 쓰인 다른 탭 기록의 storage 이벤트가 늦게 와도 불러온 것을 되돌리지 않게 (닫힌 탭의 마지막 저장이 몇 ms 뒤에 와서 옛 밭 · 조개가 돌아왔다).
                            지금으로 자르는 까닭: 시계가 앞선 기기의 파일이면 lastSeen 이 미래라, 그 뒤 다른 탭의 초기화 · 저장을 버리고 이 탭이 옛 기록을 되썼다 */
   function importJSON(text) {
-    if (busy) { toast('다녀오는 중이라 못 불러와. 끝나고 해 줘'); return false; }
+    if (busy) { toast(homeWaitOn ? homeLine() + ' 다락에서 귀가를 본 뒤에 불러와 줘' : '다녀오는 중이라 못 불러와. 끝나고 해 줘'); return false; }   /* 11-24: 기다림은 다락에 가야 끝난다 — 그 길을 말한다 */
     salonFinish();   /* 미용실 연출 중이면 끝 상태로 먼저 (그 물음은 이미 저장돼 있다) */
     var ssh = $('salon-sheet'); if (ssh && ssh.open) ssh.close();
     var prev = { S: S, g: greetingRow, m: memoRow };
@@ -3862,7 +3920,7 @@ var APP = (function () {
     toast('기록을 불러왔어'); return true;
   }
   function resetAll() {
-    if (busy) { toast('다녀오는 중이라 못 지워. 끝나고 해 줘'); return false; }
+    if (busy) { toast(homeWaitOn ? homeLine() + ' 다락에서 귀가를 본 뒤에 지워 줘' : '다녀오는 중이라 못 지워. 끝나고 해 줘'); return false; }
     salonFinish();   /* 미용실 연출 중이면 끝 상태로 먼저 */
     var ssh = $('salon-sheet'); if (ssh && ssh.open) ssh.close();
     store.remove(KEY); clearRest();   /* 11-13 (재검증 S4): 앞 문어의 깨어 있는 틈도 */
@@ -4203,7 +4261,7 @@ var APP = (function () {
     var n = $('back-note'), t = $('back-note-txt'); if (!n || !t) return;
     var nm = S.octopus.name || '', txt = typeof STR.backNote === 'function' ? STR.backNote(nm) : (nm || '문어') + ' 돌아왔어.';
     if (!n.hidden && t.textContent === txt) return;
-    clearTimeout(noteTimer); t.textContent = ''; n.hidden = false; toastRefit();
+    clearTimeout(noteTimer); t.textContent = ''; n.hidden = false; noteTopPlace(); toastRefit();
     noteTimer = setTimeout(function () {   /* 이름은 따로 (긴 이름은 css 가 줄임표로 — 쪽지가 두 줄을 넘지 않게). 읽어 주는 글은 온전한 문장 그대로 */
       if (n.hidden) return;
       var who = nm || '문어';
@@ -4507,7 +4565,7 @@ var APP = (function () {
     if (!MEALR) return;
     var my = mealRun;
     if (my) {
-      var gone = scene !== my.scene || sceneMode !== '3d', away = gone || roomNow() !== 'play' || busy || document.hidden;
+      var gone = scene !== my.scene || sceneMode !== '3d', away = gone || roomNow() !== 'play' || (busy && (octAtTable() || my.stage === 'coming')) || document.hidden;   /* 11-24 (검토): 산책 중 (귀가 기다림 포함) 혼자 먹기 · 들고 가기는 끊지 않는다 — 문어가 식탁에 있거나 오는 중일 때만 */
       var stood = !away && my.stage !== 'coming' && my.stage !== 'serving' && !mealSeated(), late = Date.now() - my.t0 > 30000 * speed();
       if (away || stood || late) { if (my.stage === 'eating') mealFinish(my, false); else if (my.stage === 'serving') mealServeCut(my); else mealAbort(my, away); }   /* 11-21: 들고 가는 중이면 끝 상태로 (요리는 식탁에 · 부르지 않는다) */
     } else if (octAtTable() && !mealLeaving) {
@@ -5131,7 +5189,7 @@ var APP = (function () {
     if ((!p && !g && !(pn > 0)) || !S.octopus.name) return;
     if (giftWait || document.hidden || (window.INTRO && ['sky', 'title', 'out'].indexOf(INTRO.phase) >= 0) || (t && t.classList.contains('show')) || document.querySelector('#runner-dlg[open], #cook-overlay[open]')) { weekTellT = setTimeout(weekTell, 1000); return; }   /* 11-15 합침 (검증 V4 S5): 달리기 · 부엌 화면 가득 창이 열려 있으면 닫힌 뒤에 (아래 동그라미 · 부엌 위에 2.5 초 겹쳤다) */
     if (g) { delete u.giftTell; save(); toast(['오늘 선물: ', shellAmt(g.shells | 0), ' · 씨앗 1 (들어온 날 ' + (g.n | 0) + '일째)']); if (p || pn > 0) weekTellT = setTimeout(weekTell, 1000); return; }
-    if (pn > 0) { if (revealing) { weekTellT = setTimeout(weekTell, 1000); return; }   /* 귀가 공개가 끝난 뒤에 */
+    if (pn > 0) { if (revealing && !homeWaitOn) { weekTellT = setTimeout(weekTell, 1000); return; }   /* 귀가 공개가 끝난 뒤에 (11-24: 귀가 장면을 기다리는 동안은 기록이 이미 끝났으니 지금) */
       u.plotTold = gardenOpen(); save(); applyGarden(); toast(pn > 1 ? '마당에 밭 ' + pn + '칸이 새로 생겼어' : '마당에 밭 한 칸이 새로 생겼어'); if (p) weekTellT = setTimeout(weekTell, 1000); return; }
     p.told = 1; save(); toast([prevWord(w) + ' 살림에 넣어 뒀어. ', shellAmt(p.shells | 0), ' · 씨앗 ' + (p.seeds | 0)]);   /* 11-15 (검증 U-4 · O-3): 선물 알림의 '조개 N' 도 조개 그림 + 수 (읽어 주기는 sr-only '조개 ' 로 예전 글 그대로) */
   }
@@ -5619,7 +5677,7 @@ var APP = (function () {
     return true;
   }
   function mealServe(t, mode) {
-    if (!MEALR || mealRun || !inPlay() || roomJob || furnMode || busy || document.hidden || !mealApi('playerCarryDish')) return false;
+    if (!MEALR || mealRun || !inPlay() || roomJob || furnMode || document.hidden || !mealApi('playerCarryDish')) return false;   /* 11-24 (검토): 산책 중에도 들고 간다 (부르기는 mealCall 이 문어 사정을 본다) */
     var my = mealRun = mealNewRun('serving', t.id, null, false), p;
     my.mode = mode;
     try { p = Promise.resolve(scene.playerCarryDish({ id: t.id, recipe: t.recipe, look: t.look, seed: t.seed, pic: MEALR.pic(t.recipe, t.look) }, { sit: mode === 'call', instant: reduced() })); }
@@ -6452,6 +6510,63 @@ var APP = (function () {
 
 
   /* [7-C] 카페 (메뉴 · 레코드 · 레시피 선물) */
+  /* 11-24 (주인: "뚜루 관련 메세지도 아래에 띄우면 사용자가 보는 화면에 거슬리는 거 같아서 (게임 할 때는 자꾸 아래에 글자가 떠서 신경쓰였음) 위에 띄우도록"):
+     문어 이야기 알림 (산책 행 알림 · 문어 상태 알림 · '돌아왔어' 쪽지) 은 화면 위 — 위 띠 (상태 줄 · 아이콘 · 데모 · D+N · 조개) 밑, 그 밖의 위 물건 (달리기 점수 띠 · NPC 대사 · 쪽지) 과 안 겹치게.
+     다른 알림 (가게 · 카페 · 밭) 은 예전처럼 아래 */
+  function octToast(msg, raw) { toast(msg, raw, true); }
+  function toastTopOff(t) { setTimeout(function () { if (!t.classList.contains('show')) t.classList.remove('top'); }, 400); }   /* 사라지는 동안 자리가 튀지 않게 조금 뒤에 */
+  /* 자리 규칙 (갈래 U 에 넘김 — wip/round7/reports/C-r5.md '위 알림 자리'):
+     ① 위 띠 (상태 줄 · 오른쪽 위 단추 묶음 · '데모' 꼬리표 · D+N · 조개 칩 · 저장 경고 — 화면 위 40% 안에 있는 것) 밑 8px 에서 시작.
+     ② 그 아래 움직이는 것 — N 의 마을 문어 말상자 (#npc-box), 장면 안 카드 (data-npc-avoid: S 의 계산대 목록 · 꼬리표 · 영수증 카드, F 의 콘테스트 카드 · 쇼 띠 — 공연장에선 위쪽), F 의 심사 점수 카드 (.ct-wplac), '돌아왔어' 쪽지 —
+        와 8px 띄워 겹치지 않는 가장 위 틈. 틈이 없으면 그것들 밑. 화면 밖으로는 안 나간다.
+     ③ 화면을 다 덮는 창 (달리기) 안이면 그 창의 위 띠 (.rn-top) 와 그 안의 말상자만 본다.
+     ④ 떠 있는 동안 0.25 초마다 다시 잰다 (topWatch) — 뒤에 뜬 말상자 · 카드도 피한다 */
+  function topClear(left, right, skip, page, hh) {   /* [left, right] 가로 칸에 높이 hh 가 들어갈 가장 위 y (뷰포트 px). page = 열린 창은 보지 않는다 (장면 안 쪽지 — 창 밑에 있다) */
+    var vh = window.innerHeight, vw = window.innerWidth, y = 8, host = page ? null : openDialog(), hr = host ? host.getBoundingClientRect() : null;
+    var full = !!hr && hr.top <= 1 && hr.left <= 1 && hr.bottom >= vh - 1 && hr.right >= vw - 1;   /* 화면을 다 덮는 창 (달리기): 그 뒤의 위 띠는 안 보이니 창의 위 띠만 */
+    var shown = function (e) {
+      if (!e || e === skip || e.hidden || (skip && skip.contains && skip.contains(e))) return null;
+      var r = e.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return null;
+      var cs = getComputedStyle(e); if (cs.visibility === 'hidden' || +cs.opacity === 0) return null;
+      return r.right > left - 4 && r.left < right + 4 ? r : null;   /* 가로로 겹치는 것만 */
+    };
+    var band = full ? [] : ['status', 'scene-ctl', 'brain-tag', 'day-n', 'btn-bag', 'save-warn'].map(function (id) { return $(id); });
+    if (host) [].push.apply(band, host.querySelectorAll('.rn-top'));
+    band.forEach(function (e) { var r = shown(e); if (r && r.top <= vh * 0.4) y = Math.max(y, r.bottom + 8); });
+    var mov = ['npc-box', 'back-note'].map(function (id) { return $(id); }).filter(function (e) { return !full || (e && host.contains(e)); });
+    if (!full) [].push.apply(mov, document.querySelectorAll('#scene [data-npc-avoid], #ct-world .ct-wplac'));
+    var rs = mov.map(shown).filter(Boolean), h = Math.max(0, hh || 0), moved = true, guard = 0;
+    while (moved && guard++ < 24) {   /* 가장 위 틈: 겹치는 것이 있으면 그 밑으로 내려 다시 본다 */
+      moved = false;
+      rs.forEach(function (r) { if (r.bottom + 8 > y && r.top - 8 < y + h) { y = r.bottom + 8; moved = true; } });
+    }
+    return Math.max(8, Math.min(y, vh - h - 8));
+  }
+  var topTick = 0;
+  function topWatch() {   /* 위 알림 · 쪽지가 떠 있는 동안만 돈다 (0.25 초) */
+    if (topTick) return;
+    topTick = setInterval(function () {
+      var t = $('toast'), n = $('back-note'), on = false;
+      if (t && t.classList.contains('show') && t.classList.contains('top')) { toastTopPlace(t, true); on = true; }
+      if (n && !n.hidden) { noteTopPlace(true); on = true; }
+      if (!on) { clearInterval(topTick); topTick = 0; }
+    }, 250);
+  }
+  function toastTopPlace(t, tick) {
+    var vw = window.innerWidth, w = t.offsetWidth, left = (vw - w) / 2, dpr = window.devicePixelRatio || 1;
+    var v = Math.round(topClear(left, left + w, t, false, t.offsetHeight) * dpr) / dpr + 'px';
+    if (t.style.getPropertyValue('--toast-t') !== v) t.style.setProperty('--toast-t', v);
+    if (!tick) topWatch();
+  }
+  function noteTopPlace(tick) {   /* '돌아왔어' 쪽지: 장면 왼쪽 위 (위 띠 밑) */
+    var n = $('back-note'), sc = $('scene'); if (!n || n.hidden || !sc) return;
+    var sr = sc.getBoundingClientRect(), r = n.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    var v = Math.round(Math.max(8, topClear(r.left, r.right, n, true, n.offsetHeight) - sr.top) * dpr) / dpr + 'px';
+    if (n.style.getPropertyValue('--note-t') !== v) n.style.setProperty('--note-t', v);
+    if (!tick) topWatch();
+  }
+  window.addEventListener('resize', function () { noteTopPlace(); toastRefit(); });
+  (function () { var bn = document.getElementById('back-note'); if (bn && window.ResizeObserver) new ResizeObserver(function () { noteTopPlace(); toastRefit(); }).observe(bn); })();   /* 쪽지 글은 조금 뒤에 채워진다 (noteBack) — 폭이 바뀌면 다시 (조개 칩 밑으로) */
   /* 11-21 카페 (docs/CAFE.md): 규칙은 js/cafe.js (CAFE), 음악은 js/cafe-music.js (CAFE_MUSIC). 여기는 화면만.
      - 카운터 단추 (#btn-cafe-counter, 갈래 V — 없을 수 있다) → 메뉴 시트 → 물음 ('시킬래') 뒤에만 조개가 나간다 (재봉틀과 같은 확인 줄 · 같은 0.6초 규칙).
      - 시킨 것은 화면 아래 쟁반 (#cafe-tray) 에 그림으로 나온다. 케이크 · 꼬치는 세 번 톡으로 먹는다. 다 먹으면 갈래 T 의 APP.recipeEat (없으면 세기만 한다 — 없는 레시피를 받았다고 말하지 않는다).
@@ -7462,7 +7577,7 @@ var APP = (function () {
     var e = CT.today(S.user, dk);
     return e ? [logRow(CT.TEXT.label, CT.logLine(e), 'ct-row', false)] : [];
   }
-  function ctLogSync() { renderLog(); }
+  function ctLogSync() { if (busy) { remoteDirty = true; return; } renderLog(); }   /* 11-24 (검토): 귀가를 기다리는 동안 콘테스트를 해도 공개 중인 로그를 다시 짓지 않는다 (끝날 때 한 번 — setBusy) */
   function openContest() {
     var d = $('contest-sheet'); if (!d || !ctApi() || !ctCats().length) return false;   /* 꼬리표 달린 옷 목록이 없으면 (P 갈래 없음 · 깨짐) 열지 않는다 */
     var fresh = !d.open; if (fresh) ctOpenedAt = performance.now();
@@ -7759,6 +7874,7 @@ var APP = (function () {
     get shopRoom() { return { key: room.key, basket: Object.keys(room.basket), tried: Object.keys(room.basket).filter(function (k) { return room.basket[k].tried; }), card: room.card ? room.card.className : null }; },
 
     /* [7-C] */
+    get homeWaiting() { return homeWaitOn; },   /* 11-24 (테스트 · 도구): 캐릭터가 밖이라 귀가 장면을 미루는 중인가 */
     openCafe: openCafe, openRecords: openRecords, cafeStand: cafeStand, cafeSeatTap: cafeSeatTap, cafeCounterTap: cafeCounterTap, cafePlateTap: cafePlateTap,
     get cafe() { return { seated: cafeSeated, ask: cafeAsk, stage: cafeRoom.stage, card: cafeRoom.card, lp: cafeLp.id, sound: cafeLp.sound, music: window.CAFE_MUSIC ? CAFE_MUSIC.state() : null }; },   /* 카페 (테스트 · 도구): 앉았는가 · 묻는 메뉴 · 올린 판 · 소리가 나는가 */
 

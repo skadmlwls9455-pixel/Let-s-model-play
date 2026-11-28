@@ -2007,6 +2007,16 @@ dialog.travel-pick .dp-chip canvas { position: absolute; left: var(--dp-icp, 8px
 @media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .shop-grid.enter .shop-tile, :root:is([data-motion="auto"], :not([data-motion])) .shop-tile .sew-cost.new { animation: none; } }
 
 /* [7-C] 카페 (메뉴 · 레코드 · 레시피 선물) */
+/* 11-24 (주인: 뚜루 관련 메세지는 아래가 아니라 위에): 문어 이야기 알림 (#toast.top — app.js octToast · 산책 행 알림) 과 '돌아왔어' 쪽지는 화면 위.
+   자리 (--toast-t · --note-t) 는 app.js topClear 가 위 띠 (상태 줄 · 아이콘 · 데모 · D+N · 조개 · 달리기 점수 띠) 밑으로 잰다 */
+#toast.top { top: var(--toast-t, 8px); bottom: auto; transform: translate(-50%, -12px); }
+#toast.top.show { transform: translate(-50%, 0); }
+:root[data-layout="one"] body > #toast.top { top: var(--toast-t, 8px); bottom: auto; }
+:root[data-font="pixel"] #toast.top { transform: translate(-50%, -8px); }
+:root[data-font="pixel"] #toast.top.show { transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) #toast.top { transform: translate(-50%, 0); } }
+:root[data-motion="reduce"] #toast.top { transform: translate(-50%, 0); }
+#scene .back-note, #scene.stick-on .back-note, :root[data-layout="one"] #scene .back-note, :root[data-layout="one"].dlg-on #scene .back-note { top: var(--note-t, 8px); bottom: auto; }
 /* 11-21: 메뉴 시트 · 쟁반 · 레코드 시트. 그림은 canvas (그림 px = 기기 px 의 정수 배 — app.js cafeCanvas), 눌림은 2px 내림 (크기는 안 바뀐다).
    UI 둘째 다듬기 (주인 11-21 "ui가 너무 조잡한데"): 맨 위 그림 띠 (벽 · 선반 · 카운터 · 지킴이 · 간판) → 칠판 메뉴 (분필 테두리 · 가격표 · 카운터 위 접시 · 도장 카드) · 나무 레코드 선반 · 큰 턴테이블.
    칠판 · 나무 · 종이 색은 낮밤 테마와 무관하게 고정 (물건의 색) */
