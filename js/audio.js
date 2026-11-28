@@ -808,7 +808,7 @@ var AUDIO = (function () {
       case 'peek': if (!d.outside) onPeek(peekInfo(e, !!d.skip)); return;
       /* 3D 에서 바깥에 나가 있었으면 앱이 바로 이어서 퇴장 의식(leave) → 귀가 의식(return)을 연다: 귀가 소리·집 BGM 은 문어가 실제로 돌아오는 귀가 의식에서.
          퇴장 의식은 이 훅과 같은 순간에 동기로 불리므로 한 틱 뒤에 보면 안다 (2D·건너뛰기·모션 감소는 의식이 없어 지금처럼 이 줄에서) */
-      case 'return': setTimeout(guard(function () { if (!gs.leaving) onReturn(); }), 0); return;
+      case 'return': if (d.later) return; setTimeout(guard(function () { if (!gs.leaving) onReturn(); }), 0); return;   /* [7-C] 11-24: later = 캐릭터가 밖이라 귀가 장면을 미룬다 → 귀가 소리 · 집 BGM 은 그 장면 (귀가 의식) 에서 한 번 */
       case 'depart': play(ev(['ui', 'log_line'])); return;
       case 'remember': play((ev(['remember_motif']) || {})[rememberKey(e, trip)] || 'remember_wild'); return;
       case 'hang_poster': if (trip.poster) play(ev(['events', 'hang_poster'])); return;
