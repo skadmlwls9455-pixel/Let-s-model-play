@@ -48,7 +48,7 @@
 
 - 의자에 앉으면 (`ppol:salon-seat { on: true }`) 같은 목록으로 머리 색 · 머리 모양 (색이 먼저) — 갈래마다 하나. 고르면 앉은 채로 미리 입혀 봄 (`APP.tryOn` — 받는 갈래만). 지금 것은 `지금` 표시.
 - 카드는 앉은 내 캐릭터를 덮지 않는다 (`seeMe` — 몸 위 · 아래 중 넓은 쪽 높이까지 줄이고 줄은 카드 안에서 굴러감, 그 쪽이 220px 보다 좁으면 예전 자리). 대사창은 카드를 비켜 반대쪽에 뜬다.
-- 지금 가진 모양 · 색은 공짜 `바꾸기` (영수증 `바꿨어`). 값 있는 새 색은 캐릭터 갈래의 `APP.salonCatalogue()` → `{ styles, colors: [{ id, name, hex, price, owned }] }` 와 `APP.salonBuy(kind, id)` 가 있을 때만 판다 (입을 수 있는 색만 · `salonBuy` 가 받은 뒤에 조개를 낸다 · 두 탭 기록에 값). 없으면 값 있는 줄은 목록에 없다.
+- 지금 가진 모양 · 색은 공짜 `바꾸기` (영수증 `바꿨어`). 값 있는 새 색은 캐릭터 갈래의 `APP.salonCatalogue()` → `{ styles, colors: [{ id, name, hex, price, owned }] }` (값 0 = 가진 것) 와 `APP.salonBuy(kind, id)` ('가짐' 만 적음) 가 있을 때만 판다: 입을 수 있는 색 (장면 목록에 있는 것) 만 · `salonBuy` 가 받은 뒤에 조개를 내고 영수증 (`shop.got['hairColor:id']`) · 두 탭은 옷과 같은 길 (다른 탭의 저장이 영수증을 모르면 값과 함께 다시 얹고 `salonBuy` 로 가짐도 다시). 없으면 값 있는 줄은 목록에 없다.
 - 일어나면 (`on: false`) 목록과 미리 보기를 접고 고른 것은 버린다.
 - 미용사 소라 대본 (NPC 갈래의 열쇠): 앉을 때 `salon.sit` · 색을 고를 때 `salon.pick { color }` · 색이 모자랄 때 `salon.short { need }` · 색을 바꾼 뒤 `salon.after { shells }`. 대본이 색 이야기 (병 · 칠) 라 머리 모양만 고르거나 바꿀 때는 말하지 않는다. `salon.leave` (나갈 때) 는 방을 나가는 쪽이 부른다.
 
@@ -78,7 +78,7 @@
 ## 저장 (`S.user`, 모르는 칸은 그대로 둔다)
 
 ```
-shop  = { got: { '갈래:id': 'YYYY-MM-DD' (산 날) }, day: { key, seeds } | null }
+shop  = { got: { '갈래:id': 'YYYY-MM-DD' (산 날 — 옷 · 미용실 새 색 'hairColor:id') }, day: { key, seeds } | null }
 beach = { day: 'YYYY-MM-DD' | null, picked: [자리] }
 ```
 

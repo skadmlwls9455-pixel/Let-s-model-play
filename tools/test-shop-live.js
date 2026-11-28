@@ -315,31 +315,47 @@ async function roomRun(browser) {
   await lsAdd(page, hs3); await lsBuy(page); await page.waitForTimeout(300);
   ok((await page.evaluate(() => APP.state.settings.player.hair)) === hs3.split(':')[1] && !(await said()).includes('stylist|salon.after'), '머리 모양만 바꾸면 salon.after 없음');
   await page.waitForTimeout(1700);
-  /* 값 있는 새 색 (캐릭터 갈래의 APP.salonCatalogue · APP.salonBuy 가 있을 때): 모자라면 소라가 salon.short { need } · 사면 값을 내고 입는다 */
+  /* 값 있는 새 색 — 캐릭터 갈래가 알린 규칙 그대로 (11-28): salonCatalogue() → { styles, colors: [{ id, name, hex, price, owned }] } (값 0 = 가진 것, 새 색만 값) ·
+     salonBuy(kind, id) → '가짐' 만 적고 저장 (조개는 이쪽이 뺀다 · 모르는 것 false · 가진 것 true) · 안 가진 새 색은 setPlayerPart 가 false (옷과 같은 규칙).
+     그래서 새 색 하나를 장면의 머리 색 목록에 값 (shop 칸) 과 함께 끼운다 — 사기 전엔 못 입는다 */
   await page.evaluate(() => {
-    const P = APP.playerParts(), cur = APP.state.settings.player; window.__sb = []; window.__scOld = [APP.salonCatalogue, APP.salonBuy];
-    window.__newC = P.hairColor.find(x => x.id !== cur.hairColor).id;
-    APP.salonCatalogue = () => ({ styles: P.hair.map(x => ({ id: x.id, name: x.name, price: 0, owned: true })), colors: P.hairColor.map(x => ({ id: x.id, name: x.name, hex: x.hex, price: x.id === window.__newC ? 7 : 0, owned: x.id !== window.__newC || window.__sb.some(b => b[1] === x.id) })) });
-    APP.salonBuy = (k, id) => { window.__sb.push([k, id]); return true; };
+    window.__sb = []; window.__scOld = [APP.salonCatalogue, APP.salonBuy];
+    SCENE3D.PLAYER_PARTS.hairColor.push({ id: 'test-sea', name: '시험 바다색', hex: '#2b7a9a', shop: { price: 7 } });
+    const own = (k, id) => { const x = APP.playerParts()[k].find(q => q.id === id); return !!x && (!x.shop || !!(APP.state.user.owned || {})[k + ':' + id]); };
+    APP.salonCatalogue = () => { const P = APP.playerParts(); return { styles: P.hair.map(x => ({ id: x.id, name: x.name, price: 0, owned: true })), colors: P.hairColor.map(x => ({ id: x.id, name: x.name, hex: x.hex, price: x.shop ? x.shop.price : 0, owned: own('hairColor', x.id) })) }; };
+    APP.salonBuy = (k, id) => { window.__sb.push([k, id]); if (!APP.playerParts()[k].some(q => q.id === id)) return false; const u = APP.state.user; if (!u.owned) u.owned = {}; if (!u.owned[k + ':' + id]) { u.owned[k + ':' + id] = window.__ppolTest.today; APP.save(); } return true; };
     window.__said.length = 0; window.__saidV.length = 0;
   });
+  const nk = 'hairColor:test-sea';
+  ok(!(await page.evaluate(() => APP.setPlayerPart('hairColor', 'test-sea'))), '(대역) 사기 전엔 새 색을 입을 수 없다');
   await setShells(page, 5);
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })));
   await lsWait(page);
-  const nk = 'hairColor:' + (await page.evaluate(() => window.__newC));
   ok(await page.evaluate(k => { const r = document.querySelector('#shop-list .ls-item[data-key="' + k + '"]'); return !!r && /7/.test(r.querySelector('.ls-price').textContent); }, nk), '새 색 줄에 값 7');
   await lsAdd(page, nk); await page.waitForTimeout(100);
   ok(!Object.keys((await LS(page)).cart).length && (await lsMsg(page)) === '조개가 2개 모자라' && await saidV('salon.short').then(v => v.length === 1 && v[0][2].need === 2), '조개가 모자라면 안 담기고 salon.short { need: 2 }');
   await setShells(page, 10); await lsAdd(page, nk); await page.waitForTimeout(100);
-  ok((await LS(page)).total === 7 && (await saidV('salon.pick')).length === 1, '조개가 되면 담김 (합계 7) · salon.pick');
+  ok((await LS(page)).total === 7 && await saidV('salon.pick').then(v => v.length === 1 && v[0][2].color === '시험 바다색'), '조개가 되면 담김 (합계 7) · salon.pick { color }');
   await setShells(page, 3); await lsBuy(page); await page.waitForTimeout(150);
   ok((await lsMsg(page)) === '조개가 4개 모자라' && !(await page.evaluate(() => window.__sb.length)) && await saidV('salon.short').then(v => v.length === 2 && v[1][2].need === 4), "'바꾸기' 때 모자라면 안 사고 salon.short { need: 4 }");
-  await setShells(page, 10); await page.waitForTimeout(300); await lsBuy(page); await page.waitForTimeout(300);
+  await setShells(page, 10);
+  const stale = await page.evaluate(() => localStorage.getItem('ppolppol_v2'));   /* 사기 바로 전의 기록 (다른 탭의 늦은 저장 대역) */
+  await page.waitForTimeout(300); await lsBuy(page); await page.waitForTimeout(300);
   const ub = await U(page), pb = await page.evaluate(() => Object.assign({}, APP.state.settings.player));
-  ok(ub.shells === 3 && pb.hairColor === nk.split(':')[1] && (await page.evaluate(() => JSON.stringify(window.__sb))) === JSON.stringify([['hairColor', nk.split(':')[1]]]), '새 색: 조개 7 을 내고 (salonBuy 한 번) 그 색으로');
+  ok(ub.shells === 3 && pb.hairColor === 'test-sea' && (await page.evaluate(() => JSON.stringify(window.__sb))) === JSON.stringify([['hairColor', 'test-sea']]) && ub.owned[nk] === DAY && ub.shop.got[nk] === DAY, '새 색: 조개 7 을 내고 (salonBuy 한 번 = 가짐) 그 색으로 · 영수증 (shop.got) 에도');
   ok(await page.evaluate(() => /냈어/.test(document.getElementById('shop-list').textContent)) && await saidV('salon.after').then(v => v.length === 1 && v[0][2].shells === 7), "영수증 '7 냈어' · salon.after { shells: 7 }");
   await page.waitForTimeout(1700);
-  await page.evaluate(() => { APP.salonCatalogue = window.__scOld[0]; APP.salonBuy = window.__scOld[1]; });
+  /* 두 탭: 사기 전의 기록이 다른 탭에서 늦게 오면 값 (−7) · 영수증 · 가짐을 함께 다시 얹는다 (공짜 색 · 잃은 조개 없음) */
+  await page.evaluate(raw => { localStorage.setItem('ppolppol_v2', raw); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: raw, storageArea: localStorage })); }, stale);
+  await page.waitForTimeout(1300);
+  const ut = await U(page);
+  ok(ut.shells === 3 && ut.shop.got[nk] === DAY && (ut.owned || {})[nk] === DAY, '두 탭: 사기 전 기록이 늦게 와도 새 색은 값 · 영수증 · 가짐과 함께 다시 얹힌다 (조개 ' + ut.shells + ')');
+  await page.evaluate(() => { const v = localStorage.getItem('ppolppol_v2'); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v, storageArea: localStorage })); });
+  await page.waitForTimeout(1300);
+  ok((await U(page)).shells === 3, '같은 기록을 또 받아도 두 번 빼지 않는다');
+  const sv = JSON.parse(await page.evaluate(() => localStorage.getItem('ppolppol_v2')));
+  ok(sv.user.shells === 3 && sv.user.shop.got[nk] === DAY && (sv.user.owned || {})[nk] === DAY, '저장에도 다시 적힌다');
+  await page.evaluate(() => { APP.salonCatalogue = window.__scOld[0]; APP.salonBuy = window.__scOld[1]; const l = SCENE3D.PLAYER_PARTS.hairColor, i = l.findIndex(x => x.id === 'test-sea'); if (i >= 0) l.splice(i, 1); });
   await ctx.close();
 }
 

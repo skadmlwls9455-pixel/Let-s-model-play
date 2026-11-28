@@ -5905,7 +5905,7 @@ var APP = (function () {
     var sh0 = u.shells, sd0 = u.seeds;
     if (remote) shopMine.forEach(function (m) {   /* 다른 탭의 기록이 이 탭의 사기 · 줍기를 모르면: 그것과 함께 조개 (와 씨앗) 도 다시. 조개가 모자라면 그 산 것은 버린다 */
       var miss = m.t === 'got' ? typeof u.shop.got[m.key] !== 'string' : m.day !== dk ? false : m.t === 'pick' ? !(u.beach.day === dk && Array.isArray(u.beach.picked) && u.beach.picked.indexOf(m.i) >= 0) : m.t === 'seed' ? !(isObj(u.shop.day) && u.shop.day.key === dk && (u.shop.day.seeds | 0) >= m.n) : false;
-      m.drop = false; if (!miss) return; var d = m.d | 0;
+      m.drop = false; m.miss = miss; if (!miss) return; var d = m.d | 0;
       if (u.shells + d < 0) { m.drop = true; return; }
       u.shells += d; if (m.t === 'seed') u.seeds += 1;
     });
@@ -5920,6 +5920,8 @@ var APP = (function () {
     if (u.shells !== sh0 || u.seeds !== sd0) ch = true;
     var A = shopApi(), w = A && Object.keys(u.shop.got).length ? shopCat() : null;
     if (w) w.cats.forEach(function (c) { if (isObj(c) && Array.isArray(c.items)) c.items.forEach(function (x) { if (isObj(x) && !x.owned && isObj(x.shop) && typeof u.shop.got[c.key + ':' + x.id] === 'string') { try { A.ownItem(c.key, x.id); } catch (e) { console.warn('[app] ownItem', e); } } }); });
+    var SB = window.APP && typeof window.APP.salonBuy === 'function' ? window.APP.salonBuy : null;   /* 미용실 새 색: 다른 탭의 기록이 영수증을 몰랐으면 '가짐' 도 다시 (캐릭터 갈래의 salonBuy — 이미 가졌으면 그대로 true) */
+    if (remote && SB) shopMine.forEach(function (m) { if (m.salon && m.miss && !m.drop) { try { SB(m.salon[0], m.salon[1]); } catch (e) { console.warn('[app] salonBuy', e); } } });
     if (ch) { save(); renderBagChip(); }
     var sh = $('shop-sheet'); if (sh && sh.open) { if (LST && !LST.card) listRender(); else renderShop(); }   /* 다른 탭의 기록: 담은 것은 두고 조개 · 가짐만 새로 */
     if (LST && LST.card) listRender();
@@ -6370,7 +6372,8 @@ var APP = (function () {
         if (!(A && typeof A.salonBuy === 'function') || u.shells < x.price || !(playerParts()[x.group] || []).some(function (q) { return q.id === x.id; })) return;
         var ok = false; try { ok = A.salonBuy(x.group, x.id) !== false; } catch (e) { console.warn('[app] salonBuy', e); }
         if (!ok) return; u = shopU(); u.shells = Math.max(0, u.shells - x.price);
-        shopMineAdd({ t: 'salon', key: x.key, day: todayKey(), d: -x.price });
+        var dk = todayKey(); u.shop.got[x.key] = dk;   /* 영수증 ('hairColor:id' → 산 날, 옷과 같은 칸): 다른 탭의 저장이 이것을 모르면 값과 함께 다시 얹는다 (shopSync) */
+        shopMineAdd({ t: 'got', key: x.key, day: dk, d: -x.price, salon: [x.group, x.id] });
         setPlayerPart(x.group, x.id); got.push({ x: x, n: 1 }); return;   /* 값을 냈으면 산 것 (입히기가 안 돼도 영수증에 — 가진 색은 옷장에서도 바꾼다) */
       }
       if (setPlayerPart(x.group, x.id)) got.push({ x: x, n: 1 });
