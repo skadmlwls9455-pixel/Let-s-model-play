@@ -11,6 +11,7 @@
  * - 큰 순간(고름·뒤집음·접시·차리기)은 쉬는 틈과 상관없이 뜬다, 요리 스크립트(해초전)가 공통 규칙보다 먼저다
  * - listenAudio: 소리 훅을 감싸 듣되 원래 소리는 그대로
  * - 기록은 by:'demo-rules'
+ * - 11-15 5차 (나): 부엌 순간이 닿는 줄에 기분 얼굴 (감동 · 뿅 · 두근 · 깜짝 · 퓻 · 갸웃 · 진땀) 없음
  */
 'use strict';
 var fs = require('fs'), path = require('path');
@@ -113,7 +114,66 @@ check(ACTS.indexOf('quiet') < 0 && C.RULES.every(function (r) { return r.on !== 
   N.cue('done', { dish: { id: 'jeon' } }); check(N.current().recipe === 'jeon', 'done 의 dish 가 { id } 꼴이어도 정해진다');
   check(N.cue('bogus', {}) === null && N.cue(null) === null && N.cue('quiet', {}) === null, '모르는 act · quiet 는 조용히 null');
   /* 굽기는 맞고 틀림이 아니다: 어느 굽기에도 뒤집으면 같은 묶음에서 */
-  [0, 1, 2].forEach(function (b) { var Q = fresh(); Q.mount(null, { now: function () { return 1; } }); Q.begin({ runId: 'band', recipe: 'jeon' }); var r = Q.cue('flip', { band: b }); check(r === 'cheer' || r === 'shock', '굽기 ' + b + ' 에 뒤집음 → ' + r); });
+  [0, 1, 2].forEach(function (b) { var Q = fresh(); Q.mount(null, { now: function () { return 1; } }); Q.begin({ runId: 'band', recipe: 'jeon' }); var r = Q.cue('flip', { band: b }); check(r === 'cheer' || r === 'thumbs', '굽기 ' + b + ' 에 뒤집음 → ' + r + ' (만세 · 따봉)'); });
+})();
+/* 11-15 5차 주인 답 (나): 스티커는 두되 기분 얼굴은 부엌에서 안 쓴다 — 감동 moved · 뿅 love · 두근 flush · 깜짝 shock · 퓻 ink · 갸웃 hmm · 진땀 sweat.
+   부엌 순간 (cook.js 가 보내는 act: pick · tap · sizzle · flip · cut · step · done · quiet) 이 닿는 어느 공통 규칙 · 해초전 줄에도 없다 */
+(function () {
+  var FEEL = ['moved', 'love', 'flush', 'shock', 'ink', 'hmm', 'sweat'];
+  check(JSON.stringify((C.FEELINGS || []).slice().sort()) === JSON.stringify(FEEL.slice().sort()), 'FEELINGS 목록 = 기분 얼굴 일곱');
+  FEEL.forEach(function (id) { check(!!C.CATALOG[id], id + ' 그림은 그대로 있다 (그림 · 엔진 안 바꿈)'); });
+  var KITCHEN = ['pick', 'tap', 'sizzle', 'flip', 'cut', 'step', 'done', 'quiet'];
+  function clean(rule, where) {
+    if (KITCHEN.indexOf(rule.on) < 0) return;
+    picks(rule.pick).forEach(function (s) { check(FEEL.indexOf(s) < 0, where + ' (' + rule.on + ') 에 기분 얼굴 ' + s + ' 없음'); });
+  }
+  C.RULES.forEach(function (r, i) { clean(r, '공통 규칙 ' + i); });
+  Object.keys(C.RECIPES).forEach(function (id) { C.RECIPES[id].cues.forEach(function (r, i) { clean(r, id + ' 줄 ' + i); }); });
+  function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+  check(same(C.RECIPES.jeon.cues.filter(function (r) { return r.on === 'flip'; })[0].pick, ['cheer', 'thumbs']), "해초전 뒤집음 = ['cheer','thumbs']");
+  check(same(C.RULES.filter(function (r) { return r.on === 'flip'; })[0].pick, ['cheer', 'thumbs', 'clap']), "공통 뒤집음 = ['cheer','thumbs','clap']");
+  check(same(C.RULES.filter(function (r) { return r.on === 'done'; })[0].pick, ['heart_plate', 'star']), "공통 접시 = ['heart_plate','star']");
+  check(same(C.RECIPES.jeon.cues.filter(function (r) { return r.on === 'done'; })[0].pick, ['heart_plate', 'star']), "해초전 접시 = ['heart_plate','star']");
+  /* 실제로 한 판 수백 번 (판 id 마다 시드가 다르다): 해초전 · 요리 모름 두 갈래, 시계를 빠르게 · 느리게 */
+  var seen = {}, bad = [];
+  for (var n = 0; n < 300; n++) {
+    [true, false].forEach(function (rec) {
+      [400, 5000].forEach(function (step) {
+        play('feel-' + n, rec, step).forEach(function (s) { if (!s) return; seen[s] = true; if (FEEL.indexOf(s) >= 0) bad.push(s); });
+      });
+    });
+  }
+  check(bad.length === 0, '부엌 순간 1200 판에 기분 얼굴 0 장 (' + bad.slice(0, 5).join(',') + ')');
+  check(seen.cheer && seen.thumbs && seen.heart_plate && seen.star, '만세 · 따봉 · 한 접시 · 다 됐다는 실제로 뜬다 (' + Object.keys(seen).sort().join(',') + ')');
+})();
+/* 11-18 6차: 주먹밥 · 과일 꼬치 요리 스크립트 — 실제 순간 차례로 한 판, 기분 얼굴 0, 5장 이상 */
+(function () {
+  var FEEL = ['moved', 'love', 'flush', 'shock', 'ink', 'hmm', 'sweat'];
+  var taps = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return ['tap', { i: i }]; });
+  var SEQS = {
+    jumeokbap: [['pick', { dish: 'jumeokbap' }]].concat(taps, [['step', { kind: 'tap' }], ['quiet', {}], ['sizzle', { band: 0 }], ['sizzle', { band: 1 }], ['flip', { band: 1 }], ['step', { kind: 'flip' }], ['done', { dish: 'jumeokbap' }]]),
+    kkochi: [['pick', { dish: 'kkochi' }], ['cut', { i: 0 }], ['cut', { i: 1 }], ['step', { kind: 'slice' }], ['quiet', {}]].concat(taps, [['step', { kind: 'tap' }], ['done', { dish: 'kkochi' }]])
+  };
+  check(C.RECIPES.jumeokbap && C.RECIPES.jumeokbap.name === '주먹밥' && C.RECIPES.kkochi && C.RECIPES.kkochi.name === '과일 꼬치', '요리 스크립트: 주먹밥 · 과일 꼬치');
+  Object.keys(SEQS).forEach(function (id) {
+    var seen = {}, bad = 0, min = 99, same = true;
+    for (var n = 0; n < 200; n++) [400, 5000].forEach(function (step) {
+      function one() { var M = fresh(), t = 0; M.mount(null, { now: function () { return (t += step); } }); M.begin({ runId: id + n }); return SEQS[id].map(function (q) { return M.cue(q[0], Object.assign({}, q[1])); }); }
+      var a = one(), b = one(); if (JSON.stringify(a) !== JSON.stringify(b)) same = false;
+      var got = a.filter(Boolean); min = Math.min(min, got.length);
+      got.forEach(function (x) { seen[x] = true; if (FEEL.indexOf(x) >= 0) bad++; });
+    });
+    check(same, id + ': 같은 판 id → 같은 스티커');
+    check(bad === 0, id + ': 기분 얼굴 0 장');
+    check(Object.keys(seen).length >= 5, id + ': 닿는 스티커 5종 이상 (' + Object.keys(seen).sort().join(',') + ')');
+    check(min >= 3, id + ': 한 판에 적어도 3장 (' + min + ')');
+    var M = fresh(); M.mount(null, { now: function () { return 1; } }); M.begin({ runId: 'x', recipe: id });
+    check(M.cue('tap', { i: 8 }) === 'clap' && M.log().pop().from === 'recipe:' + id, id + ': 톡톡 끝 → 짝짝 (요리 스크립트)');
+  });
+  var K = fresh(); K.mount(null, { now: function () { return 1; } }); K.begin({ runId: 'k', recipe: 'kkochi' });
+  check(K.cue('cut', { i: 1 }) === 'thumbs', '과일 꼬치: 둘째 썰기 → 따봉');
+  var J = fresh(); J.mount(null, { now: function () { return 1; } }); J.begin({ runId: 'j', recipe: 'jumeokbap' });
+  var fl = J.cue('flip', { band: 2 }); check(fl === 'cheer' || fl === 'thumbs', '주먹밥: 뒤집음 → 만세 · 따봉 (' + fl + ')');
 })();
 /* 소리 훅 듣기 (cook.js 를 안 고친다) */
 (function () {

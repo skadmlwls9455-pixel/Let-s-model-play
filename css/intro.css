@@ -69,9 +69,10 @@ html.intro-reveal #album-sec, html.intro-reveal #demo, html.intro-reveal .foot {
 }
 .intro.leaving .intro-mote, .intro.leaving .intro-spark { animation: none; opacity: 0; }
 
-/* 안내: Galmuri9 는 10px 이 제 픽셀 격자 → 10px × 로고 배율 = 로고와 같은 픽셀 밀도 (폰 20px) */
-.intro-hint { position: absolute; left: 0; right: 0; margin: 0; text-align: center; font: 400 calc(var(--s, 2) * 10px)/1 'Galmuri9', 'Galmuri11', 'Noto Sans KR', sans-serif; letter-spacing: 0;
-  color: #c7cfcc; text-shadow: 0 calc(var(--s, 2) * 1px) 0 #090a14; opacity: 0; pointer-events: none; word-break: keep-all; }
+/* 안내: Galmuri9 는 10px 이 제 픽셀 격자. 11-15 (UI 점검): 크기는 --hint-fs (js/intro.js — 기기 px 에 맞춘 약 20px, 로고 배율 3 이면 30px) · 글꼴은 설정을 따른다 (픽셀 글꼴을 끄면 Noto).
+   11-15 (검증): 상자는 글자 폭만큼 가운데 (auto 여백) — 줄 시작을 intro.js snapHint 가 기기 px 에 맞춘다 */
+.intro-hint { position: absolute; left: 0; right: 0; width: max-content; max-width: 100%; margin: 0 auto; text-align: center; font: 400 var(--hint-fs, 20px)/1.5 var(--f-body, 'Noto Sans KR', sans-serif); letter-spacing: 0;
+  color: #c7cfcc; text-shadow: 0 calc(var(--hint-fs, 20px) / 10) 0 #090a14; opacity: 0; pointer-events: none; word-break: keep-all; }
 /* "톡 눌러서 들어가기": 깜빡임 대신 1 아트px 위아래 4프레임 (0 · −1 · 0 · +1, 프레임당 180ms), 3번 하고 제자리에서 멈춘다 (DIALOGUE_UI §5.9) */
 .intro.hinted .intro-hint { opacity: 1; transition: opacity var(--t-ui) linear; animation: intro-hint-bob calc(720ms * var(--speed)) step-end calc(600ms * var(--speed)) 3; }
 @keyframes intro-hint-bob {

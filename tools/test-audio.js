@@ -24,6 +24,7 @@
  *     · 문 이벤트 door{act:'open'} → 끼익 (한 벌에 door_open 이 없으면 audio.js 가 만든 door_creak_open — 시트 소리 아님, 크기는 export 잣대) · close → 짧은 끼익
  *     · 모르는 act·이름은 조용히 · 놀이방 문(#btn-door)을 누르면 끼익 열림 · 닫힘 + 놀이방 (8물결) → 오락기 → 달리기 창
  *     · 미용실 훅 AUDIO.on('salon', { act … }) 은 던지지 않고 (경고 없음) '그대로' · 대답 없음 · joy: false 면 기분 징글이 없다 (docs/SALON.md §9.5)
+ * 11. (11-15) 쓰다듬기 6번에 pet_happy 없음 (눌림 · 쓸기는 그대로) · 데모 규칙 반응 (훅 · 실제 산책) 엔 mood_* 재생 · 요청 없음 · 모델이 고른 반응 (재생 길) 엔 있음
  * 모든 페이지: 콘솔 오류 0 (바깥 글꼴 같은 외부 요청 실패만 무시), audio/ 응답은 전부 200.
  */
 'use strict';
@@ -107,6 +108,7 @@ async function openSettings(page) {
   var sel = await settingsBtn(page);
   if (!sel) return { sel: null, id: null };
   await page.click(sel);
+  await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: 설정 구역은 접혀서 열린다 → 펼치고 누른다 */
   await page.waitForSelector('#set-music', { state: 'visible', timeout: 8000 }).catch(function () {});
   var id = await page.evaluate(function () { var m = document.getElementById('set-music'), d = m && m.closest('dialog'); return d && d.open ? d.id : null; });
   return { sel: sel, id: id };
@@ -114,6 +116,7 @@ async function openSettings(page) {
 /* 소리 켜기·끄기 = 설정 › 소리 맨 위 '켜기' 체크 칸 (#set-sound, 낭독 이름 '소리 켜기' — 주인 11-08). 시트가 닫혀 있으면 ⚙ 를 눌러 연다 (꺼져 있을 땐 아무 소리도 요청도 없다) */
 async function ensureSettings(page) {
   if (!(await page.$('#settings-sheet[open]'))) await page.click('#btn-settings');
+  await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: 설정 구역은 접혀서 열린다 → 펼치고 누른다 */
   await page.waitForSelector('#set-sound', { state: 'visible', timeout: 8000 });
 }
 /* 체크 칸을 한 번 누른다. keep 이 아니면 닫기 단추로 시트를 닫는다 */
@@ -128,7 +131,7 @@ function soundUI(page) {
     var c = document.getElementById('set-sound'); if (!c) return null;
     var row = c.closest('label'), h = document.getElementById('rs-sound'), m = document.getElementById('set-music'), n = document.getElementById('rs-sound-note');
     var r = row.getBoundingClientRect();
-    return { checked: c.checked, type: c.type, name: (row.textContent || '').trim(), rowId: row.id, rowCls: row.className, afterHead: !!h && h.nextElementSibling === row, aboveMusic: !!m && !!(row.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING),
+    return { checked: c.checked, type: c.type, name: (row.textContent || '').trim(), rowId: row.id, rowCls: row.className, afterHead: !!h && (h.closest('summary') || h).nextElementSibling === row, aboveMusic: !!m && !!(row.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING),
       focusable: c.tabIndex >= 0 && !c.disabled, w: r.width, h: r.height, left: r.left, right: r.right, vw: innerWidth, note: n ? n.textContent : null, noteHidden: n ? n.hidden : null,
       describedBy: c.getAttribute('aria-describedby'), ls: JSON.parse(localStorage.getItem('ppolppol_audio') || 'null') };
   });
@@ -363,7 +366,7 @@ async function scenarioHttp(browser, base) {
   /* B. 시트는 사용자 동작 없이 연다 (APP.openSettings — 탭이 아니다). 기억은 켜짐이지만 아직 아무것도 안 들린다 → 칸은 들리는 대로 빈 칸 (체크가 소리 없이 보이지 않게).
      첫 동작 = 시트가 열린 채로 키 하나 (포커스는 시트 제목) → 다시 흐르고, 열린 시트의 칸이 늦게 와도 따라 칠해진다 */
   await reloadOn();
-  await page.evaluate(function () { APP.openSettings(); });
+  await page.evaluate(function () { APP.openSettings(); [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });
   await page.waitForSelector('#set-sound', { state: 'visible' });
   var o6 = await page.evaluate(function () { return { c: document.getElementById('set-sound').checked, st: AUDIO.state() }; });
   ok(o6.c === false && o6.st.enabled && !o6.st.started && s.bag.audioReq.length === 0, '켜 둔 채 새로고침 + 동작 없이 연 시트: 칸은 빈 칸(아직 안 들림) · 요청·소리 없음');
@@ -377,7 +380,7 @@ async function scenarioHttp(browser, base) {
   await page.evaluate(function () { document.getElementById('settings-sheet').close(); });
   /* C. 빈 칸에 포커스만 옮기고(동작 아님) Enter: 체크 칸은 Enter 로 안 뒤집히지만 다른 키처럼 첫 동작이다 → 다시 흐르고 체크 (옛 스피커 단추는 Enter 로 켜졌다) */
   await reloadOn();
-  var o8a = await page.evaluate(function () { APP.openSettings(); document.getElementById('set-sound').focus(); return { c: document.getElementById('set-sound').checked, focus: document.activeElement && document.activeElement.id, st: AUDIO.state() }; });
+  var o8a = await page.evaluate(function () { APP.openSettings(); [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); document.getElementById('set-sound').focus(); return { c: document.getElementById('set-sound').checked, focus: document.activeElement && document.activeElement.id, st: AUDIO.state() }; });
   await page.keyboard.press('Enter');
   var back3 = await waitState(page, runningNow, null, 15000);
   await waitState(page, function () { return document.getElementById('set-sound').checked; }, null, 3000);
@@ -387,7 +390,7 @@ async function scenarioHttp(browser, base) {
   await page.evaluate(function () { document.getElementById('settings-sheet').close(); });
   /* D. 첫 동작이 바로 그 칸 줄 톡이면: 끄지 않고 다시 흐르게 (빈 칸으로 보이니 누르면 켜진다) */
   await reloadOn();
-  await page.evaluate(function () { APP.openSettings(); });
+  await page.evaluate(function () { APP.openSettings(); [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });
   await page.waitForSelector('#set-sound', { state: 'visible' });
   var o9a = await page.evaluate(function () { return { c: document.getElementById('set-sound').checked, st: AUDIO.state() }; });
   await page.click('#set-sound-row > span');   /* 칸 옆 글자 '켜기' 를 톡 (줄 전체가 누르는 곳 — 탭 대기가 먼저 켜고 이 칸이 다시 끄면 안 된다) */
@@ -792,20 +795,70 @@ async function scenarioAwake(browser, base) {
   await s.ctx.close();
 }
 
+/* 11. 정직 소리 (11-15 · 주인 C3 b · 정직 기본값): 쓰다듬기 넷째의 '뀨' (pet_happy) 는 없다 — 눌림 · 쓸기 소리는 그대로.
+   기분 효과음 (mood_*) 은 모델 · 사람이 고른 반응에만 — 데모 규칙이 고른 반응 (실제 산책 · 훅) 엔 없다. 받은 소리 파일 요청으로도 본다 */
+async function scenarioHonest(browser, base) {
+  console.log('\n== 11. 정직 소리: 쓰다듬기 기쁨 소리 없음 · 데모 반응엔 기분 소리 없음 (11-15)');
+  var s = await newPage(browser, { hour: 14 }, base);
+  var page = s.page, reqs = [];
+  page.on('request', function (r) { var u = r.url(); if (/\/audio\//.test(u)) reqs.push(u.split('/').pop()); });
+  await page.goto(base + '/index.html');
+  await nameIt(page);
+  await clickSound(page);
+  await waitState(page, function () { return AUDIO.state().bgm === 'theme_day_rain'; }, null, 15000);
+  /* 쓰다듬기 6번 빠르게 (앱의 소리 훅 그대로) */
+  for (var pi = 0; pi < 6; pi++) { await page.evaluate(function () { AUDIO.on('pet'); }); await page.waitForTimeout(250); }   /* 손으로 빠르게 (1.5 s 안) — 같은 순간 여섯 번은 묶음 간격에 하나로 준다 */
+  await waitState(page, function () { var p = AUDIO.state().played.map(function (x) { return x.id; }); return p.indexOf('pet_squish') >= 0 && p.some(function (id) { return /^pet_stroke_4/.test(id); }); }, null, 20000);
+  await page.waitForTimeout(800);   /* 넷째 뒤 0.3 s 에 오던 자리 — 그 뒤까지 본다 */
+  var pids = playedIds(await st(page));
+  ok(pids.indexOf('pet_squish') >= 0 && pids.some(function (id) { return /^pet_stroke_4/.test(id); }) && !pids.some(function (id) { return /^pet_happy/.test(id); }) && !reqs.some(function (u) { return /^pet_happy/.test(u); }),
+    "쓰다듬기 6번: pet_squish · pet_stroke_1..5 는 나고 pet_happy 는 안 난다 · 요청도 없다 (" + pids.slice(-8).join('/') + ' · ' + pids.filter(function (id) { return /^pet_/.test(id); }).join(',') + ')');
+  /* 데모 규칙 반응 (훅) — 넷 다 기분 소리 없음 */
+  await page.evaluate(function () {
+    ['폴짝', '우쭐', '덤덤', '졸림'].forEach(function (r) { AUDIO.on('row', { ev: { type: 'wrap_up', reaction: r }, trip: { by: 'demo', reactionBy: 'demo-rules', reaction: r } }); });
+    AUDIO.on('row', { ev: { type: 'wrap_up', reaction: '우쭐' }, trip: { by: 'demo', reaction: '우쭐' } });   /* reactionBy 없는 옛 데모 기록 */
+  });
+  await page.waitForTimeout(800);
+  var p1 = playedIds(await st(page));
+  ok(!p1.some(function (id) { return /^mood_/.test(id); }) && !reqs.some(function (u) { return /^mood_/.test(u); }), '데모 규칙이 고른 폴짝 · 우쭐 · 덤덤 · 졸림 → 기분 소리 없음 · mood_ 요청 없음 (' + (p1.filter(function (id) { return /^mood_/.test(id); }).join(',') || '없음') + ')');
+  /* 실제 데모 산책 한 번 (두뇌 계획의 반응을 폴짝으로 — 규칙이 고른 것과 같은 꼴: reactionBy 'demo-rules') */
+  await page.evaluate(function () {
+    var plan0 = BRAIN.plan;
+    BRAIN.plan = function (inp) { return plan0.apply(BRAIN, arguments).then(function (p) { if (p && p.kind !== 'empty') { p.reaction = '폴짝'; if (p.receipt) p.receipt.reaction = '폴짝'; (p.events || []).forEach(function (e) { if (e.type === 'wrap_up') e.reaction = '폴짝'; }); } return p; }); };
+    window.__ppolTest = Object.assign(window.__ppolTest || {}, { forceKind: 'out' });
+  });
+  await page.click('#btn-go');
+  var done = await waitState(page, function () { var t = APP.state.trips[APP.state.trips.length - 1]; return t && t.status === 'done' && !document.getElementById('btn-go').classList.contains('away') && !APP.busy; }, null, 150000);
+  await waitState(page, function () { return AUDIO.state().played.some(function (x) { return x.id === 'lantern_1'; }); }, null, 30000);
+  await page.waitForTimeout(1500);
+  var p2 = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { by: t.by, rb: t.reactionBy, r: t.reaction, ids: AUDIO.state().played.map(function (p) { return p.id; }) }; });
+  ok(done && p2.by === 'demo' && p2.rb === 'demo-rules' && p2.r === '폴짝' && p2.ids.indexOf('lantern_1') >= 0 && !p2.ids.some(function (id) { return /^mood_/.test(id); }) && !reqs.some(function (u) { return /^mood_/.test(u); }),
+    '데모 산책 (규칙이 폴짝) → 그 차례 소리 (등불 lantern_1) 는 나고 기분 소리 · mood_ 요청은 없다 (' + JSON.stringify({ by: p2.by, rb: p2.rb, r: p2.r, lantern: p2.ids.indexOf('lantern_1') >= 0, mood: p2.ids.filter(function (id) { return /^mood_/.test(id); }), done: done }) + ')');
+  /* 모델이 고른 반응 (MCP · 개발용 재생 길) → 그 기분 소리 */
+  await page.evaluate(function () { delete window.__ppolTest.forceKind; APP.importEvents(JSON.stringify([{ type: 'stay_home', t: 0, activity: 'window_watch', line: '창밖을 봤어', anchor: 'window' }, { type: 'wrap_up', t: 1200, reaction: '덤덤' }])); });
+  var mood = await waitState(page, function () { return AUDIO.state().played.some(function (x) { return /^mood_/.test(x.id); }); }, null, 60000);
+  var p3 = playedIds(await st(page)).filter(function (id) { return /^mood_/.test(id); });
+  ok(mood && p3.length >= 1 && reqs.some(function (u) { return /^mood_/.test(u); }), '모델이 고른 덤덤 (재생 길) → 기분 소리 ' + p3.join(',') + ' · 파일 요청 있음');
+  reportErrors(s.bag, '11. 정직 소리');
+  await s.ctx.close();
+}
+
 (async function main() {
   var srv = await serve(), base = 'http://127.0.0.1:' + srv.address().port;
   console.log('test-audio: ' + base + ' · shots → ' + SHOTS);
   var browser = await chromium.launch();
   try {
+    if (process.env.AUDIO_ONLY === '11') { await scenarioHonest(browser, base); throw 'only'; }   /* 이 묶음만 (갈래 검사용) */
     await scenarioHttp(browser, base);
     await scenarioStay(browser, base);
     await scenarioNight(browser, base);
     await scenarioToggle(browser, base);
     await scenarioRules(browser, base);
     await scenarioAwake(browser, base);
+    await scenarioHonest(browser, base);
     await scenarioFile(browser);
   } catch (e) {
-    fails++; console.error('\nCRASH: ' + (e && e.stack || e));
+    if (e !== 'only') { fails++; console.error('\nCRASH: ' + (e && e.stack || e)); }
   } finally {
     await browser.close();
     srv.close();

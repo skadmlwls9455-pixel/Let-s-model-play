@@ -16,13 +16,15 @@
  *   (tick-then-input), so calling tick yourself before it is allowed and changes nothing (tick is idempotent).
  *   ev = { t: vis ms, k: 'd'|'m'|'u'|'c'|'b', x, y: logical px, p: 't'|'m'|'n', id: pointerId }.
  *   k 'c' with no id cancels every open pointer (send it on hidden and on shown again). k 'b' = verb button.
+ *   11-24 r5: k 'e' = ease: after a long stall the live half asks the step to judge the same gesture more kindly (a kind
+ *   with an ease() halves what is left to do). It is an input like the others, so a replay gives the same run.
  *   The sim applies: the TUNE.gateMs gate for new pointers and 'b'; only pointers pressed in this step count;
  *   flip and slice follow the first finger only; tap counts every pointerdown. The host applies TUNE.edgeCss.
  *   rec = { si, t (step clock), k, x, y, p, id } or null. ?rec=1: push rec into window.__cookRec =
  *   { recipe, seed, steps: [[rec minus si, ...] per si], pot (the saved pot of a resumed dish, else null) };
  *   COOK.simulate(recipe, seed, steps, { pot }) replays it.
  * RUN    plain JSON (JSON round trip gives an equal object). Read it, never write it.
- *   v 1, ver VERSION, id 'ck_...', recipe 'jeon', seed uint32, swaps { herb: 'parae'|'tot' }, plate 0..2,
+ *   v 1, ver VERSION, id 'ck_...', recipe 'jeon'|'jumeokbap'|'kkochi', seed uint32, swaps { herb: 'parae'|'tot' } (jeon only), plate 0..2,
  *   n steps, si current step 0..n-1 (n once revealed), phase 'step' | 'between' (a step just finished, inputs
  *   ignored for COOK.betweenOf(kind): TUNE.betweenMs, a flip TUNE.flip.betweenMs) | 'reveal' (dish done), done (true once the last step is finished, already in
  *   its 'between'), t0 / t / doneAt (caller clock ms), looks[] + tags[] (one per finished step), st (current step
@@ -38,14 +40,16 @@
  *          bandMs after heat-on and waits at 2), res (band it was flipped at) or null, bandMs 3000,
  *          stroke { id, x0, y0, t0, b0 } or null. The jeon colour on screen is band (res once flipped).
  *   slice: lines [{ ax, ay, bx, by (logical), len (A to B, logical: the food's size along the line + 3 art px at
- *          each end, at most 128), ux, uy, off (art px, -4..4), bins [0|1 x 40] knife score along
- *          A to B, n painted bins, cut (bool), how null|'drag'|'cross'|'b', ang (cut angle, multiple of 6,
- *          -30..30), ws, as (internal) }], cur (lit guide; one at a time), band (half width, logical px),
- *          hand { x, y } logical ints of the knife hand or null, pen (internal).
+ *          each end, at most 128), ux, uy, off (art px, always 0 since 11-18), bins [0|1 x 40] knife score along
+ *          A to B, n painted bins, cut (bool), how null|'drag'|'cross'|'b', ang (always 0: cuts are exact),
+ *          ws, as (internal) }], cur (lit guide; one at a time), band (half width, logical px),
+ *          hand { x, y } logical ints of the knife hand or null, pen (internal), cross (bool: a '+' step, line 0
+ *          vertical through the food centre, line 1 horizontal).
  * LOOK   ints only, set when a step finishes. run.looks[si]: tap { dents }, flip { band }, slice { cuts, offs }.
  *   COOK.lookOf(run) merges them: { v: 1, dents, band, cuts, offs, plate }. Dents are food box px (64 x 48);
  *   cuts[i] is the angle of cut i against its guide (line 0 horizontal, line 1 vertical: cook-art GEO.cross),
- *   offs[i] the guide's offset in art px across the line (down for line 0, right for line 1).
+ *   offs[i] the guide's offset in art px across the line (down for line 0, right for line 1). Since 11-18 a new run
+ *   always gives zeros (exact '+'); old book looks keep their values.
  * EVENTS COOK.drain(run) -> [{ type, si, ... }]. snd = the payload for AUDIO.on('cook', snd); say = aria text.
  *   run:   start { kind, say }, step { kind, tag, snd step }, quiet { snd quiet } (after every step), reveal { dish,
  *          say (plate description), snd done }.
@@ -64,7 +68,10 @@
  * ART    COOK.drawDish(recipe, look, seed, w, h) -> { w, h, d: Uint8ClampedArray } never throws (default 96 x 66).
  *   If a global COOK_ART.dish exists it paints a blank img of that size in place: COOK_ART.dish(img, look, { herb,
  *   recipe, seed, swaps }) with a checked look (COOK_ART.dishSmall instead when img is smaller than COOK_ART.GEO.dish).
+ *   11-18: the new dishes use COOK_ART.dishes[recipe].dish / dishSmall (js/cook-dishes.js) the same way.
  *   If the painter throws, a plain stub dish is drawn (Apollo colours only, integer geometry).
+ * TUNE_R 11-18: the new dishes' numbers live outside TUNE (TUNE_HASH unchanged). COOK.tuneOf(recipe) = the pot hash of
+ *   that recipe (jeon: TUNE_HASH); potOf writes it, resumeRun requires it. COOK.foodOf(r, step) = a step's food box.
  * =================================================================================================
  */
 var COOK = (function () {
@@ -140,29 +147,62 @@ var COOK = (function () {
   });
 
   /* ---------- WORDS: every Korean string the kitchen shows or says (only the design's vocabulary, KS X 1001) ---------- */
+  /* 11-21 round 7: js/cook-steps.js (loaded first) brings the recipe book's five dishes and six more step kinds. Without
+     it (node suites that load this file alone) EXT is null and the kitchen has its three legacy dishes only. */
+  var EXT = typeof COOK_STEPS !== 'undefined' && COOK_STEPS && typeof COOK_STEPS.install === 'function' ? COOK_STEPS : null;
+  function withExt(own, more) { var o = {}, k; for (k in own) o[k] = own[k]; if (more) for (k in more) o[k] = more[k]; return o; }
   var WORDS = deepFreeze({
     kitchen: '부엌', close: '닫기', back: '돌아가기', resume: '이어서', go: '보러 가기',
-    dish: { jeon: '해초전' },
+    dish: withExt({ jeon: '해초전', jumeokbap: '주먹밥', kkochi: '과일 꼬치' }, EXT && EXT.WORDS.dish),
     title: { tap: '톡톡', flip: '뒤집기', slice: '썰기' },
-    verb: { tap: '톡톡', heat: '불 켜기', flip: '뒤집기', slice: '썰기', back: '돌아가기' },
+    verb: { tap: '톡톡', heat: '불 켜기', flip: '뒤집기', slice: '썰기', again: '다시' },
     band: ['보들보들', '노릇노릇', '바삭바삭'],
     half: '반쯤', line: '한 줄', done: '다 됐어',
     cooked: ['보들보들하게 구웠어', '노릇노릇 구웠어', '바삭바삭하게 구웠어'],
     cut: { straight: '반듯하게 썰었어', slant: '어슷하게 썰었어' }
   });
 
-  /* ---------- RECIPES: pure data; ids are ASCII. Slice 2 adds miyeok (at 'pot': slice, stir, place) and
-     jumeokbap (at 'jar': stir, tap, place) here in the same shape, once KIND.stir and KIND.place exist. ---------- */
+  /* ---------- RECIPES: pure data; ids are ASCII. 11-18 round 6: three dishes, the same three step kinds mixed
+     differently (jeon tap-flip-slice, jumeokbap tap-flip, kkochi slice-tap). A step names its food box (foodOf) and,
+     when it is not the kind's usual one, its station (the live half: tap -> counter, flip -> stove, slice -> board). ---------- */
   var RECIPES = deepFreeze([
     { id: 'jeon', tier: 1, at: 'pan', ings: ['batter'], swap: { herb: ['parae', 'tot'] }, steps: [
       { kind: 'tap', marks: 3, hits: 3, food: 'batter' },
       { kind: 'flip', band: 3000 },
-      { kind: 'slice', lines: 2, cross: true, food: 'jeon' }] }
-  ]);
+      { kind: 'slice', lines: 2, cross: true, food: 'jeon' }] },
+    { id: 'jumeokbap', tier: 1, at: 'pan', ings: ['rice'], steps: [
+      { kind: 'tap', marks: 3, hits: 3, food: 'rice' },
+      { kind: 'flip', band: 3000, food: 'rice' }] },
+    { id: 'kkochi', tier: 1, at: 'board', ings: ['watermelon', 'grape', 'tangerine'], steps: [
+      { kind: 'slice', lines: 2, cross: false, food: 'fruit' },
+      { kind: 'tap', marks: 3, hits: 3, food: 'fruit', station: 'board' }] }
+  ].concat(EXT ? EXT.RECIPES : []));   /* 11-21: the book's dishes come after the three legacy ones (RECIPES[0] stays jeon) */
+  /* 11-18 TUNE_R: the numbers of the two new dishes, frozen and kept OUT of TUNE (TUNE_HASH stays 2827089308, so every
+     saved jeon pot still resumes). Each recipe has its own pot hash: tuneOf(id). food = the food box per step food
+     (art px, same box as TUNE.food), tapAt / tapJitter = the tap marks (else TUNE.tap.at / TUNE.tap.jitter). */
+  var TUNE_R = deepFreeze({
+    jumeokbap: { food: { rice: { cx: 72, cy: 86, w: 64, h: 48, rx: [18, 21, 24], ry: [13, 15, 17], inset: 3 } } },
+    kkochi: { food: { fruit: { cx: 72, cy: 86, w: 64, h: 48, rx: [24], ry: [9], inset: 2 } },
+      tapAt: [[-16, 0], [0, 0], [16, 0]], tapJitter: 0 }
+  });
   /* counter props that work now, in focus order (the counter draws only these; slice 2 adds pot and jar) */
   var PROPS = deepFreeze([{ id: 'pan', recipe: 'jeon' }]);
   var BANDS = ['soft', 'golden', 'crisp'];
   var TUNE_HASH = hash32(JSON.stringify(TUNE));
+  /* pot hash per recipe: jeon keeps TUNE_HASH; a new dish hashes TUNE_HASH with its own TUNE_R entry (null = unknown) */
+  function tuneOf(id) {
+    if (id === 'jeon') return TUNE_HASH;
+    var ext = EXT && typeof id === 'string' ? EXT.tuneText(id) : null;   /* 11-21: a book dish hashes its steps and its own numbers */
+    if (ext) return hash32(TUNE_HASH + '|' + ext);
+    if (typeof id !== 'string' || !Object.prototype.hasOwnProperty.call(TUNE_R, id)) return null;
+    return hash32(TUNE_HASH + '|' + JSON.stringify(TUNE_R[id]));
+  }
+  /* the food box of a step: the recipe's own (TUNE_R), then TUNE.food by the step's food, by the recipe, else the jeon */
+  function foodOf(r, step) {
+    if (step && step.box) return step.box;   /* 11-21: a book dish's step carries its own box */
+    var own = TUNE_R[r.id] && TUNE_R[r.id].food;
+    return (own && step.food && own[step.food]) || TUNE.food[step.food] || TUNE.food[r.id] || TUNE.food.jeon;
+  }
 
   /* ---------- small helpers ---------- */
   function deepFreeze(o) {
@@ -266,12 +306,12 @@ var COOK = (function () {
   }
   KIND.tap = {
     multi: true, sayHalf: true,
-    init: function (step, seed, food) {
-      var T = TUNE.tap, sc = TUNE.stage.scale, rng = mulberry32(seed), j = T.jitter, marks = [];
-      var nm = clampInt(step.marks, 1, T.at.length, T.at.length), per = clampInt(step.hits, 1, 9, 3);
+    init: function (step, seed, food, lay) {   /* lay (optional): { at, jitter } a recipe's own mark layout (TUNE_R) */
+      var T = TUNE.tap, sc = TUNE.stage.scale, rng = mulberry32(seed), at = lay && lay.at ? lay.at : T.at, j = lay && isInt(lay.jitter) ? lay.jitter : T.jitter, marks = [];
+      var nm = clampInt(step.marks, 1, at.length, at.length), per = clampInt(step.hits, 1, 9, 3);
       for (var i = 0; i < nm; i++) {
         var ox = (rng() % (2 * j + 1)) - j, oy = (rng() % (2 * j + 1)) - j;
-        marks.push({ x: (food.cx + T.at[i][0] + ox) * sc, y: (food.cy + T.at[i][1] + oy) * sc, n: 0 });
+        marks.push({ x: (food.cx + at[i][0] + ox) * sc, y: (food.cy + at[i][1] + oy) * sc, n: 0 });
       }
       return base('tap', { box: boxOf(food), rx: (food.rx || [food.w >> 1]).slice(), ry: (food.ry || [food.h >> 1]).slice(), inset: food.inset || 0, marks: marks, per: per, need: per * nm, hits: 0, dents: [], shape: 0, last: null, press: null });
     },
@@ -350,9 +390,8 @@ var COOK = (function () {
   /* ---------- KIND.slice: follow the lit guide (any direction, any speed, lift and continue), or slash across it.
    * Follow: the guide has 40 bins; a pair of resampled samples inside the band, moving within +-axis deg of the guide,
    * paints the bins between their projections; 80 % painted = cut. Across: a stroke crossing inside 15-85 % of the
-   * guide at >= crossDeg cuts the whole line, straight. Angle (the shape the hand leaves): principal axis (least
-   * squares) of the in-band samples of each stroke part, weighted by its length along the guide, rounded to 6 deg;
-   * |angle| >= 12 = slant. Step tag: 'slant' when at least half of the lines are slanted. ---------- */
+   * guide at >= crossDeg cuts the whole line. 11-18 '+': every cut is exact (angle 0, offset 0) and the step tag is
+   * always 'straight'; the stroke's principal axis is still folded in (ws, as) but no longer read. ---------- */
   function sliceLine(ax, ay, bx, by, off) {
     var len = dist(ax, ay, bx, by), bins = [];
     for (var i = 0; i < TUNE.slice.bins; i++) bins.push(0);
@@ -377,10 +416,6 @@ var COOK = (function () {
     if (phi === null || !(w > 0) || Math.abs(phi) > S2.axis) return;   /* parts that cross the band steeply do not steer the angle */
     L.ws = z(L.ws + w); L.as = z(L.as + w * phi);
   }
-  function quantAng(phi) {
-    var S2 = TUNE.slice, q = Math.round(phi / S2.angStep) * S2.angStep;
-    return Math.max(-S2.angMax, Math.min(S2.angMax, q)) | 0;
-  }
   function paint(L, a, b) {
     var N = L.bins.length, lo = Math.min(a, b), hi = Math.max(a, b), half = 0.5 / N, added = 0;
     for (var i = 0; i < N; i++) { var c = (i + 0.5) / N; if (!L.bins[i] && c >= lo - half && c <= hi + half) { L.bins[i] = 1; L.n++; added++; } }
@@ -397,14 +432,14 @@ var COOK = (function () {
     if (!L || L.cut) return;
     if (pen && pen.sub) { if (how === 'drag') subEnd(L, pen.sub); pen.sub = null; }
     L.cut = true; L.how = how;
-    L.ang = how === 'drag' && L.ws > 0 ? quantAng(L.as / L.ws) : 0;   /* a slash across or the button cuts straight */
+    L.ang = 0;   /* 11-18 '+': every cut lands exactly on its guide, however the finger wandered (round 6 R3) */
     for (var i = 0; i < L.bins.length; i++) L.bins[i] = 1;
     L.n = L.bins.length; st.prog = t;
-    var cuts = 0, slants = 0;
-    st.lines.forEach(function (l) { if (l.cut) { cuts++; if (Math.abs(l.ang) >= TUNE.slice.slant) slants++; } });
+    var cuts = 0;
+    st.lines.forEach(function (l) { if (l.cut) cuts++; });
     var last = cuts >= st.lines.length;
-    emit(st, 'cut', { i: st.cur, ang: L.ang, how: how, say: last ? null : WORDS.line, snd: { act: 'cut', i: st.cur } });
-    if (last) st.tag = slants * 2 >= st.lines.length ? 'slant' : 'straight';
+    emit(st, 'cut', { i: st.cur, ang: 0, how: how, say: last ? null : WORDS.line, snd: { act: 'cut', i: st.cur } });
+    if (last) st.tag = 'straight';
     else { st.cur++; if (pen) pen.nocross = true; emit(st, 'line', { i: st.cur }); }
     sliceRise(st, t);
   }
@@ -453,16 +488,17 @@ var COOK = (function () {
   KIND.slice = {
     multi: false, sayHalf: false,
     init: function (step, seed, food) {
-      var S2 = TUNE.slice, sc = TUNE.stage.scale, rng = mulberry32(seed), n = clampInt(step.lines, 1, 3, 2), lines = [];
-      var cx = food.cx * sc, cy = food.cy * sc, j = S2.jitter;
+      /* 11-18 '+': guides sit exactly on the food centre (no seeded offset any more; seed is unused here). A cross step
+         cuts line 0 vertical first, then line 1 horizontal (a portrait thumb swipes down first). */
+      var S2 = TUNE.slice, sc = TUNE.stage.scale, n = clampInt(step.lines, 1, 3, 2), lines = [];
+      var cx = food.cx * sc, cy = food.cy * sc;
       var rx = food.rx ? food.rx[food.rx.length - 1] : food.w >> 1, ry = food.ry ? food.ry[food.ry.length - 1] : food.h >> 1;
       var hx = Math.min(S2.len, 2 * (rx + S2.over) * sc) / 2, hy = Math.min(S2.len, 2 * (ry + S2.over) * sc) / 2;   /* half guide, logical */
       for (var i = 0; i < n; i++) {
-        var off = (rng() % (2 * j + 1)) - j;
-        if (step.cross && n === 2) lines.push(i === 0 ? sliceLine(cx - hx, cy + off * sc, cx + hx, cy + off * sc, off) : sliceLine(cx + off * sc, cy - hy, cx + off * sc, cy + hy, off));
-        else { var x = cx + ((2 * i - (n - 1)) * S2.gap / 2 + off) * sc; lines.push(sliceLine(x, cy - hy, x, cy + hy, off)); }
+        if (step.cross && n === 2) lines.push(i === 0 ? sliceLine(cx, cy - hy, cx, cy + hy, 0) : sliceLine(cx - hx, cy, cx + hx, cy, 0));
+        else { var x = cx + ((2 * i - (n - 1)) * S2.gap / 2) * sc; lines.push(sliceLine(x, cy - hy, x, cy + hy, 0)); }
       }
-      return base('slice', { box: boxOf(food), lines: lines, cur: 0, band: Math.max(S2.bandMin, S2.bandK * S2.len), hand: null, pen: null });
+      return base('slice', { box: boxOf(food), lines: lines, cur: 0, band: Math.max(S2.bandMin, S2.bandK * S2.len), hand: null, pen: null, cross: !!(step.cross && n === 2) });
     },
     down: function (st, s) {
       sliceEnd(st);
@@ -475,23 +511,35 @@ var COOK = (function () {
     cancel: function (st, s) { if (!s || (st.pen && st.pen.id === s.id)) sliceEnd(st); },
     tick: function () {},
     alt: function (st, t) { if (!st.done) cutLine(st, 'b', t); },   /* one press = the lit line, cut straight */
-    look: function (st) { return { cuts: st.lines.map(function (l) { return l.ang; }), offs: st.lines.map(function (l) { return l.off; }) }; },
+    /* look keeps the canonical order (cross: index 0 = the horizontal line, 1 = the vertical one, cook-art GEO.cross);
+       the sim cuts vertical first, so a cross step reads its lines back to front. Every value is 0 since 11-18. */
+    look: function (st) {
+      var ls = st.cross ? st.lines.slice().reverse() : st.lines;
+      return { cuts: ls.map(function (l) { return l.ang; }), offs: ls.map(function (l) { return l.off; }) };
+    },
     tag: function (st) { return st.tag; }
   };
 
+  if (EXT) EXT.install({ KIND: KIND, base: base, rise: rise, emit: emit, boxOf: boxOf, clampInt: clampInt, dist: dist, ri: ri, BANDS: BANDS, bandWords: WORDS.band });
+
   /* ---------- run state machine ---------- */
   /* how long a finished step of this kind stays on screen ('between') before the next one starts */
-  function betweenOf(kind) { var k = TUNE[kind]; return k && typeof k.betweenMs === 'number' ? k.betweenMs : TUNE.betweenMs; }
+  function betweenOf(kind) {
+    var k = TUNE[kind], x = EXT ? EXT.between(kind) : null;
+    return k && typeof k.betweenMs === 'number' ? k.betweenMs : x !== null ? x : TUNE.betweenMs;
+  }
+  function stepWord(run) { var r = recipe(run.recipe); return r && r.v2 && EXT ? EXT.verb(r.steps[Math.min(run.si, r.steps.length - 1)], run.st) : ''; }
   function initStep(run, si) {
-    var r = recipe(run.recipe), step = r.steps[si], food = TUNE.food[step.food] || TUNE.food[r.id] || TUNE.food.jeon;
-    return KIND[step.kind].init(step, stepSeed(run.seed, si), food);
+    var r = recipe(run.recipe), step = r.steps[si], own = TUNE_R[r.id];
+    var lay = step.kind === 'tap' && step.at ? { at: step.at, jitter: step.jitter | 0 } : step.kind === 'tap' && own && own.tapAt ? { at: own.tapAt, jitter: own.tapJitter } : null;
+    return KIND[step.kind].init(step, stepSeed(run.seed, si), foodOf(r, step), lay);
   }
   function newRun(r, seed, id) {
     return { v: 1, ver: VERSION, id: typeof id === 'string' && ID_RE.test(id) ? id : 'ck_' + hash32(r.id + '|' + seed).toString(36),
       recipe: r.id, seed: seed, swaps: swapsFor(r, seed), plate: plateFor(seed), n: r.steps.length, si: 0, phase: 'step', done: false,
       t0: null, t: null, doneAt: null, looks: [], tags: [], st: null, ptr: { live: [], prim: null }, ev: [] };
   }
-  function startEv(run) { var k = run.st.kind; emit(run, 'start', { si: run.si, kind: k, say: WORDS.title[k] }); }
+  function startEv(run) { var k = run.st.kind; emit(run, 'start', { si: run.si, kind: k, say: stepWord(run) || WORDS.title[k] }); }
   function createRun(recipeId, seed, opts) {
     try {
       var r = recipe(recipeId); if (!r) return null;
@@ -546,7 +594,7 @@ var COOK = (function () {
   function input(run, ev) {
     if (!run || typeof run !== 'object' || !run.st || !ev || typeof ev !== 'object') return null;
     var k = ev.k;
-    if (k !== 'd' && k !== 'm' && k !== 'u' && k !== 'c' && k !== 'b') return null;
+    if (k !== 'd' && k !== 'm' && k !== 'u' && k !== 'c' && k !== 'b' && k !== 'e') return null;   /* 11-24 r5: 'e' = the easier judgement after a long stall */
     var x = num(ev.x), y = num(ev.y);
     if ((k === 'd' || k === 'm' || k === 'u') && (x === null || y === null)) return null;
     var t = num(ev.t); if (t === null) t = run.t === null ? 0 : run.t;
@@ -568,6 +616,8 @@ var COOK = (function () {
     } else if (k === 'c') {
       if (all) { K.cancel(st, null); run.ptr = { live: [], prim: null }; }
       else if (ptr.live.indexOf(id) >= 0) { K.cancel(st, s); drop(ptr.live, id); if (ptr.prim === id) ptr.prim = null; }
+    } else if (k === 'e') {
+      if (typeof K.ease === 'function' && !st.done) K.ease(st, rel);   /* the same gesture, judged more kindly (never a skip) */
     } else {
       if (rel < TUNE.gateMs) return rec;
       K.alt(st, rel);
@@ -639,6 +689,12 @@ var COOK = (function () {
 
   /* ---------- looks, results, words ---------- */
   function lookOf(run) {
+    var r2 = recipe(run.recipe);
+    if (r2 && r2.v2) {   /* 11-21 a book dish: one look per step (a kind may come twice); band = its last flip or bake */
+      var o2 = { v: 2, s: clone(run.looks || []), plate: run.plate };
+      o2.s.forEach(function (lk) { if (lk && isInt(lk.band)) o2.band = lk.band; });
+      return o2;
+    }
     var out = { v: 1 };
     (run.looks || []).forEach(function (lk) { for (var k in lk) out[k] = clone(lk[k]); });
     out.plate = run.plate;
@@ -649,21 +705,23 @@ var COOK = (function () {
     var parts = [WORDS.dish[r.id]];
     r.steps.forEach(function (s, i) {
       var tg = tags && tags[i], b = BANDS.indexOf(tg);
-      if (s.kind === 'flip' && b >= 0) parts.push(WORDS.cooked[b]);
-      if (s.kind === 'slice' && WORDS.cut[tg]) parts.push(WORDS.cut[tg]);
+      if ((s.kind === 'flip' || s.kind === 'bake') && b >= 0) parts.push(WORDS.cooked[b]);
+      if (s.kind === 'slice' && WORDS.cut[tg] && !r.v2) parts.push(WORDS.cut[tg]);
     });
     return parts.join('. ') + '.';
   }
   function verb(run) {   /* the verb button label right now */
     if (!run || !run.st) return '';
-    if (run.phase === 'reveal') return WORDS.verb.back;
-    var st = run.st;
+    if (run.phase === 'reveal') return WORDS.verb.again;
+    var st = run.st, w2 = stepWord(run);
+    if (w2) return w2;
     if (st.kind === 'flip') return st.heat ? WORDS.verb.flip : WORDS.verb.heat;
     return WORDS.verb[st.kind] || '';
   }
   function hintAt(run) {   /* step ms when the idle ghost hand is due, or null (after heat-on: only crisp + 5 s) */
     if (!run || run.phase !== 'step' || !run.st || run.st.done) return null;
-    var st = run.st;
+    var st = run.st, hx = EXT ? EXT.hintAt(st) : undefined;
+    if (hx !== undefined) return hx;
     if (st.kind === 'flip' && st.heat) return st.heatAt + (BANDS.length - 1) * st.bandMs + TUNE.flip.crispHintMs;
     return st.prog + TUNE.idleMs;
   }
@@ -691,7 +749,7 @@ var COOK = (function () {
   function potOf(run, at) {
     if (!run || !run.st || run.done || run.phase === 'reveal') return null;
     var a = num(at);
-    return { ver: VERSION, tune: TUNE_HASH, runId: run.id, seed: run.seed, recipe: run.recipe, swaps: clone(run.swaps),
+    return { ver: VERSION, tune: tuneOf(run.recipe), runId: run.id, seed: run.seed, recipe: run.recipe, swaps: clone(run.swaps),
       si: run.looks.length, looks: clone(run.looks), tags: run.tags.slice(), at: a === null ? null : Math.round(a) };
   }
   function isIntIn(v, lo, hi) { return isInt(v) && v >= lo && v <= hi; }
@@ -702,7 +760,7 @@ var COOK = (function () {
     return true;
   }
   function validLook(r, si, lk) {
-    var step = r.steps[si], food = TUNE.food[step.food] || TUNE.food[r.id] || TUNE.food.jeon;
+    var step = r.steps[si], food = foodOf(r, step);
     if (step.kind === 'tap') {
       return sameKeys(lk, ['dents']) && Array.isArray(lk.dents) && lk.dents.length <= TUNE.tap.dents && allOf(lk.dents, function (d) {
         return Array.isArray(d) && d.length === 2 && allOf(d, function () { return true; }) && isIntIn(d[0], 0, food.w - 1) && isIntIn(d[1], 0, food.h - 1); });
@@ -714,9 +772,11 @@ var COOK = (function () {
         allOf(lk.cuts, function (a) { return isIntIn(a, -S2.angMax, S2.angMax) && a % S2.angStep === 0; }) &&
         allOf(lk.offs, function (o) { return isIntIn(o, -S2.jitter, S2.jitter); });
     }
-    return false;
+    return EXT ? EXT.validLook(step, lk) === true : false;
   }
   function validTag(kind, tg) {
+    var x = EXT ? EXT.validTag(kind, tg, BANDS) : null;
+    if (x !== null) return x;
     if (kind === 'tap') return tg === null;
     if (kind === 'flip') return BANDS.indexOf(tg) >= 0;
     if (kind === 'slice') return tg === 'straight' || tg === 'slant';
@@ -727,8 +787,8 @@ var COOK = (function () {
     try {
       if (typeof pot === 'string') pot = JSON.parse(pot);
       if (!pot || typeof pot !== 'object' || Array.isArray(pot)) return null;
-      if (pot.ver !== VERSION || pot.tune !== TUNE_HASH) return null;
-      var r = recipe(pot.recipe); if (!r) return null;
+      if (pot.ver !== VERSION) return null;
+      var r = recipe(pot.recipe); if (!r || pot.tune !== tuneOf(r.id)) return null;   /* each recipe its own pot hash */
       if (!isIntIn(pot.seed, 0, 4294967295)) return null;
       var si = pot.si;
       if (!isIntIn(si, 0, r.steps.length - 1)) return null;
@@ -742,6 +802,7 @@ var COOK = (function () {
       return run;
     } catch (e) { return null; }
   }
+  var SEEN_MAX = 16;   /* 11-21: nine step kinds and the book's own first-time hand (8 before) */
   /* the saved key: { v, day, dayN, seen, pot, book } (newest book line first, at most TUNE.book.max) */
   function normStore(o) {
     var out = { v: 1, day: '', dayN: 0, seen: [], pot: null, book: [] };
@@ -750,11 +811,20 @@ var COOK = (function () {
       if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
       if (typeof o.day === 'string' && DAY_RE.test(o.day)) out.day = o.day;
       if (isIntIn(o.dayN, 0, 1e6)) out.dayN = o.dayN;
-      if (Array.isArray(o.seen)) o.seen.forEach(function (k) { if (typeof k === 'string' && /^[a-z]{2,8}$/.test(k) && out.seen.indexOf(k) < 0 && out.seen.length < 8) out.seen.push(k); });
+      if (Array.isArray(o.seen)) o.seen.forEach(function (k) { if (typeof k === 'string' && /^[a-z]{2,8}$/.test(k) && out.seen.indexOf(k) < 0 && out.seen.length < SEEN_MAX) out.seen.push(k); });
       if (o.pot && typeof o.pot === 'object' && !Array.isArray(o.pot)) out.pot = o.pot;   /* checked by resumeRun */
+      if (Array.isArray(o.potOld)) {   /* 11-15: pots that could not be resumed, kept as they were (newest first, at most 4) */
+        var old = o.potOld.filter(function (p) {   /* any size (round 5 check O-6): begin() moves a bad pot here whole, so a
+                                                     size limit here dropped a pot over TUNE.pot.maxBytes on the next read */
+          return !!p && typeof p === 'object' && !Array.isArray(p);
+        }).slice(0, 4);
+        if (old.length) out.potOld = old;
+      }
       if (Array.isArray(o.book)) out.book = o.book.filter(function (l) {
         return l && typeof l === 'object' && typeof l.id === 'string' && typeof l.recipe === 'string' && isIntIn(l.seed, 0, 4294967295) && l.look && typeof l.look === 'object';
       }).slice(0, TUNE.book.max);
+      /* 11-21 round 7 check: a field this build does not know (written by a later one) is kept as it is */
+      Object.keys(o).forEach(function (k) { if (!Object.prototype.hasOwnProperty.call(out, k) && k !== 'potOld' && k !== '__proto__') out[k] = o[k]; });
     } catch (e) { /* broken key: start empty */ }
     return out;
   }
@@ -776,7 +846,14 @@ var COOK = (function () {
     var c = rgb(h), i = (y * img.w + x) * 4; img.d[i] = c[0]; img.d[i + 1] = c[1]; img.d[i + 2] = c[2]; img.d[i + 3] = 255;
   }
   function inEll(x, y, cx, cy, rx, ry) { var dx = 2 * x + 1 - 2 * cx, dy = 2 * y + 1 - 2 * cy; return dx * dx * ry * ry + dy * dy * rx * rx <= 4 * rx * rx * ry * ry; }
+  function stepLook(s) {   /* 11-21: the default look of one step (a book dish keeps one per step) */
+    if (s.kind === 'tap') return { dents: [] };
+    if (s.kind === 'flip') return { band: 1 };
+    if (s.kind === 'slice') { var n = clampInt(s.lines, 1, 3, 2), z0 = []; for (var i = 0; i < n; i++) z0.push(0); return { cuts: z0.slice(), offs: z0.slice() }; }
+    return (EXT && EXT.defaultLook(s)) || {};
+  }
   function defaultLook(r) {
+    if (r.v2) { var o2 = { v: 2, s: r.steps.map(stepLook), plate: 0 }; o2.s.forEach(function (lk) { if (isInt(lk.band)) o2.band = lk.band; }); return o2; }
     var out = { v: 1 };
     r.steps.forEach(function (s) {
       if (s.kind === 'tap') out.dents = [];
@@ -790,6 +867,13 @@ var COOK = (function () {
   function normLook(recipeId, look) {
     var r = recipe(recipeId); if (!r) return null;
     var out = defaultLook(r);
+    if (r.v2) {
+      if (!look || typeof look !== 'object' || look.v !== 2 || !Array.isArray(look.s)) return out;
+      delete out.band;
+      r.steps.forEach(function (s, si) { if (validLook(r, si, look.s[si])) out.s[si] = clone(look.s[si]); if (isInt(out.s[si].band)) out.band = out.s[si].band; });
+      if (isIntIn(look.plate, 0, PLATES.length - 1)) out.plate = look.plate;
+      return out;
+    }
     if (!look || typeof look !== 'object' || look.v !== 1) return out;
     r.steps.forEach(function (s, si) {
       var part = {};
@@ -834,9 +918,12 @@ var COOK = (function () {
     try {
       var r = recipe(recipeId); if (!r) return img;
       var L = normLook(r.id, look), sd = toU32(seed);
-      var art = typeof COOK_ART !== 'undefined' && COOK_ART && typeof COOK_ART.dish === 'function' ? COOK_ART : null;
+      var CA = typeof COOK_ART !== 'undefined' && COOK_ART ? COOK_ART : null;
+      /* 11-18: a new dish paints with its own painters (COOK_ART.dishes[id], js/cook-dishes.js); without them, the stub */
+      var own = r.id === 'jeon' ? CA : CA && CA.dishes && CA.dishes[r.id] && typeof CA.dishes[r.id] === 'object' ? CA.dishes[r.id] : null;
+      var art = own && typeof own.dish === 'function' ? own : null;
       if (art) {
-        var G = art.GEO || {}, sw = swapsFor(r, sd), small = G.dish && (w < G.dish.w || h < G.dish.h) && typeof art.dishSmall === 'function';
+        var G = (CA && CA.GEO) || {}, sw = swapsFor(r, sd), small = G.dish && (w < G.dish.w || h < G.dish.h) && typeof art.dishSmall === 'function';
         try { (small ? art.dishSmall : art.dish)(img, clone(L), { herb: sw.herb, recipe: r.id, seed: sd, swaps: sw });
           if (img.w === w && img.h === h && img.d && img.d.length === w * h * 4) return img; }
         catch (e) { /* the painter failed: draw the stub below */ }
@@ -848,9 +935,9 @@ var COOK = (function () {
   }
 
   var API = {
-    VERSION: VERSION, TUNE: TUNE, TUNE_HASH: TUNE_HASH, WORDS: WORDS, RECIPES: RECIPES, PROPS: PROPS, KIND: KIND, BANDS: BANDS,
+    VERSION: VERSION, TUNE: TUNE, TUNE_HASH: TUNE_HASH, WORDS: WORDS, RECIPES: RECIPES, EXT: EXT, SEEN_MAX: SEEN_MAX, PROPS: PROPS, KIND: KIND, BANDS: BANDS,
     hash32: hash32, mulberry32: mulberry32, seedFor: seedFor, runIdFor: runIdFor, stepSeed: stepSeed, fxSeed: fxSeed,
-    recipe: recipe, swapsFor: swapsFor, plateFor: plateFor, betweenOf: betweenOf,
+    recipe: recipe, swapsFor: swapsFor, plateFor: plateFor, betweenOf: betweenOf, TUNE_R: TUNE_R, tuneOf: tuneOf, foodOf: foodOf,
     createRun: createRun, resumeRun: resumeRun, input: input, tick: tick, drain: drain, feed: feed, simulate: simulate,
     lookOf: lookOf, normLook: normLook, resultOf: resultOf, bookLine: bookLine, potOf: potOf, normStore: normStore, bookAdd: bookAdd,
     verb: verb, describe: describe, hintAt: hintAt, drawDish: drawDish
@@ -858,27 +945,54 @@ var COOK = (function () {
   if (typeof document === 'undefined' || typeof window === 'undefined') return API;   /* node: the simulation only */
 
   /* ───────── live ───────── */
-  /* LIVE HALF (browser only; node returned above). One modal <dialog>, built on the first open.
-   * Screens: counter (each prop is a real <button> over the art) -> steps -> plate reveal -> counter.
-   * Layout (design 5.2): spare height above the header, header 44 (step icon strip + close), gap 8, stage = the
-   * 144 x 160 art at an integer device-pixel scale (fit), gap 8, verb row 56, bottom 8..12. The frame is in the art.
+  /* LIVE HALF (browser only; node returned above). One modal <dialog>, built on the first open. 11-15 close-up
+   * (wip/round5/cook-spec.md): no counter screen and no visible words. Opening goes straight into a step (or resumes the
+   * saved one); every step change slides the view sideways to the next station (tap -> counter, flip -> stove, slice ->
+   * board, reveal -> plate). One canvas fills the dialog edge to edge: the 144 x 160 stage is blitted into a W x H view
+   * whose bleed COOK_ART.view paints in stage coordinates (fit: one art px = k device px). HUD: step strip and close
+   * (top), the quiet chip (bottom centre); all three are pixel icons with aria-labels.
    * Input (6.2, 6.3): one visible clock that freezes while the tab is hidden (sim t = visible ms / slow). Every pointer
    * sample goes through input() (it ticks first), every frame runs tick() + drain(). The host drops touches that start
-   * within TUNE.edgeCss of the screen's left / right edge. Juice (5.4) is drawn from drained events on a 12 fps grid;
-   * sound (5.5) goes to AUDIO.on('cook', snd) in the same handler; aria-live gets the say words only. The same acts go
-   * to the reaction stickers when js/cook-stickers.js is loaded (sticker(): pictures only, the kitchen never needs them).
-   * Storage: one key (opts.storeKey, default 'ppolppol_cook'); the pot is saved at step boundaries, on hidden, pagehide
-   * and close; a finished dish adds one book line. open() never throws. */
+   * within TUNE.edgeCss of the screen's left / right edge. Juice is drawn from drained events on a 12 fps grid; sound
+   * goes to AUDIO.on('cook', snd) and the haptic to HAPTICS.buzz(name) in the same handler (or on the named frame);
+   * aria-live gets the say words only. The same acts go to the reaction stickers when js/cook-stickers.js is loaded.
+   * Storage: one key (opts.storeKey, default 'ppolppol_cook'); the pot is saved at step boundaries, on hidden, pagehide,
+   * close and again; a pot that cannot be resumed moves to potOld unchanged; a finished dish adds one book line.
+   * open() never throws. */
   var KEY0 = 'ppolppol_cook';
   var KEY_RE = /^ppolppol_cook(_[a-z0-9]{1,16})?$/;          /* only the kitchen's own keys (never the main save) */
-  var LAY ={ head: 44, gap: 8, verb: 56, top: 8, bot: 12, botShort: 8, side: 16, column: 288, maxCss: 3, note: 44 };
+  /* 11-15 layout (spec 2.1; not in TUNE, so saved pots stay valid): VIEW_W art px across, stage rows ROWS between the HUD
+     and the chip, MID their centre, ZMAX CSS px per art px at most, HUD 8 + 48 + 8, chip 64 at 16 from the bottom */
+  var LAY = { VIEW_W: 80, ROWS: [28, 132], MID: 80, ZMAX: 6, HUD: 64, CHIP: 64, CHIPB: 16, STICK_ROW: 36,   /* 11-21: 44 before; the stickers start 56 px higher now, and end 8 px above this row */ PAD: 8, CLOSE: 48, HIT: 56, NOTE: 44 };
   var FMS = 1000 / TUNE.fps;                                  /* one 12 fps frame */
   var ART_W = TUNE.stage.w / TUNE.stage.scale, ART_H = TUNE.stage.h / TUNE.stage.scale;
+  var FOOD_X = TUNE.food.batter.cx, FOOD_Y = TUNE.food.batter.cy;   /* food centre on the stage (art px) */
+  var STATION = { tap: 'counter', flip: 'stove', slice: 'board', stir: 'counter', pour: 'stove', drag: 'counter', rub: 'counter', swipe: 'stove', bake: 'counter' };
+  var END = { BIG: 80, BIG_S: 72, SMALL: 60, GAP: 12, ART: 20 };   /* 11-21 the two end buttons (CSS px; BIG_S below 340 wide), their 20 x 20 pictures */
+  var HAND2 = { circle: 1, hold: 1, carry: 1, rub: 1 };
+  var IDLE_GLOW = 1500;   /* 11-24 r5: ms without progress before the one thing to touch starts to breathe (a 1 px outline) */            /* ghost hands drawn by COOK_ART.steps.hand2 (18 frames a loop) */
+  var BOOK_MS = { swipe: 24, hand: 600 };
+  /* 11-24 r5 the plate screen: the two places to put the dish (stage art px, their centres), how near counts, how far a press
+     must move to lift the dish, and when the first-time hand shows the way */
+  var SERVE = { call: [48, 128], table: [96, 128], reach: 16, lift: 3, hintMs: 1200, dish: [72, 92, 38, 26] };                          /* the book: a sideways drag of 24 CSS px turns the page; the first-time hand waits 600 ms */
+  /* 11-18 round 6: a step's station (its own, else its kind's); per recipe what rides over a slide between two stations and
+     onto the plate (jeon: the pan, then the cooked jeon, then the cut jeon) */
+  function stationOf(step) { return (step && step.station) || STATION[step && step.kind] || 'counter'; }
+  var CARRY_R = { jeon: { between: ['pan', 'jeon'], reveal: 'cut' }, jumeokbap: { between: ['pan'], reveal: 'cake' }, kkochi: { between: [], reveal: 'skewer' } };
+  /* the painters of the dish now: jeon -> COOK_ART itself, a new dish -> COOK_ART.dishes[id] (js/cook-dishes.js) or null */
+  function dishArt(id) {
+    var A = art(); if (!A || id === 'jeon' || !id) return A;
+    return A.dishes && A.dishes[id] && typeof A.dishes[id] === 'object' ? A.dishes[id] : null;
+  }
+  /* particles per recipe (COOK_ART.PART kinds; js/cook-dishes.js adds rice and juice) */
+  var PART_R = { jumeokbap: { drop: 'rice', crumb: 'rice' }, kkochi: { drop: 'juice', crumb: 'juice' } };
+  var SLIDE_AT = [0.40, 0.75, 0.94];                          /* slide offset per 12 fps frame, as a share of STRIDE */
+  var AGAIN_MS = 900;                                         /* the result chip ignores presses until then */
   var SND_FREE = { tap: 1, step: 1, done: 1, pick: 1, quiet: 1 };   /* acts that skip the 120 ms gap (a counted tap is >= 90 ms
                                                                          after the last one already: TUNE.tap.mergeMs) */
-  var D = null, L = null, kbd = false, curKey = KEY0;
+  var D = null, L = null, kbd = false, curKey = KEY0, lastErr = 0;   /* lastErr: the error count of the last open, for live() once closed */
 
-  function art() { return typeof COOK_ART !== 'undefined' && COOK_ART && typeof COOK_ART.counter === 'function' ? COOK_ART : null; }
+  function art() { return typeof COOK_ART !== 'undefined' && COOK_ART && typeof COOK_ART.tapScene === 'function' ? COOK_ART : null; }
   function el(tag, attrs, kids) {
     var e = document.createElement(tag);
     if (attrs) Object.keys(attrs).forEach(function (k) { if (k === 'text') e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); });
@@ -888,7 +1002,7 @@ var COOK = (function () {
   function focusEl(x) { if (!x || typeof x.focus !== 'function') return; try { x.focus({ preventScroll: true }); } catch (e) { try { x.focus(); } catch (e2) { /* gone */ } } }
   function shownEl(x) { return !!x && typeof x.focus === 'function' && document.contains(x) && !x.hidden && !x.disabled && (typeof x.checkVisibility !== 'function' || x.checkVisibility()); }
 
-  /* last input modality: a key press makes the verb button visible and focused at step start (design 2.4) */
+  /* last input modality: a key press makes the chip visible and focused at step start (design 2.4) */
   function setKbd(on) { kbd = on; if (D) D.dlg.classList.toggle('ck-kbd', on); }   /* ck-kbd: focus rings show after key input only */
   document.addEventListener('keydown', function (e) { if (e.key !== 'Shift' && e.key !== 'Control' && e.key !== 'Alt' && e.key !== 'Meta') setKbd(true); }, true);
   document.addEventListener('pointerdown', function () { setKbd(false); }, true);
@@ -924,7 +1038,7 @@ var COOK = (function () {
   function freeze() { var c = L.clock; if (c.since !== null) { c.base = vis(performance.now()); c.since = null; } }
   function thaw() { var c = L.clock; if (c.since === null) c.since = performance.now(); }
 
-  /* ---------- sound, words ---------- */
+  /* ---------- sound, haptics, words ---------- */
   function sound(snd) {
     if (!L || !snd || typeof snd.act !== 'string') return;
     if (!SND_FREE[snd.act]) {
@@ -932,23 +1046,34 @@ var COOK = (function () {
       if (last != null && p - last < TUNE.sndGapMs) return;
       L.sndAt[snd.act] = p;
     }
-    try { if (window.AUDIO && AUDIO.on) AUDIO.on('cook', clone(snd)); } catch (e) { /* sound is a bonus */ }
+    var out = clone(snd);
+    if (out.act === 'tap' && L.run && L.run.recipe === 'kkochi') out.act = 'place';   /* 11-18: a cube onto the skewer; after the gate (tap is free) */
+    try { if (window.AUDIO && AUDIO.on) AUDIO.on('cook', out); } catch (e) { /* sound is a bonus */ }
+  }
+  /* 11-15 haptics (spec 7.2): tap (a counted hit, heat-on), flip (the landing frame), cut (a line); round 5 check O-5:
+     none on the plate (the owner named only tap, flip and slice for the kitchen). Called in the same handler or on the
+     same frame as the picture, never from a timer; js/haptics.js decides whether anything buzzes (setting, support,
+     activation). stats.buzz counts the attempts */
+  function buzz(name) {
+    if (!L) return;
+    if (L.stats.buzz[name] != null) L.stats.buzz[name]++;
+    try { if (typeof HAPTICS !== 'undefined') HAPTICS.buzz(name); } catch (e) { /* a bonus, like sound */ }
   }
   /* reaction stickers (js/cook-stickers.js, docs/COOK_STICKERS.md): optional pictures, never needed. The kitchen hands
-     them its cooking moments under the act names of the sound table (design 5.5): handle() every sim event that carries
-     a sound act, pick() the new dish. Not from sound(): that is also called to hush a hidden tab and to bring the sizzle
-     back, and neither is a new moment. The dish seed names their run (same dish, same moments, same pictures). They
-     mount on D.stick: a layer over the canvas and under the kitchen's own tags that never takes a touch and that screen
-     readers do not see (css/cook.css .ck-stick). They belong to the steps and the plate reveal: unstick() empties the
-     layer on the way back to the counter and when the kitchen closes. Whatever goes wrong in there stays in there. */
+     them its cooking moments under the act names of the sound table: handle() every sim event that carries a sound act,
+     pick() the new dish (at open and at again). They mount on D.stick, a strip under the HUD that never takes a touch and
+     that screen readers do not see; fit() sizes it (one sticker px = n device px) and hides it where it would reach the
+     food (spec 5.4). Whatever goes wrong in there stays in there. */
   var stickOn = null;   /* the COOK_STICKERS object now mounted on D.stick */
   function sticker(snd) {
     try {
       var stk = window.COOK_STICKERS;
       if (!stk || typeof stk.cue !== 'function' || !D || !L || !snd || typeof snd.act !== 'string') return;
       if (stickOn !== stk) { if (typeof stk.mount === 'function') stk.mount(D.stick, { scale: 2 }); stickOn = stk; }
+      /* 11-24 r5 (owner: "반응 스티커는 접시에서만 한 번"): every other cooking moment speaks through the food itself */
+      if (snd.act !== 'done') return;
       var d = clone(snd);
-      if (snd.act === 'pick' && L.run) d.runId = L.run.seed;
+      if (L.run) d.runId = L.run.seed;
       if (!stk.cue(snd.act, d)) return;
       var kids = D.stick.children, slot = kids.length ? kids[kids.length - 1].getAttribute('data-slot') : null;
       for (var i = kids.length - 2; i >= 0 && slot !== null; i--) {   /* one picture a corner: a new one takes the place of the one there */
@@ -967,10 +1092,11 @@ var COOK = (function () {
   }
 
   /* ---------- juice: queued reactions on a 12 fps grid (frame = floor((t - at) / FMS)), particles, ghost hand ---------- */
-  function fxAdd(o, si) { o.at = L.lastT; o.si = si; L.fxq.push(o); if (L.fxq.length > 24) L.fxq.shift(); L.dirty = true; }
+  function fxAdd(o, si, at) { o.at = at == null ? L.lastT : at; o.si = si; L.fxq.push(o); if (L.fxq.length > 24) L.fxq.shift(); L.dirty = true; }
   function burst(kind, x, y, lo, hi, spread) {   /* 1 x 1 art px, integer velocities, gravity 1 px per frame^2 */
     if (L.reduced || !L.prng) return;
-    var r = L.prng, n = lo + r() % (hi - lo + 1);
+    var r = L.prng, n = lo + r() % (hi - lo + 1), pm = L.run && PART_R[L.run.recipe];
+    if (pm && pm[kind]) kind = pm[kind];
     for (var i = 0; i < n; i++) L.parts.push({ x: x | 0, y: y | 0, vx: (r() % (2 * spread + 1)) - spread, vy: -1 - (r() % 3), k: kind, life: 4 + r() % 3, at: L.lastT });
     if (L.parts.length > 48) L.parts.splice(0, L.parts.length - 48);
     L.stats.parts += n;
@@ -984,7 +1110,7 @@ var COOK = (function () {
       else if (q.k === 'flash') { if (fr === 0) J.flash = true; on = fr < 1; }
       else if (q.k === 'bump') { if (fr === 0) { if (L.reduced) J.flash = true; else J.bump = true; } on = fr < 1; }
       else if (q.k === 'arc') { if (!L.reduced && fr <= 3) J.arc = { f: fr, lift: q.lift }; on = fr <= 3; }
-      else if (q.k === 'cut') { if (fr <= 1) J.cut = q.i; on = fr < 2; }   /* two frames: the cut sound's crunch lands 70-130 ms in */
+      else if (q.k === 'cut') { if (fr <= 1) J.cut = { i: q.i, f: fr }; on = fr < 2; }   /* two frames: the cut sound's crunch lands 70-130 ms in; 11-18: f 0 = the pop (sep 2), f 1 = the settle */
       else if (q.k === 'shake') { if (!L.reduced && fr >= q.from && fr <= q.from + 1) J.shake = fr === q.from ? [q.dx, q.dy] : [-q.dx, -q.dy]; on = fr <= q.from + 1; }
       else if (q.k === 'rise') { J.rise = L.reduced ? TUNE.reveal.frames - 1 : Math.min(TUNE.reveal.frames - 1, fr); on = fr < TUNE.reveal.frames - 1; }
       if (on) keep.push(q);
@@ -994,16 +1120,31 @@ var COOK = (function () {
   }
   function handSpec(kind) {
     var run = L.run, st = run && run.st, G = art().GEO;
-    if (!st) return null;
+    if (!st || run.phase === 'reveal') return null;
     if (kind === 'tap') {
       if (st.kind !== 'tap') return { kind: 'tap', x: G.food.cx, y: G.food.cy };
       for (var i = 0; i < st.marks.length; i++) if (st.marks[i].n < st.per) return { kind: 'tap', x: st.marks[i].x >> 1, y: st.marks[i].y >> 1 };
       return null;
     }
-    if (kind === 'flick') return { kind: 'flick', x: G.food.cx, y: G.food.cy + 14 };
+    if (kind === 'flick') {   /* 11-15: the flick demo starts at the up-arrow (GEO.flipArrow), so glyph and hand agree */
+      var fa = G.flipArrow;
+      return fa ? { kind: 'flick', x: fa[0], y: fa[1] } : { kind: 'flick', x: G.food.cx, y: G.food.cy + 14 };
+    }
     if (kind === 'slice') {
       var ln = st.lines && st.lines[st.cur];
       return ln && !ln.cut ? { kind: 'line', x0: ln.ax >> 1, y0: ln.ay >> 1, x1: ln.bx >> 1, y1: ln.by >> 1 } : null;
+    }
+    /* 11-21 the six new gestures */
+    if (kind === 'stir' && st.kind === 'stir') return { kind: 'circle', x: st.cx >> 1, y: st.cy >> 1, rx: 14, ry: 8 };
+    if (kind === 'pour') return { kind: 'hold', x: G.food.cx, y: G.food.cy + 8 };
+    if (kind === 'swipe') return { kind: 'flick', x: G.food.cx, y: G.food.cy + 30 };
+    if (kind === 'bake') return { kind: 'tap', x: G.food.cx, y: G.food.cy + 4 };
+    if (kind === 'rub' && st.kind === 'rub') return { kind: 'rub', x: st.box[0] + (st.box[2] >> 1), y: st.box[1] + (st.box[3] >> 1), w: (st.box[2] >> 1) - 6, h: st.box[3] >> 1 };
+    if (kind === 'drag' && st.kind === 'drag') {
+      var di = -1, dk = -1, j;
+      for (j = 0; j < st.items.length; j++) if (!st.items[j].on) { di = j; break; }
+      for (j = 0; j < st.slots.length; j++) if (st.slots[j].by < 0) { dk = j; break; }
+      return di < 0 || dk < 0 ? null : { kind: 'carry', x0: st.items[di].hx >> 1, y0: st.items[di].hy >> 1, x1: st.slots[dk].x >> 1, y1: st.slots[dk].y >> 1 };
     }
     return null;
   }
@@ -1011,22 +1152,24 @@ var COOK = (function () {
                                                 reduced. It stays until progress or its own end (a press that changes nothing
                                                 does not wipe it); seenKey = the step kind a finished demo marks as seen */
     var spec = handSpec(kind); if (!spec) return;
-    L.hint = { spec: spec, at: L.lastT, dur: 12 * FMS, why: why, seen: seenKey || null }; L.dirty = true; L.stats.hints++;
+    /* 11-21: a path gesture takes 1.5 s a loop; two loops the first time, one on idle */
+    L.hint = { spec: spec, at: L.lastT, dur: HAND2[spec.kind] ? (why === 'idle' ? 18 : 36) * FMS : 12 * FMS, why: why, seen: seenKey || null }; L.dirty = true; L.stats.hints++;
   }
   function markSeen(k) {
     if (!L || L.seen.indexOf(k) >= 0) return;
     L.seen.push(k);
     patchStore(function (o) { if (o.seen.indexOf(k) < 0) o.seen.push(k); });
   }
-  function maybeDemo() {   /* first time this device sees a step kind: one ghost hand right after the title (no text); the
-                              kind counts as seen once that demo has played to its end, or once the step is done */
+  function maybeDemo() {   /* first time this device sees a step kind: one ghost hand titleMs after the step start (no text);
+                              the kind counts as seen once that demo has played to its end, or once the step is done */
     var run = L.run; if (!run || run.phase !== 'step' || L.demoAt === run.si || L.hint) return;
     L.demoAt = run.si;
     var k = run.st.kind;
     if (L.seen.indexOf(k) >= 0 || run.st.progress > 0) return;
     startHand(k === 'flip' ? 'tap' : k, 'demo', k === 'flip' ? null : k);   /* flip: first the heat-on tap; the up-swipe demo follows heat-on */
   }
-  function checkIdle(run) {   /* no progress for 5 s: one ghost hand, and from then on the verb button shows (design 2.3, 2.4) */
+  function checkIdle(run) {   /* no progress for 5 s: one ghost hand. 11-24 r5: the chip does not show for it any more (touch
+                                 play is gestures only; the chip is the keyboard and screen-reader path) */
     if (L.hint || L.titleUntil) return;
     var due = hintAt(run); if (due === null) return;
     var key = run.si + '|' + due;
@@ -1035,10 +1178,9 @@ var COOK = (function () {
     var st = run.st;
     startHand(st.kind === 'flip' ? (st.heat ? 'flick' : 'tap') : st.kind, 'idle');
     L.stats.idle++;
-    if (!L.shown) { L.shown = true; updVerb(); }
   }
 
-  /* ---------- sim events -> juice, sound, words, saving ---------- */
+  /* ---------- sim events -> juice, sound, haptics, words, saving ---------- */
   function handle(evs) {
     if (!L || !evs || !evs.length) return;
     var words = [];
@@ -1053,38 +1195,71 @@ var COOK = (function () {
     L.dirty = true;
     updVerb();
   }
-  var PROGRESS = { hit: 1, heat: 1, flip: 1, score: 1, cut: 1 };   /* a ghost hand gives way to these (the hand is doing it) */
+  var PROGRESS = { hit: 1, heat: 1, flip: 1, score: 1, cut: 1, turn: 1, pour: 1, fill: 1, lift: 1, place: 1, rub: 1, roll: 1, out: 1 };   /* a ghost hand gives way to these (the hand is doing it) */
   function onEvent(e) {
     var run = L.run, st = run && run.st, G = art().GEO, d, ln;
     if (PROGRESS[e.type] && L.hint) { L.hint = null; L.dirty = true; }
     switch (e.type) {
       case 'start': onStart(e); break;
       case 'hit':
-        L.fx++; fxAdd({ k: 'hit' }, e.si);
-        d = st && st.kind === 'tap' && st.dents[e.i];
+        L.fx++; fxAdd({ k: 'hit' }, e.si); buzz('tap');
+        d = st && st.kind === 'tap' && !isV2(run) && st.dents[e.i];   /* 11-21: a book dish's marks are the eggs or the rice's sides */
         burst('drop', d ? st.box[0] + d[0] : e.x >> 1, d ? st.box[1] + d[1] : e.y >> 1, 3, 6, 2);
+        if (isV2(run)) {   /* 11-24 r5: taps in an even beat (0.15 to 0.5 s apart) crack and press with a little more spark */
+          if (L.beatAt != null && L.lastT - L.beatAt >= 150 && L.lastT - L.beatAt <= 500) { burst('spark', e.x >> 1, (e.y >> 1) - 4, 2, 3, 2); L.stats.good++; }
+          L.beatAt = L.lastT;
+        }
         break;
+      /* 11-21 the new kinds: a quarter turn and a placed item buzz like a tap, a roll like a flip (owner list) */
+      case 'turn':   /* 11-24 r5: a steady stir swirls; a frantic one (a quarter turn in under 70 ms) splashes over the rim, and still counts */
+        L.fx++; fxAdd({ k: 'flash' }, e.si); buzz('tap');
+        if (st) {
+          var fast = L.turnAt != null && L.lastT - L.turnAt < 70;
+          if (fast) { burst('drop', (st.cx >> 1) + (e.i & 1 ? 22 : -22), (st.cy >> 1) - 6, 2, 3, 4); L.stats.sloppy++; } else burst('drop', st.cx >> 1, st.cy >> 1, 1, 2, 3);
+        }
+        L.turnAt = L.lastT; break;
+      case 'pour': L.fx++; break;
+      case 'fill': L.fx++; fxAdd({ k: 'flash' }, e.si); break;
+      case 'lift': L.fx++; break;
+      case 'back':   /* 11-24 r5: let go away from its place: the item slides home (no penalty), from where it was let go */
+        L.fx++;
+        if (L.upAt && !L.reduced) { L.glide2 = { i: e.i, x: L.upAt[0], y: L.upAt[1], at: L.lastT }; L.stats.sloppy++; }
+        break;
+      case 'place':
+        L.fx++; fxAdd({ k: 'hit' }, e.si); buzz('tap');
+        if (st && st.slots && st.slots[e.k]) burst('drop', st.slots[e.k].x >> 1, st.slots[e.k].y >> 1, 2, 4, 2);
+        break;
+      case 'rub': L.fx++; burst('drop', e.x >> 1, e.y >> 1, 1, 2, 2); break;
+      case 'coat': fxAdd({ k: 'flash' }, e.si); break;
+      case 'roll': L.fx++; fxAdd({ k: 'bump' }, e.si); buzz('flip'); fxAdd({ k: 'shake', from: 1, dx: 0, dy: 1 }, e.si); break;
+      case 'out': L.fx++; fxAdd({ k: 'flash' }, e.si); break;
       case 'pat': L.fx++; fxAdd({ k: 'flash' }, e.si); break;
       case 'dust': L.fx++; L.dust.push([e.x >> 1, e.y >> 1]); if (L.dust.length > 12) L.dust.shift(); break;
       case 'heat':
         L.fx++; fxAdd({ k: 'flash' }, e.si); L.nudges = 0;
-        if (L.seen.indexOf('flip') < 0) startHand('flick', 'demo', 'flip');   /* seen once it has played to its end */
+        if (!st || st.kind !== 'bake') buzz('tap');   /* 11-21: the oven's heat-on is not on the owner's buzz list (flip's is) */
+        if (st && st.kind === 'flip' && L.seen.indexOf('flip') < 0) startHand('flick', 'demo', 'flip');   /* seen once it has played to its end */
         break;
       case 'nudge':   /* a press after heat-on that did not flip: the jeon hops; a few of them (with no hand showing) -> the
-                         up-swipe hand once more and the verb button shows; at most twice a step, so it never nags */
+                         up-swipe hand once more and the chip shows; at most twice a step, so it never nags */
         L.fx++; fxAdd({ k: 'bump' }, e.si);
-        if (!L.hint && ++L.nudges >= TUNE.flip.teach && L.taught < 2) { L.nudges = 0; L.taught++; startHand('flick', 'teach'); L.stats.teach++; L.shown = true; }
+        if (!L.hint && ++L.nudges >= TUNE.flip.teach && L.taught < 2) { L.nudges = 0; L.taught++; startHand('flick', 'teach'); L.stats.teach++; }
         break;
       case 'flip':
         L.fx++; L.finger = null; L.stats.flips++; L.nudges = 0;
         fxAdd({ k: 'arc', lift: e.lift }, e.si);
         L.landAt = L.lastT + 3 * FMS;   /* art: the landing frame (arc frame 3) is fl 0; the bloom carries onto the board */
+        if (L.reduced) { L.landBuzz = null; buzz('flip'); } else L.landBuzz = L.landAt;   /* the haptic lands with the jeon */
         burst('crumb', G.food.cx - 22, G.food.cy + 4, 2, 3, 2); burst('crumb', G.food.cx + 22, G.food.cy + 4, 2, 3, 2);
         fxAdd({ k: 'shake', from: 3, dx: 0, dy: 1 }, e.si);
         break;
       case 'score': L.fx++; break;
+      case 'band':   /* 11-18 golden: the bell picture (always) and the ding (only when sound is on; js/audio.js decides). No
+                        buzz, no sticker call (handle already cued the band), no new aria word (the line says the band) */
+        if (e.band === 1) { L.bell = { at: L.lastT, si: e.si }; L.dirty = true; sound({ act: 'ding' }); }
+        break;
       case 'cut':
-        L.fx++; fxAdd({ k: 'cut', i: e.i }, e.si);
+        L.fx++; fxAdd({ k: 'cut', i: e.i }, e.si); buzz('cut');
         ln = st && st.kind === 'slice' && st.lines[e.i];
         if (ln) burst('crumb', (ln.ax + ln.bx) >> 2, (ln.ay + ln.by) >> 2, 3, 4, 2);
         break;
@@ -1094,34 +1269,38 @@ var COOK = (function () {
     }
   }
   function onStart(e) {
-    var run = L.run;
+    var run = L.run, r = recipe(run.recipe);
     L.prng = mulberry32(fxSeed(run.seed, run.si));
-    if (run.si === 0 || e.kind === 'flip') L.landAt = null;   /* a resumed dish can start at the flip */
-    L.parts = []; L.dust = []; L.finger = null; L.hint = null; L.demoAt = -1; L.nudges = 0; L.taught = 0;
-    D.title.textContent = WORDS.title[e.kind] || ''; D.title.hidden = false; L.titleUntil = L.lastT + TUNE.titleMs;
-    placeTags(); stripOn(run.si);
+    if (run.si === 0 || e.kind === 'flip') { L.landAt = null; L.landBuzz = null; }   /* a resumed dish can start at the flip */
+    L.parts = []; L.dust = []; L.finger = null; L.hint = null; L.demoAt = -1; L.nudges = 0; L.taught = 0; L.beatAt = null; L.turnAt = null; L.glide2 = null; L.stroke = null;
+    L.titleUntil = (run.t0 != null ? run.t0 : L.lastT) + TUNE.titleMs;   /* no title any more: the demo hand still waits for it */
+    if (L.noSlide) { L.noSlide = false; return; }   /* open, resume and again place the station themselves */
+    var prev = r && e.si > 0 ? r.steps[e.si - 1] : null, cur = r && r.steps[e.si];
+    if (!prev || !cur || stationOf(prev) === stationOf(cur)) return;   /* 11-18: kkochi's two board steps do not slide */
+    if (r.v2) { startSlide(stationOf(prev), stationOf(cur), run.t0, null, null, null, copyBuf(L.buf)); return; }   /* 11-21: the finished scene leaves as it was, the live one comes in */
+    var lk = lookOf(run), from = stationOf(prev), to = stationOf(cur), cr = (CARRY_R[run.recipe] || CARRY_R.jeon).between[e.si - 1] || null;
+    var outO = from === 'stove' ? { station: 'stove', pan: true, heat: true, band: lk.band } : { station: from };
+    var inO = to === 'stove' ? { station: 'stove', pan: false } : { station: to };
+    startSlide(from, to, run.t0, outO, inO, cr);
   }
-  function hideTitle() { if (!D.title.hidden) { D.title.hidden = true; L.dirty = true; } L.titleUntil = 0; }
+  function hideTitle() { if (L.titleUntil) { L.titleUntil = 0; L.dirty = true; } }   /* a press ends the wait for the first-time demo */
   function onStepEnd(e) {
     if (e.kind === 'slice') fxAdd({ k: 'shake', from: 0, dx: 1, dy: 0 }, e.si);
     markSeen(e.kind);
     L.finger = null; L.hint = null;
+    if (L.run.doneAt != null) L.nextAt = L.run.doneAt + betweenOf(e.kind);   /* when the next step or the plate comes, exactly */
     if (L.run.done) finish(); else savePot();
   }
   function onReveal(e) {
-    L.screen = 'reveal'; L.revealAt = L.lastT; L.revealFocus = L.lastT + TUNE.reveal.focusMs; L.revealDown = null; L.down = {};
-    L.revealIdle = L.revealFocus + TUNE.idleMs;   /* 5 s with the plate up and no press: a tap hand on the plate, the back button shows */
-    L.hint = null; L.parts = [];
-    fxAdd({ k: 'rise' }, e.si); fxAdd({ k: 'shake', from: TUNE.reveal.frames - 1, dx: 0, dy: 1 }, e.si);
-    stripOn(-1);
-    D.name.textContent = WORDS.dish[L.run.recipe] || ''; D.name.hidden = !L.reduced; placeTags();
+    var at = L.nextAt != null && L.nextAt <= L.lastT ? L.nextAt : L.lastT;
+    L.screen = 'reveal'; L.revealAt = at; L.chipAt = at + TUNE.reveal.focusMs; L.againAt = at + AGAIN_MS; L.chipOn = false; L.down = {};
+    L.hint = null; L.parts = []; L.titleUntil = 0; L.pd = null; L.glide = null; L.serveHint = false;
+    fxAdd({ k: 'rise' }, e.si, at); fxAdd({ k: 'shake', from: TUNE.reveal.frames - 1, dx: 0, dy: 1 }, e.si, at);
+    var r = recipe(L.run.recipe), last = r ? stationOf(r.steps[r.steps.length - 1]) : 'board', lk = lookOf(L.run);
+    if (r && r.v2) startSlide(last, 'plate', at, null, null, null, copyBuf(L.buf));
+    else startSlide(last, 'plate', at, last === 'stove' ? { station: 'stove', pan: true, heat: true, band: lk.band } : { station: last }, { station: 'plate' },
+      (CARRY_R[L.run.recipe] || CARRY_R.jeon).reveal);
     if (L.finished !== L.run.id) finish();
-  }
-  function plateOf(line) {   /* a book line -> what the counter draws beside the prop (display only) */
-    if (!line || !recipe(line.recipe)) return null;
-    var herb = line.swaps && line.swaps.herb;
-    if (herb !== 'parae' && herb !== 'tot') herb = swapsFor(line.recipe, line.seed).herb;
-    return { recipe: line.recipe, look: normLook(line.recipe, line.look), herb: herb === 'tot' ? 'tot' : 'parae' };
   }
   function finish() {   /* the dish is done: book line (newest first), clear the pot, hand the result to the host */
     var run = L.run; if (!run || !run.done || L.finished === run.id) return;
@@ -1130,7 +1309,6 @@ var COOK = (function () {
     if (!res) return;
     var line = bookLine(res);
     patchStore(function (o) { o.pot = null; bookAdd(o, line); });
-    L.pot = null; L.pending = null; L.plate = plateOf(line);
     if (typeof L.onResult === 'function') { try { L.onResult(clone(res)); } catch (e) { /* the host's own problem */ } }
   }
   function savePot() {
@@ -1139,145 +1317,237 @@ var COOK = (function () {
     if (pot) patchStore(function (o) { o.pot = pot; });
   }
 
-  /* ---------- screens ---------- */
-  function setScreenClass() {
-    D.dlg.classList.toggle('ck-counter', L.screen === 'counter');
-    D.dlg.setAttribute('aria-label', L.screen === 'counter' || !L.run ? WORDS.kitchen : WORDS.dish[L.run.recipe] || WORDS.kitchen);
+  /* ---------- stations and slides (spec 4) ---------- */
+  function stationNow() {
+    var run = L && L.run;
+    if (!run) return 'counter';
+    if (run.phase === 'reveal') return 'plate';
+    var r = recipe(run.recipe);
+    return stationOf(r && r.steps[Math.min(run.si, r.steps.length - 1)] || run.st);
   }
+  function copyBuf(b) { return { w: b.w, h: b.h, d: new Uint8ClampedArray(b.d) }; }
+  function baseOf(o) {   /* a still station picture (COOK_ART.base), or null when the art has none */
+    var run0 = L.run, A = dishArt(run0 ? run0.recipe : 'jeon') || art(); if (typeof A.base !== 'function') return null;
+    var run = L.run, lk = run ? lookOf(run) : {}, b = art().blank(ART_W, ART_H), p = {}, k;
+    for (k in o) p[k] = o[k];
+    p.f = 0; p.still = true; p.look = lk; p.herb = run ? run.swaps.herb : 'parae'; p.seed = run ? fxSeed(run.seed, 0) & 0x7fffffff : 0;
+    try { A.base(b, p); } catch (e) { return null; }
+    return b;
+  }
+  /* outO / inO: base options for the two stations; carry: what rides on screen ('pan', 'jeon', 'cut') or null. Without
+     COOK_ART.base the outgoing scene is the last painted frame and the incoming one the live scene, with no carry */
+  function startSlide(from, to, t0, outO, inO, carry, snapshot) {
+    if (L.reduced) { L.slide = null; return; }
+    var A = (L.run && dishArt(L.run.recipe)) || art(), out = snapshot || (outO ? baseOf(outO) : null), inb = inO ? baseOf(inO) : null;
+    if (!out) out = copyBuf(L.buf);
+    L.slide = { from: from, to: to, t0: t0, out: out, inb: inb, carry: inb && carry && typeof A.carry === 'function' ? carry : null };
+    L.stats.slides++; L.dirty = true;
+  }
+  function slideAt(t) {   /* { f, s } of the slide now, or null once it is over (f >= 3) */
+    var sl = L.slide; if (!sl) return null;
+    var f = Math.max(0, Math.floor((t - sl.t0) / FMS));
+    if (f >= SLIDE_AT.length) return null;
+    return { f: f, s: Math.round(L.stride * SLIDE_AT[f]) };
+  }
+
+  /* ---------- view composition: one W x H canvas, the stage blitted in at (ox, oy) (spec 2.4) ---------- */
+  function bgFor(station, ox, oy) {   /* COOK_ART.view of one station at one place, cached (a few entries) */
+    var key = station + '|' + L.W + '|' + L.H + '|' + ox + '|' + oy, c = L.bgc, i;
+    for (i = 0; i < c.length; i++) if (c[i].key === key) return c[i].b;
+    var A = art(), b = A.blank(L.W, L.H);
+    A.view(b, { station: station, ox: ox, oy: oy, x0: 0, x1: L.W });
+    c.unshift({ key: key, b: b }); if (c.length > 8) c.length = 8;
+    return b;
+  }
+  /* paint columns x0..x1-1 of V: the station's bleed, then the stage interior (x 2..141, y 2..157) of src at (ox, oy).
+     Without COOK_ART.view the bleed repeats the interior's edge rows and columns (spec 14 fallback) */
+  function layer(V, station, src, ox, oy, x0, x1) {
+    var A = art(), W = V.w, H = V.h, d = V.d, s = src.d, x, y, sx, sy, a, b2;
+    x0 = Math.max(0, x0 | 0); x1 = Math.min(W, x1 | 0); if (x1 <= x0) return;
+    if (typeof A.view === 'function') {
+      var bg = bgFor(station, ox, oy).d;
+      for (y = 0; y < H; y++) d.set(bg.subarray((y * W + x0) * 4, (y * W + x1) * 4), (y * W + x0) * 4);
+      var lo = Math.max(x0, ox + 2), hi = Math.min(x1, ox + ART_W - 2);
+      if (hi > lo) for (sy = 2; sy < ART_H - 2; sy++) {
+        y = sy + oy; if (y < 0 || y >= H) continue;
+        d.set(s.subarray((sy * ART_W + lo - ox) * 4, (sy * ART_W + hi - ox) * 4), (y * W + lo) * 4);
+      }
+      return;
+    }
+    for (y = 0; y < H; y++) {
+      sy = Math.min(ART_H - 3, Math.max(2, y - oy));
+      for (x = x0; x < x1; x++) {
+        sx = Math.min(ART_W - 3, Math.max(2, x - ox)); a = (sy * ART_W + sx) * 4; b2 = (y * W + x) * 4;
+        d[b2] = s[a]; d[b2 + 1] = s[a + 1]; d[b2 + 2] = s[a + 2]; d[b2 + 3] = 255;
+      }
+    }
+  }
+  function shakeView(V, dx, dy) {   /* the whole view moves (edge repeat), so the stage and its bleed never tear (R7) */
+    var A = art();
+    if (typeof A.shake === 'function' && A.shake.length >= 4) { A.shake(V, dx, dy, 0); return; }
+    var src = new Uint8ClampedArray(V.d), W = V.w, H = V.h;
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      var sx = Math.min(W - 1, Math.max(0, x - dx)), sy = Math.min(H - 1, Math.max(0, y - dy)), si = (sy * W + sx) * 4, ti = (y * W + x) * 4;
+      V.d[ti] = src[si]; V.d[ti + 1] = src[si + 1]; V.d[ti + 2] = src[si + 2]; V.d[ti + 3] = src[si + 3];
+    }
+  }
+  function composeSlide(V, sl, sp) {
+    var A = art(), W = V.w, ox = L.ox, oy = L.oy, s = sp.s, seam = ox + FOOD_X + Math.floor(L.stride / 2) - s;
+    layer(V, sl.from, sl.out, ox - s, oy, 0, seam);
+    layer(V, sl.to, sl.inb || L.buf, ox - s + L.stride, oy, seam, W);
+    if (!sl.carry && sl.to === 'counter' && typeof A.view === 'function') overSeam(V, sl.inb || L.buf, ox - s + L.stride, oy, seam);
+    if (sl.carry) {
+      var run = L.run, lk = run ? lookOf(run) : {}, DA = (run && dishArt(run.recipe)) || A;
+      try {
+        DA.carry(V, { what: sl.carry, x: ox + FOOD_X, y: oy + FOOD_Y, lift: 2, shadow: true, herb: run ? run.swaps.herb : 'parae',
+          dents: lk.dents || [], band: lk.band == null ? 1 : lk.band, look: lk, seed: run ? fxSeed(run.seed, 0) & 0x7fffffff : 0 });
+      } catch (e) { /* the scenes still slide */ }
+    }
+  }
+
+  /* again (round 5 check K-10): nothing rides over the seam there, so the arriving pan was cut by a straight edge. Its
+     pixels (wherever the incoming scene differs from the bare counter) in the 24 columns left of the seam are painted over
+     the leaving plate: the pan keeps its round rim and slides in in front */
+  function overSeam(V, src, sox, oy, seam) {
+    var bg = bgFor('counter', sox, oy).d, d = V.d, s = src.d, W = V.w, x, y, sx, sy, a, b;
+    for (y = 0; y < V.h; y++) {
+      sy = y - oy; if (sy < 2 || sy >= ART_H - 2) continue;
+      for (x = Math.max(0, seam - 24); x < Math.min(W, seam); x++) {
+        sx = x - sox; if (sx < 2 || sx >= ART_W - 2) continue;
+        a = (sy * ART_W + sx) * 4; b = (y * W + x) * 4;
+        if (s[a] !== bg[b] || s[a + 1] !== bg[b + 1] || s[a + 2] !== bg[b + 2]) { d[b] = s[a]; d[b + 1] = s[a + 1]; d[b + 2] = s[a + 2]; d[b + 3] = 255; }
+      }
+    }
+  }
+
+  /* ---------- HUD: strip, close, chip ---------- */
+  function verbKey(run) {
+    if (!run || !run.st) return 'tap';
+    if (run.phase === 'reveal') return 'again';
+    if (run.st.kind === 'flip') return run.st.heat ? 'flip' : 'heat';
+    return run.st.kind;
+  }
+  function iconOf(name) {   /* an unknown icon falls back to 'tap' (spec 14) */
+    var A = art(), list = A.ICONS || [];
+    try { return A.icon(list.indexOf(name) >= 0 ? name : 'tap'); } catch (e) { return A.icon('tap'); }
+  }
+  function isV2(run) { var r = run && recipe(run.recipe); return !!(r && r.v2); }
+  function verbPic(run, key) {   /* 11-21: a book dish's chip shows its step's pictogram when the sprite set has it */
+    var r = run && recipe(run.recipe), step = r && r.v2 && run.phase !== 'reveal' ? r.steps[run.si] : null, X = art().steps;
+    if (step && X && key !== 'heat') { try { var sp = X.sprOf(step.pic, 0); if (sp && !sp.plain && sp.buf.w === 16 && sp.buf.h === 16) return { name: step.pic, buf: sp.buf }; } catch (e) { /* the kind's icon */ } }
+    return { name: key, buf: iconOf(key === 'bake' || key === 'out' ? 'heat' : key === 'swipe' ? 'flip' : key) };
+  }
+  /* 11-21 (owner A4): the chip is the step's verb only. On the plate the two end buttons take its place (updEnd) */
   function updVerb() {
     if (!D || !L) return;
-    var on = L.screen !== 'counter' && !!L.run, label = on ? verb(L.run) : '';
+    var run = L.run, on = !!run && L.screen === 'step', label = on ? verb(run) : '', pic = verbPic(run, verbKey(run));
     if (D.verb.hidden !== !on) D.verb.hidden = !on;
-    if (D.verb.textContent !== label) D.verb.textContent = label;
+    if ((D.verb.getAttribute('aria-label') || '') !== label) D.verb.setAttribute('aria-label', label);
+    if (D.verbCv.ckName !== pic.name) { D.verbCv.ckName = pic.name; D.verbCv.ckIcon = pic.buf; D.verbCv.ckN = 0; sizeIcons(); }
     D.verb.classList.toggle('ck-shown', on && L.shown);
+    updEnd();
   }
-  function buildStrip(r) {
-    var A = art();
-    D.strip.textContent = '';
-    r.steps.forEach(function (s) {
-      var cv = el('canvas', { width: '16', height: '16' });
-      cv.ckIcon = A.icon(s.kind); cv.ckN = 0;
-      D.strip.appendChild(el('span', { class: 'ck-step' }, [cv]));
-    });
-    sizeStrip();
+  function updEnd() {   /* the end buttons: on the plate, 450 ms after the reveal; 'call' only when the host says the octopus can be called */
+    if (!D || !L) return;
+    var on = L.screen === 'reveal' && L.chipOn, call = on && L.canCall;
+    if (D.call.hidden !== !call) D.call.hidden = !call;
+    if (D.table.hidden !== !on) D.table.hidden = !on;
+    if (L.endKey !== (on ? (call ? 2 : 1) : 0)) { L.endKey = on ? (call ? 2 : 1) : 0; fitEnd(); }
   }
   function drawIcon(cv, n) {   /* the 16 x 16 icon at device resolution: every art px an exact n x n block, so the browser maps
                                   backing pixels 1:1 (a CSS upscale of a 16 x 16 canvas drops or doubles columns at DPR 2.625) */
     if (!cv.ckIcon || cv.ckN === n) return;
     var c = null; try { c = cv.getContext('2d'); } catch (e) { c = null; }
     if (!c) return;
-    var s = cv.ckIcon, W = 16 * n, im, d, x, y, i, o;
+    var s = cv.ckIcon, A0 = s.w || 16, W = A0 * n, im, d, x, y, i, o;   /* 11-21: any square picture (the end buttons are 20 x 20) */
     cv.width = W; cv.height = W; im = c.createImageData(W, W); d = im.data;
     for (y = 0; y < W; y++) for (x = 0; x < W; x++) {
-      i = (((y / n) | 0) * 16 + ((x / n) | 0)) * 4; o = (y * W + x) * 4;
+      i = (((y / n) | 0) * A0 + ((x / n) | 0)) * 4; o = (y * W + x) * 4;
       d[o] = s.d[i]; d[o + 1] = s.d[i + 1]; d[o + 2] = s.d[i + 2]; d[o + 3] = s.d[i + 3];
     }
     c.putImageData(im, 0, 0); cv.ckN = n;
   }
-  function sizeStrip() {   /* 16 x 16 icons at a whole number of device px per art px, every edge on a device px (DPR 2.625 too) */
-    var dpr = (L && L.dpr) || window.devicePixelRatio || 1, n = Math.max(1, Math.floor(2 * dpr + 1e-6)), px = 16 * n / dpr;
-    function dev(v) { return Math.max(1, Math.round(v * dpr)) / dpr; }
-    D.strip.style.paddingLeft = dev(2) + 'px'; D.strip.style.gap = dev(8) + 'px';
-    D.strip.style.setProperty('--ck-raise', dev(2) + 'px');   /* the current icon: up 2 px, amber line 2 px under it */
-    var mt = Math.round((LAY.head - px) / 2 * dpr) / dpr;
-    Array.prototype.forEach.call(D.strip.children, function (s) { s.style.marginTop = mt + 'px'; });
-    Array.prototype.forEach.call(D.strip.querySelectorAll('canvas'), function (c) { drawIcon(c, n); c.style.width = px + 'px'; c.style.height = px + 'px'; });
+  /* every HUD icon at a whole number of device px per icon px (strip and close floor(2 dpr), chip floor(3 dpr)), every
+     edge on a device px: the box sizes and offsets below are all rounded to device px (DPR 2.625 too) */
+  function sizeIcons() {
+    if (!D || !L) return;
+    var dpr = L.dpr || window.devicePixelRatio || 1, n2 = Math.max(1, Math.floor(2 * dpr + 1e-6)), n3 = Math.max(1, Math.floor(3 * dpr + 1e-6));
+    var dev = function (v) { return Math.round(v * dpr) / dpr; }, p2 = 16 * n2 / dpr, p3 = 16 * n3 / dpr, pad = dev(LAY.PAD);
+    function place(cv, n, px, box) {   /* centred in a box (the border is a shadow: no layout offset) */
+      drawIcon(cv, n); cv.style.width = px + 'px'; cv.style.height = px + 'px';
+      var off = (Math.round((dev(box) - px) / 2 * dpr) / dpr) + 'px';
+      cv.style.left = off; cv.style.top = off;
+    }
+    place(D.closeCv, n2, p2, LAY.CLOSE);
+    place(D.verbCv, n3, p3, LAY.CHIP);
   }
-  function stripOn(si) { Array.prototype.forEach.call(D.strip.children, function (c, i) { c.classList.toggle('on', i === si); }); }
-  function renderProps() {
-    D.props.textContent = '';
-    D.props.hidden = L.screen !== 'counter';
-    if (L.screen !== 'counter') return;
-    PROPS.forEach(function (p) {
-      var name = WORDS.dish[p.recipe], more = !!(L.pot && L.pot.recipe === p.recipe);
-      var b = el('button', { type: 'button', class: 'ck-prop', 'data-spot': p.id, 'aria-label': more ? name + ', ' + WORDS.resume : name },
-        [el('span', { class: 'ck-tag' + (more ? ' ck-more' : ''), 'aria-hidden': 'true', text: more ? WORDS.resume : name })]);
-      b.addEventListener('click', function () { pick(p.recipe); });
-      D.props.appendChild(b);
-    });
-    placeProps();
+  /* 11-21 the end buttons at the bottom centre: 'call' large and 'table' quieter beside it, or 'table' alone, large. Every
+     edge on a device px; the 20 x 20 picture at a whole number of device px per art px */
+  function fitEnd() {
+    if (!D || !L || !L.vw) return;
+    var dpr = L.dpr || 1, dev = function (v) { return Math.round(v * dpr) / dpr; }, big = L.vw < 340 ? END.BIG_S : END.BIG, both = !D.call.hidden;
+    var bottom = L.chipTop + LAY.CHIP, wT = both ? END.SMALL : big, total = both ? big + END.GAP + wT : wT, x0 = Math.round((L.vw - total) / 2);
+    function put2(btn, cv, x, size) {
+      var n = Math.max(1, Math.floor((size - 16) * dpr / END.ART + 1e-6)), px = END.ART * n / dpr;
+      btn.style.left = dev(x) + 'px'; btn.style.top = dev(bottom - size) + 'px'; btn.style.width = dev(size) + 'px'; btn.style.height = dev(size) + 'px';
+      drawIcon(cv, n); cv.style.width = px + 'px'; cv.style.height = px + 'px';
+      var off = (Math.round((dev(size) - px) / 2 * dpr) / dpr) + 'px'; cv.style.left = off; cv.style.top = off;
+    }
+    if (both) put2(D.call, D.callCv, x0, big);
+    put2(D.table, D.tableCv, both ? x0 + big + END.GAP : x0, wT);
   }
-  function snapPx(v) { var dpr = (L && L.dpr) || window.devicePixelRatio || 1; return Math.round(v * dpr) / dpr; }
-  function placeProps() {   /* buttons over the art; pixel text sits on whole device pixels */
-    var A = art(), G = A.GEO, P = A.PAN_COUNTER, s = L.css || 2;
-    Array.prototype.forEach.call(D.props.children, function (b) {
-      var sp = G.spot[b.getAttribute('data-spot')]; if (!sp) return;
-      var x = snapPx(sp[0] * s), y = snapPx(sp[1] * s);
-      b.style.left = x + 'px'; b.style.top = y + 'px'; b.style.width = snapPx(sp[2] * s) + 'px'; b.style.height = snapPx(sp[3] * s) + 'px';
-      var tag = b.firstChild;   /* the name tag hangs on the front rim of the pan (below it sits the last plate) */
-      if (tag) {
-        tag.style.left = (snapPx(P.cx * s - tag.offsetWidth / 2) - x) + 'px';
-        tag.style.top = (snapPx((P.cy + P.ry + P.depth - 7) * s) - y) + 'px';   /* 3 art px clear of the plate spot below */
-      }
-    });
+  /* 11-24 r5 the plate: the dish is dragged onto the octopus or the table drawn under it (or one of them is touched). The
+     framed end buttons stay for the keyboard and screen readers (css/cook.css shows them in keyboard mode only) */
+  function spots() { var A = art(); if (!A || !A.steps || !A.steps.serveSpot) return []; var o = []; if (L.canCall) o.push({ m: 'call', x: SERVE.call[0], y: SERVE.call[1] }); o.push({ m: 'table', x: SERVE.table[0], y: SERVE.table[1] }); return o; }
+  function spotAt(ax, ay) { var s = spots(); for (var i = 0; i < s.length; i++) if (Math.abs(ax - s[i].x) <= SERVE.reach && Math.abs(ay - s[i].y) <= SERVE.reach) return s[i].m; return null; }
+  function onDish(ax, ay) { var d = SERVE.dish; return Math.abs(ax - d[0]) <= d[2] && Math.abs(ay - d[1]) <= d[3]; }
+  function plateDown(e) {
+    if (!L.chipOn || !spots().length) return;
+    if (e.pointerType !== 'mouse' && (e.clientX < TUNE.edgeCss || e.clientX > window.innerWidth - TUNE.edgeCss)) return;
+    L.rect = D.cv.getBoundingClientRect();
+    var q = logical(e), ax = q.x / 2, ay = q.y / 2, m = spotAt(ax, ay);
+    if (!m && !onDish(ax, ay)) return;
+    try { D.stage.setPointerCapture(e.pointerId); } catch (x) { /* synthetic or ended pointer */ }
+    L.pd = { id: e.pointerId, spot: m, x: ax, y: ay, sx: ax, sy: ay, drag: false }; L.glide = null; L.hint = null; L.dirty = true;
   }
-  function placeTags() {   /* title and name tags: centred on the stage, on whole device pixels */
-    var G = art().GEO, w = ART_W * L.css, h = ART_H * L.css;
-    if (!D.title.hidden) D.title.style.left = snapPx((w - D.title.offsetWidth) / 2) + 'px';
-    if (!D.name.hidden) {
-      D.name.style.left = snapPx((w - D.name.offsetWidth) / 2) + 'px';
-      D.name.style.top = snapPx(Math.max(4, Math.min((G.food.cy - G.dish.cy + G.dish.h + 2) * L.css, h - D.name.offsetHeight - 4))) + 'px';
+  function plateMove(e) {
+    var p = L.pd; if (!p || p.id !== e.pointerId) return;
+    var q = logical(e); p.x = q.x / 2; p.y = q.y / 2;
+    if (!p.spot && !p.drag && Math.abs(p.x - p.sx) + Math.abs(p.y - p.sy) >= SERVE.lift) p.drag = true;
+    p.over = p.drag ? spotAt(p.x, p.y) : null; L.dirty = true;
+  }
+  function plateUp(e, cancel) {
+    var p = L.pd; if (!p || p.id !== e.pointerId) return;
+    if (!cancel) plateMove(e);
+    L.pd = null; L.dirty = true;
+    var to = cancel ? null : p.drag ? spotAt(p.x, p.y) : p.spot && spotAt(p.x, p.y) === p.spot ? p.spot : null;
+    if (to && simT(evAt(e)) >= L.againAt) { markSeen('serve'); serve(to, e); return; }
+    if (p.drag && !L.reduced) L.glide = { x: p.x, y: p.y, at: L.lastT };   /* let go elsewhere (or too early): it slides back */
+    if (!p.drag && !p.spot && L.seen.indexOf('serve') < 0) L.serveHint = false;   /* a touch on the dish: show the way again */
+  }
+  function paintServe(b, t) {   /* the two places, the dish in the hand, the dish sliding back */
+    var A = art(), s = spots(), p = L.pd, f = Math.floor(t / FMS);
+    if (!s.length || !L.chipOn) return;
+    var idle = !p && !L.hint, breathe = idle && !L.reduced ? ((f >> 2) % 6) === 0 : false;
+    s.forEach(function (o) { A.steps.serveSpot(b, o.m, o.x, o.y, (p && p.drag && p.over === o.m) || (p && p.spot === o.m) || breathe); });
+    var at = null;
+    if (p && p.drag) at = [p.x, p.y];
+    else if (L.glide) { var g = L.glide, k = Math.floor((t - g.at) / FMS); if (k >= 3) L.glide = null; else at = [g.x + ((SERVE.dish[0] - g.x) * (k + 1) >> 2), g.y + ((SERVE.dish[1] - g.y) * (k + 1) >> 2)]; }
+    if (at) {
+      if (!L.handDish || L.handDish.id !== L.run.id) L.handDish = { id: L.run.id, b: drawDish(L.run.recipe, lookOf(L.run), L.run.seed, 40, 26) };
+      var hb = L.handDish.b, x0 = Math.round(at[0]) - 20, y0 = Math.round(at[1]) - 30;   /* above the finger: the place under it stays in sight */
+      A.dither(b, x0 + 8, y0 + 26, 26, 3, A.PAL.w2, 0);
+      A.blit(b, hb, x0, y0);
     }
   }
-  function propFor(recipeId) {
-    var list = D.props.children;
-    for (var i = 0; i < PROPS.length && i < list.length; i++) if (PROPS[i].recipe === recipeId) return list[i];
-    return list[0] || null;
-  }
-  function refreshCounter() {
-    var o = readStore(), pot = o.pot && resumeRun(o.pot) ? o.pot : null, line = null;
-    if (o.pot && !pot) patchStore(function (x) { x.pot = null; });   /* old build, other tune or broken: dropped quietly */
-    L.pot = pot;
-    L.pending = pot ? { si: pot.si, band: pot.looks[1] && typeof pot.looks[1].band === 'number' ? pot.looks[1].band : 0, herb: pot.swaps && pot.swaps.herb } : null;
-    for (var i = 0; i < o.book.length && !line; i++) if (o.book[i] && o.book[i].recipe === PROPS[0].recipe) line = o.book[i];
-    L.plate = plateOf(line) || L.plate;
-    o.seen.forEach(function (k) { if (L.seen.indexOf(k) < 0) L.seen.push(k); });
-    setScreenClass(); renderProps(); updVerb(); stripOn(-1);
-    L.dirty = true;
-  }
-  function nonce(o) {   /* run id salt: a random number (crypto), never a clock; without crypto, the book length */
-    try { var a = new Uint32Array(2); window.crypto.getRandomValues(a); return a[0].toString(36) + a[1].toString(36); }
-    catch (e) { return 'b' + o.book.length; }
-  }
-  function calm() {   /* back on the counter: ignore a press that began in the first calmMs (a second tap on the plate) */
-    var now = performance.now();
-    if (!L.counterAt) return false;
-    if (now - L.counterAt < TUNE.gateMs) return true;
-    return !!L.downAt && now - L.downAt < 2000 && L.downAt < L.counterAt + TUNE.calmMs;
-  }
-  function pick(recipeId) {   /* a counter prop: resume its pot (the current step restarts) or start a new dish */
-    if (!L || L.screen !== 'counter' || calm()) return;
-    var r = recipe(recipeId); if (!r) return;
-    sound({ act: 'pick', dish: r.id });
-    var o = readStore(), day = today(), run = null, pot = null;
-    if (o.pot && o.pot.recipe === r.id) { run = resumeRun(o.pot); if (run) pot = clone(o.pot); }
-    if (!run) {
-      if (o.day !== day) { o.day = day; o.dayN = 0; }
-      o.dayN = Math.min(1e6, o.dayN + 1);
-      run = createRun(r.id, L.seed !== null ? L.seed : seedFor(day, o.dayN), { id: runIdFor(day, o.dayN, nonce(o)) });
-      if (!run) return;
-      o.pot = potOf(run, Date.now());
-      writeStore(o);
-    }
-    L.run = run; L.runDay = day; L.screen = 'step'; L.shown = false; L.finished = null; L.hintKey = null; L.hint = null;
-    L.fxq = []; L.parts = []; L.dust = []; L.down = {}; L.finger = null; L.rowPress = false; L.nudges = 0;
-    sticker({ act: 'pick', dish: r.id });   /* here, not beside the sound above: the run (its seed) has to exist first */
-    if (L.rec) {   /* a resumed dish keeps its pot: COOK.simulate(recipe, seed, steps, { pot }) replays it */
-      var steps = []; for (var i = 0; i < run.n; i++) steps.push([]);
-      window.__cookRec = { recipe: run.recipe, seed: run.seed, steps: steps, pot: pot };
-    }
-    buildStrip(r); setScreenClass(); renderProps();
-    tick(run, simT());
-    handle(drain(run));
-    if (kbd) { L.shown = true; updVerb(); focusEl(D.verb); } else focusEl(D.stage);
-  }
-  function backToCounter() {
-    if (!L || L.screen !== 'reveal') return;
-    var made = L.run ? L.run.recipe : PROPS[0].recipe;
-    L.run = null; L.screen = 'counter'; L.down = {}; L.hint = null; L.fxq = []; L.parts = []; L.revealDown = null; L.revealIdle = 0; L.counterAt = performance.now();
-    D.name.hidden = true; hideTitle(); unstick();
-    refreshCounter();
-    focusEl(propFor(made));
+  function serve(mode, e) {   /* an end button: tell the host which one, then close. The old chip's guards stay: nothing before 900 ms */
+    if (!L || L.screen !== 'reveal' || !L.chipOn || simT(evAt(e)) < L.againAt) return;
+    if (mode === 'call' && !L.canCall) return;
+    var id = L.run ? L.run.id : null;
+    if (e && e.detail === 0) L.closeKbd = true;
+    L.served = mode; L.stats.serve++;
+    if (typeof L.onServe === 'function') { try { L.onServe({ id: id, mode: mode }); } catch (x) { /* the host's own problem */ } }
+    close();
   }
 
   /* ---------- input plumbing ---------- */
@@ -1291,22 +1561,22 @@ var COOK = (function () {
     L.dirty = true;   /* hand-followed tools (the knife) move at display rate even when a sample adds no event */
     handle(drain(run));
   }
-  function logical(e) {   /* client px -> logical 288 x 320 (thresholds live in logical px, design 6.3) */
-    var r = L.rect || (L.rect = D.cv.getBoundingClientRect());
-    return { x: (e.clientX - r.left) * TUNE.stage.w / (r.width || 1), y: (e.clientY - r.top) * TUNE.stage.h / (r.height || 1) };
+  function logical(e) {   /* client px -> logical 288 x 320 through the canvas and the stage origin (spec 2.2) */
+    var r = L.rect || (L.rect = D.cv.getBoundingClientRect()), c = L.css || 1;
+    return { x: ((e.clientX - r.left) / c - L.ox) * TUNE.stage.scale, y: ((e.clientY - r.top) / c - L.oy) * TUNE.stage.scale };
   }
   function ptype(e) { return e.pointerType === 'touch' ? 't' : e.pointerType === 'mouse' ? 'm' : 'n'; }
   function follow(id, q) {   /* the spatula follows the finger of a stroke after heat-on (display rate, art px) */
     var st = L.run && L.run.st;
     if (!st || st.kind !== 'flip' || !st.stroke || st.stroke.id !== id || st.done) return;
-    L.finger = [Math.round(q.x / TUNE.stage.scale), Math.round(q.y / TUNE.stage.scale) - 6]; L.dirty = true;
+    L.finger = [Math.round(q.x / TUNE.stage.scale), Math.round(q.y / TUNE.stage.scale) - 8]; L.dirty = true;   /* 11-18: the bigger blade sits 8 art px above the finger */
   }
-  function onDown(e, routed) {   /* routed: a stroke that began on the quiet verb row belongs to the stage */
+  function onDown(e, routed) {   /* routed: a stroke that began on the quiet chip belongs to the stage */
     if (!L) return;
-    if (!routed && e.target && e.target.closest && e.target.closest('button')) return;   /* counter props handle their own click */
+    if (!routed && e.target && e.target.closest && e.target.closest('button')) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     hideTitle();   /* a ghost hand stays until progress or its own end: a press that changes nothing does not wipe it */
-    if (L.screen === 'reveal') { e.preventDefault(); L.revealIdle = L.lastT + TUNE.idleMs; if (L.lastT >= L.revealFocus) L.revealDown = e.pointerId; return; }
+    if (L.screen === 'reveal') { e.preventDefault(); plateDown(e); return; }   /* 11-24 r5: the dish can be lifted onto a place */
     if (L.screen !== 'step' || !L.run) return;
     if (e.pointerType !== 'mouse' && (e.clientX < TUNE.edgeCss || e.clientX > window.innerWidth - TUNE.edgeCss)) return;   /* OS back swipe */
     e.preventDefault();
@@ -1314,10 +1584,12 @@ var COOK = (function () {
     L.rect = D.cv.getBoundingClientRect();
     var q = logical(e);
     L.down[e.pointerId] = true;
+    var st0 = L.run.st; L.stroke = { id: e.pointerId, x: q.x / 2, y: q.y / 2, si: L.run.si, p: st0.progress, n: st0.n };
     send({ t: simT(evAt(e)), k: 'd', x: q.x, y: q.y, p: ptype(e), id: e.pointerId });
     if (L) follow(e.pointerId, q);
   }
   function onMove(e) {
+    if (L && L.screen === 'reveal') { plateMove(e); return; }
     if (!L || !L.down[e.pointerId] || L.screen !== 'step' || !L.run) return;
     var list = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : null, p = ptype(e), q = null;
     if (!list || !list.length) list = [e];
@@ -1329,136 +1601,361 @@ var COOK = (function () {
     if (q) follow(e.pointerId, q);
   }
   function onUp(e) {
-    if (!L) return;
-    if (L.screen === 'reveal') return;   /* the stage's click goes back (a pointerup switch would let the same tap's click hit the pan) */
-    if (!L.down[e.pointerId]) return;
+    if (L && L.screen === 'reveal') { plateUp(e, false); return; }
+    if (!L || !L.down[e.pointerId]) return;
     delete L.down[e.pointerId];
     var q = logical(e);
+    L.upAt = [q.x / 2, q.y / 2];
     send({ t: simT(evAt(e)), k: 'u', x: q.x, y: q.y, p: ptype(e), id: e.pointerId });
-    if (L) { L.finger = null; L.dirty = true; }
+    if (L) { sloppy(q); L.finger = null; L.dirty = true; }
+  }
+  /* 11-24 r5: a stroke that did nothing still leaves a mark, never a penalty: a cut beside the guide scratches the board, a
+     sideways stroke makes the roll wobble */
+  function sloppy(q) {
+    var k = L.stroke, run = L.run, st = run && run.st; L.stroke = null;
+    if (!k || !st || run.si !== k.si || run.phase !== 'step') return;
+    var dx = q.x / 2 - k.x, dy = q.y / 2 - k.y, far = Math.abs(dx) + Math.abs(dy);
+    if (st.kind === 'slice' && isV2(run) && st.progress === k.p && far >= 12) {
+      for (var i = 0; i <= 10; i++) L.dust.push([Math.round(k.x + dx * i / 10), Math.round(k.y + dy * i / 10)]);
+      if (L.dust.length > 44) L.dust.splice(0, L.dust.length - 44);
+      L.stats.sloppy++;
+    } else if (st.kind === 'swipe' && st.n === k.n && Math.abs(dx) >= 12) { fxAdd({ k: 'bump' }, run.si); L.stats.sloppy++; }
+  }
+  function glideNow(t) {   /* the item sliding home: { i, x, y } (art px) for 3 frames, else null */
+    var g = L.glide2; if (!g || !L.run || !L.run.st || !L.run.st.items) return null;
+    var k = Math.floor((t - g.at) / FMS), it = L.run.st.items[g.i];
+    if (k >= 3 || !it) { L.glide2 = null; return null; }
+    return { i: g.i, x: g.x + (((it.hx >> 1) - g.x) * (k + 1)) / 4, y: g.y + (((it.hy >> 1) - g.y) * (k + 1)) / 4 };
+  }
+  /* 11-24 r5: no progress for EASE ms: the step is asked to judge the same gesture more kindly (input 'e', never a skip), and
+     the hand shows once more */
+  function checkEase(run) {
+    var X = EXT && EXT.EASE, st = run.st; if (!X || !st || st.done || Object.keys(L.down).length) return;
+    var key = run.id + '|' + run.si;
+    if (L.eased === key || (run.t - run.t0) - st.prog < X.ms) return;
+    L.eased = key;
+    if (typeof KIND[st.kind].ease === 'function') { send({ t: simT(), k: 'e' }); L.stats.ease++; }
+    if (!L || !L.run || L.run.si !== run.si || run.st.done) return;
+    L.hintKey = null; startHand(st.kind === 'flip' ? (st.heat ? 'flick' : 'tap') : st.kind === 'bake' ? 'tap' : st.kind, 'idle');
   }
   function onCancel(e) {   /* pointercancel keeps all progress (never a penalty) */
-    if (!L) return;
-    if (L.revealDown === e.pointerId) L.revealDown = null;
-    if (!L.down[e.pointerId]) return;
+    if (L && L.screen === 'reveal') { plateUp(e, true); return; }
+    if (!L || !L.down[e.pointerId]) return;
     delete L.down[e.pointerId];
     send({ t: simT(evAt(e)), k: 'c', id: e.pointerId });
     if (L) { L.finger = null; L.dirty = true; }
   }
-  function onVerb(e) {   /* the verb button: the browser's own press only (Enter / Space / click), no dialog-wide keys */
+  function onVerb(e) {   /* the chip: the browser's own press only (Enter / Space / click), no dialog-wide keys */
     if (!L) return;
-    var shownBy = L.rowPress; L.rowPress = false;
-    if (shownBy && e && e.detail > 0) { updVerb(); return; }   /* the finger / mouse press that showed the quiet button does not act */
+    var shownBy = L.rowPress, t = simT(evAt(e)); L.rowPress = false;
+    if (shownBy && e && e.detail > 0) { updVerb(); return; }   /* the finger / mouse press that showed the quiet chip does not act */
+    if (L.screen !== 'step') return;
     L.shown = true;
-    if (L.screen === 'reveal') { backToCounter(); return; }
-    if (L.screen === 'step' && L.run) { hideTitle(); send({ t: simT(evAt(e)), k: 'b' }); }
+    if (L.screen === 'step' && L.run) { hideTitle(); send({ t: t, k: 'b' }); }
     updVerb();
   }
-  function quietVerb() { return !!D && !!L && !D.verb.hidden && !L.shown && document.activeElement !== D.verb; }
-  function onRowDown(e) {   /* a finger or mouse press on the quiet (invisible) verb row never does the verb: it shows the
-                               button (a visible reaction), and in a step the stroke goes to the stage, so a thumb flick
-                               that starts below the stage still flips and a stray tap there never flips or cuts. Keyboard
-                               and screen-reader presses (a click with no pointer press) act at once. */
-    if (!L || (L.screen !== 'step' && L.screen !== 'reveal') || !quietVerb()) return;
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    L.rowPress = true; L.shown = true; L.stats.rowPress++; updVerb(); L.dirty = true;
-    if (L.screen === 'step') onDown(e, true);
-  }
+  /* 11-24 r5: a finger or mouse never meets the chip any more: outside keyboard mode it takes no pointer events (css/cook.css),
+     so a touch on its spot is a touch on the food under it. Keyboard and screen-reader presses (a click with no pointer
+     press) act at once, as before */
   function cancelAll() { if (L && L.run) { L.down = {}; L.finger = null; send({ t: simT(), k: 'c' }); } }
 
-  /* ---------- layout: integer device-pixel scale (like js/runner.js fit), spare height above the header ---------- */
-  function fit() {
-    if (!L || !D) return;
-    var dpr = window.devicePixelRatio || 1, cs = window.getComputedStyle(D.dlg);
-    var padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0;
-    var vw = D.dlg.clientWidth || window.innerWidth, vh = D.dlg.clientHeight || window.innerHeight, vv = window.visualViewport;
-    if (vv && vv.height > 0 && vv.height < vh) vh = vv.height;
-    var inner = vh - padT - padB, bot = inner >= 500 ? LAY.bot : LAY.botShort;
-    var availW = vw - 2 * LAY.side, availH = inner - (LAY.top + LAY.head + 2 * LAY.gap + LAY.verb + bot);
-    var k = Math.max(1, Math.floor(Math.min(availW * dpr / ART_W, availH * dpr / ART_H) + 1e-6));
-    while (k > 1 && k / dpr > LAY.maxCss + 1e-9) k--;
-    var w = ART_W * k / dpr, h = ART_H * k / dpr, cw = Math.max(w, Math.min(LAY.column, availW));
-    function snap(v) { return Math.round(v * dpr) / dpr; }
-    function snapUp(v) { return Math.ceil(v * dpr - 1e-6) / dpr; }
-    function snapDn(v) { return Math.floor(v * dpr + 1e-6) / dpr; }
-    var left = snap(Math.max(0, (vw - cw) / 2));
-    var top = Math.max(snapUp(padT + LAY.top + LAY.head + LAY.gap), snap(padT + inner - (LAY.verb + LAY.gap + bot) - h));   /* stage top on a device px */
-    var headTop = snapDn(top - LAY.gap - LAY.head);   /* the header (step icons, close) on a device px too; the gap is 8 css px give or take a device px */
-    var sky = headTop - padT;
-    D.sky.style.height = sky + 'px';
-    D.head.style.width = cw + 'px'; D.head.style.marginLeft = left + 'px';
-    D.stage.style.width = w + 'px'; D.stage.style.height = h + 'px'; D.stage.style.marginLeft = snap(left + (cw - w) / 2) + 'px';
-    D.stage.style.marginTop = (top - headTop - LAY.head) + 'px';
-    D.verbRow.style.width = cw + 'px'; D.verbRow.style.marginLeft = left + 'px';
-    D.foot.style.height = bot + 'px';
-    L.k = k; L.dpr = dpr; L.css = w / ART_W; L.cw = cw; L.rect = null;
-    D.stick.style.zoom = Math.abs(L.css - 2) < 1e-6 ? '' : String(L.css / 2);   /* a sticker pixel (2 px there) = one art pixel here */
-    L.tight = sky < LAY.note + LAY.gap + 4;   /* no room for the notice slot above the header: it lies over the strip */
-    D.dlg.classList.toggle('ck-tight', L.tight);
-    if (L.note) D.noteT.textContent = L.tight ? L.note.short : L.note.text;
-    sizeStrip(); placeProps(); placeTags(); wallBg();
+  /* ---------- a dish: open straight into it (resume or new), and again (spec 3.1, 3.6) ---------- */
+  function nonce(o) {   /* run id salt: a random number (crypto), never a clock; without crypto, the book length */
+    try { var a = new Uint32Array(2); window.crypto.getRandomValues(a); return a[0].toString(36) + a[1].toString(36); }
+    catch (e) { return 'b' + o.book.length; }
+  }
+  /* 11-18 round 6 (spec 3.3): which dish. again = the same recipe again. Otherwise a resumable pot WITH progress (si >= 1)
+     always wins, whatever was asked (a two-tab race or a typed ?recipe= never sets progress aside); with a picked recipe
+     (the play-room tray, ?recipe=) an empty pot (si 0) of that recipe resumes and an empty pot of another recipe moves to
+     potOld unchanged; without one any resumable pot wins, else jeon. A pot that cannot resume moves to potOld as before. */
+  function begin(isAgain) {
+    var want = isAgain && L.run ? L.run.recipe : L.recipe, r = recipe(want) || RECIPES[0], o = readStore(), day = today(), run = null, pot = null;
+    o.seen.forEach(function (k) { if (L.seen.indexOf(k) < 0) L.seen.push(k); });
+    if (!isAgain && o.pot) {
+      run = resumeRun(o.pot);
+      var keep = !!run && (run.si >= 1 || !L.recipe || run.recipe === L.recipe);
+      if (run && keep) { pot = clone(o.pot); r = recipe(run.recipe); }
+      else {   /* old build, other tune or broken, or an empty pot of another dish: kept as it was in potOld (newest first) */
+        run = null;
+        o.potOld = [o.pot].concat(o.potOld || []).slice(0, 4); o.pot = null;
+        writeStore(o); L.stats.potOld++;
+      }
+    }
+    if (!run) {
+      if (o.day !== day) { o.day = day; o.dayN = 0; }
+      o.dayN = Math.min(1e6, o.dayN + 1);
+      run = createRun(r.id, L.seed !== null ? L.seed : seedFor(day, o.dayN), { id: runIdFor(day, o.dayN, nonce(o)) });
+      if (!run) return false;
+      o.pot = potOf(run, Date.now());
+      writeStore(o);
+    }
+    sound({ act: 'pick', dish: r.id });
+    try { D.dlg.setAttribute('aria-label', WORDS.dish[r.id] || WORDS.dish.jeon); } catch (e) { /* label stays */ }
+    L.run = run; L.hitMemo = null; L.runDay = day; L.screen = 'step'; L.shown = false; L.finished = null; L.hintKey = null; L.hint = null; L.nextAt = null;
+    L.fxq = []; L.parts = []; L.dust = []; L.down = {}; L.finger = null; L.rowPress = false; L.nudges = 0; L.chipOn = false;
+    sticker({ act: 'pick', dish: r.id });   /* here, not beside the sound above: the run (its seed) has to exist first */
+    if (L.rec) {   /* a resumed dish keeps its pot: COOK.simulate(recipe, seed, steps, { pot }) replays it */
+      var steps = []; for (var i = 0; i < run.n; i++) steps.push([]);
+      window.__cookRec = { recipe: run.recipe, seed: run.seed, steps: steps, pot: pot };
+    }
+    L.noSlide = true;   /* the first start of a dish places its station without a slide */
+    tick(run, simT());
+    handle(drain(run));
+    L.noSlide = false;
+    if (kbd) { L.shown = true; updVerb(); focusEl(D.verb); } else focusEl(D.stage);
+    return true;
+  }
+
+  /* ---------- 11-21 the recipe book: the first screen when no dish is asked for and no half-made pot has a finished step.
+     Painted on the canvas (COOK_ART.steps.book: pictures only); one real button per bookmark tab and one over the dish
+     picture lie on top, invisible, for keys and screen readers. No run and no pot exist until a dish is picked. ---------- */
+  function bookIds() { return EXT ? EXT.RECIPES.map(function (r) { return r.id; }) : []; }
+  function bookOpen() {
+    var o = readStore(), ids = bookIds(), made = {}, locked = {}, last = null;
+    if (!ids.length || !art().steps) return false;
+    o.seen.forEach(function (k) { if (L.seen.indexOf(k) < 0) L.seen.push(k); });
+    o.book.forEach(function (l) { var id = EXT.NEXT[l.recipe] || l.recipe; if (ids.indexOf(id) >= 0) { made[id] = true; if (!last) last = id; } });
+    if (L.unlocked) ids.forEach(function (id) { if (L.unlocked.indexOf(id) < 0) locked[id] = true; });
+    L.book = { ids: ids, sel: Math.max(0, ids.indexOf(last)), made: made, locked: locked, at: L.lastT, turnAt: null, dir: 0, shakeAt: null, handed: false, lay: null, sw: null };
+    L.screen = 'book'; L.run = null; L.shown = false; L.chipOn = false; L.hint = null;
+    try { D.dlg.setAttribute('aria-label', EXT.WORDS.book); } catch (e) { /* label stays */ }
+    D.bk.hidden = false;
+    D.bkTabs.forEach(function (b, i) {
+      b.hidden = i >= ids.length;
+      if (i < ids.length) { b.setAttribute('aria-label', WORDS.dish[ids[i]] || ''); if (locked[ids[i]]) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled'); }
+    });
+    bookSync(); updVerb();
+    if (kbd) focusEl(D.bkGo); else focusEl(D.stage);
+    return true;
+  }
+  function bookSync() {   /* labels and boxes of the invisible buttons follow the page shown */
+    var B = L && L.book; if (!B || !D) return;
+    var id = B.ids[B.sel], css = L.css || 1, lay = art().steps.bookLay(L.W, bookTop(), bookBot(), B.ids.length);
+    B.lay = lay;
+    function box(b, r) { b.style.left = (r[0] * css) + 'px'; b.style.top = (r[1] * css) + 'px'; b.style.width = (r[2] * css) + 'px'; b.style.height = (r[3] * css) + 'px'; }
+    box(D.bkGo, lay.go);
+    var pw = EXT && EXT.pageWords ? EXT.pageWords(id) : null;   /* 11-24 r5: the dish and its ingredients, as the page shows them */
+    D.bkGo.setAttribute('aria-label', pw && !B.locked[id] ? pw.name + '. ' + pw.ings.join(', ') : WORDS.dish[id] || '');
+    if (B.locked[id]) D.bkGo.setAttribute('aria-disabled', 'true'); else D.bkGo.removeAttribute('aria-disabled');
+    D.bkTabs.forEach(function (b, i) { if (i < lay.tabs.length) { box(b, lay.tabs[i]); b.setAttribute('aria-pressed', i === B.sel ? 'true' : 'false'); } });
     L.dirty = true;
   }
-  /* the whole dialog stands in the play room's kitchen corner: its backdrop is the plank wall (COOK_ART.wallTile) at the
-     stage's own integer pixel scale, so tall phones show the kitchen wall above the stage instead of an empty page. The
-     dialog's inset frame paints over it; dark colour scheme = the same wall at night. */
-  function darkScheme() {
+  function bookTop() {   /* under the close chip; on a wide screen the page stands clear of the chip and may start at the top */
+    var right = (Math.floor(L.W / 2) + 43) * L.css, chipL = L.vw - Math.max(LAY.PAD, L.safe[1] + LAY.PAD) - LAY.CLOSE - LAY.PAD;
+    return right <= chipL ? Math.ceil((L.safe[0] + LAY.PAD) / L.css) + 1 : Math.ceil(L.hudB / L.css) + 1;
+  }
+  function bookBot() { return Math.floor((L.vh - L.safe[2] - LAY.PAD) / L.css); }
+  function bookTurn(to, dir) {
+    var B = L && L.book; if (!B || L.screen !== 'book') return;
+    to = Math.max(0, Math.min(B.ids.length - 1, to));
+    if (to === B.sel) { if (dir) { B.shakeAt = L.lastT; L.dirty = true; } return; }   /* the last page: a small nudge, nothing else */
+    B.dir = dir || (to > B.sel ? 1 : -1); B.sel = to; B.turnAt = L.lastT; L.hint = null; L.stats.turns++;
+    bookSync();
+  }
+  function bookGo(e) {   /* the dish picture: start cooking it. A locked dish only shakes */
+    var B = L && L.book; if (!B || L.screen !== 'book') return;
+    var id = B.ids[B.sel];
+    if (B.locked[id] || !recipe(id)) { B.shakeAt = L.lastT; L.dirty = true; return; }
+    if (e && e.detail === 0) setKbd(true);
+    markSeen('book');
+    L.recipe = id; L.hint = null; D.bk.hidden = true; bookWordsOff();
+    var keep = L.book; L.book = null;
+    if (!begin(false)) { L.book = keep; L.screen = 'book'; L.run = null; D.bk.hidden = false; bookSync(); }
+  }
+  function bookFrame(t) {   /* what the painter needs at sim time t */
+    var B = L.book, fr = function (at) { return at == null ? 99 : Math.max(0, Math.floor((t - at) / FMS)); };
+    var open = L.reduced ? 3 : Math.min(3, fr(B.at)), tf = L.reduced ? 99 : fr(B.turnAt), sf = L.reduced ? 99 : fr(B.shakeAt);
+    var dx = tf < 2 ? B.dir * (tf === 0 ? 3 : 1) : sf < 3 ? [1, -1, 1][sf] : 0;
+    return { open: open, dx: dx, key: open + '|' + Math.min(2, tf) + '|' + Math.min(3, sf) };
+  }
+  function bookUpdate(t) {
+    var B = L.book; if (!B) return;
+    if (!B.handed && !L.hint && L.seen.indexOf('book') < 0 && t - B.at >= BOOK_MS.hand && !B.locked[B.ids[B.sel]] && B.lay) {
+      B.handed = true;   /* first time only: one ghost hand on the dish picture */
+      var g = B.lay.go;
+      L.hint = { spec: { kind: 'tap', x: g[0] + (g[2] >> 1), y: g[1] + (g[3] >> 1) + 6 }, at: t, dur: 24 * FMS, why: 'book', seen: null }; L.stats.hints++; L.dirty = true;
+    }
+  }
+  function paintBook(V, t) {
+    var B = L.book, A = art(), fr = bookFrame(t);
+    V.d.set(bgFor('counter', L.ox, L.oy).d);
+    B.lay = A.steps.book(V, { ids: B.ids, sel: B.sel, locked: B.locked, made: B.made, top: bookTop(), bot: bookBot(), open: fr.open, dx: fr.dx, f: Math.floor(t / FMS) });
+    bookWords(B.lay && B.lay.words, B.ids[B.sel]);
+    if (L.hint && fr.open >= 3) {
+      var h = L.hint, o = {}; for (var k in h.spec) o[k] = h.spec[k];
+      o.f = L.reduced ? 0 : Math.floor((t - h.at) / FMS) % 4; o.still = L.reduced;
+      A.hand(V, o);
+    }
+  }
+  /* 11-24 r5: the page's words (the dish's name, its ingredients' names) as real text over the painted page. The book is the
+     one kitchen screen with words (the owner asked for names); screen readers hear them on the dish button, so these are
+     aria-hidden. Each line starts on a whole device px (as cook.html's own words do) */
+  function bookWordsOff() { if (D && D.bkWords) { D.bkWords.textContent = ''; D.bkWords.ckKey = ''; } }   /* no words outside the book */
+  function bookWords(list, id) {
+    var pw = EXT && EXT.pageWords ? EXT.pageWords(id) : null, key = pw && list && list.length ? id + '|' + L.css + '|' + JSON.stringify(list) : '';
+    if (D.bkWords.ckKey === key) return;
+    D.bkWords.ckKey = key; D.bkWords.textContent = '';
+    if (!key) return;
+    var css = L.css, dpr = L.dpr || 1;
+    list.forEach(function (w) {
+      var text = w.k === 'name' ? pw.name : pw.ings[w.i]; if (!text) return;
+      var sp = el('span', { class: 'ck-bk-w ck-bk-' + w.k, text: text });
+      sp.style.left = (Math.round(w.x * css * dpr) / dpr) + 'px'; sp.style.top = (Math.round(w.y * css * dpr) / dpr) + 'px'; sp.style.width = (Math.round(w.w * css * dpr) / dpr) + 'px';
+      D.bkWords.appendChild(sp);
+    });
+    Array.prototype.forEach.call(D.bkWords.children, function (sp) {   /* centred text: move the glyph run onto the device grid */
+      try { var r = document.createRange(); r.selectNodeContents(sp); var b = r.getBoundingClientRect();
+        if (b.width) sp.style.translate = ((Math.round(b.left * dpr) - b.left * dpr) / dpr) + 'px ' + ((Math.round(b.top * dpr) - b.top * dpr) / dpr) + 'px'; } catch (e) { /* a soft edge at worst */ }
+    });
+  }
+  function bookDown(e) {
+    if (!L || L.screen !== 'book' || !L.book) return;
+    /* the standing edge rule: a touch that starts within 24 CSS px of the left or right screen edge turns no page (OS back swipe) */
+    if (e.pointerType !== 'mouse' && (e.clientX < TUNE.edgeCss || e.clientX > window.innerWidth - TUNE.edgeCss)) { L.book.sw = null; return; }
+    L.book.sw = { id: e.pointerId, x: e.clientX, y: e.clientY };
+  }
+  function bookUp(e) {   /* a sideways drag turns the page (and eats the click that follows it) */
+    var B = L && L.screen === 'book' ? L.book : null, s = B && B.sw;
+    if (!s || s.id !== e.pointerId) return;
+    B.sw = null;
+    var dx = e.clientX - s.x, dy = e.clientY - s.y;
+    if (Math.abs(dx) >= BOOK_MS.swipe && Math.abs(dx) > Math.abs(dy)) { B.noClick = performance.now(); bookTurn(B.sel + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1); }
+  }
+  function bookClick(fn) { return function (e) { try { var B = L && L.book; if (!B || (B.noClick && performance.now() - B.noClick < 400)) return; fn(e); } catch (x) { if (L) L.err++; } }; }
+  /* test and host hook: pick a dish of the open book by id (false when the book is not showing or the dish is locked) */
+  function pick(id) {
     try {
-      var t = document.documentElement.getAttribute('data-theme');
-      if (t === 'dark' || t === 'light') return t === 'dark';
-      return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var B = L && L.screen === 'book' ? L.book : null, i = B ? B.ids.indexOf(id) : -1;
+      if (i < 0 || B.locked[id]) return false;
+      B.sel = i; bookSync(); bookGo(null);
+      return !!(L && L.run && L.run.recipe === id);
     } catch (e) { return false; }
   }
-  function wallBg() {
-    var A = art(); if (!A || typeof A.wallTile !== 'function' || !L) return;
-    var dark = darkScheme(), key = (dark ? 'd' : 'l') + '|' + L.k + '|' + L.dpr;
-    if (L.wallKey === key) return;
-    var t = A.wallTile(dark), cv = document.createElement('canvas'), c = null;
-    cv.width = t.w; cv.height = t.h;
-    try { c = cv.getContext('2d'); } catch (e) { c = null; }
-    if (!c) return;
-    c.putImageData(A.imageData(t), 0, 0);
-    var s = D.dlg.style, px = L.k / L.dpr;
-    s.backgroundImage = 'url(' + cv.toDataURL() + ')'; s.backgroundSize = (t.w * px) + 'px ' + (t.h * px) + 'px';
-    s.backgroundRepeat = 'repeat'; s.backgroundPosition = '0 0'; s.imageRendering = 'pixelated';
-    L.wallKey = key;
+  function setCtx(c) {   /* the host's latest word on whether the octopus can be called (contract C2 'ctx') */
+    try { if (!L || !c || typeof c !== 'object') return false; if (typeof c.canCall === 'boolean') { L.canCall = c.canCall; updEnd(); } return true; } catch (e) { return false; }
   }
+
+  /* ---------- layout (spec 2.2): one art px = k device px; the stage's band of interest sits between HUD and chip ---------- */
+  function fit() {
+    if (!L || !D) return;
+    var A = art(), dpr = window.devicePixelRatio || 1, cs = null;
+    var vw = D.dlg.clientWidth || window.innerWidth, vhAll = D.dlg.clientHeight || window.innerHeight, vh = vhAll, vv = window.visualViewport;
+    if (vv && vv.height > 0 && vv.height < vh) vh = vv.height;
+    try { cs = window.getComputedStyle(D.probe); } catch (e) { cs = null; }
+    function pad(k) { var v = cs ? parseFloat(cs[k]) : 0; return isFinite(v) && v > 0 ? Math.min(200, v) : 0; }
+    var sT = pad('paddingTop'), sR = pad('paddingRight'), sB = pad('paddingBottom'), sL = pad('paddingLeft');
+    var hudB = sT + LAY.HUD, chipTop = vh - sB - LAY.CHIPB - LAY.CHIP, usable = chipTop - hudB;
+    var k = Math.max(1, Math.min(Math.floor(vw * dpr / LAY.VIEW_W + 0.01), Math.floor(usable * dpr / (LAY.ROWS[1] - LAY.ROWS[0]) + 0.01), Math.floor(LAY.ZMAX * dpr + 0.01)));
+    var css = k / dpr, W = Math.max(1, Math.ceil(vw / css - 1e-9)), H = Math.max(1, Math.ceil(Math.max(vh, vhAll) / css - 1e-9));
+    var ox = Math.round(vw / 2 / css) - FOOD_X, oy = Math.round((hudB + chipTop) / 2 / css) - LAY.MID;
+    /* a canvas whose CSS size is not a whole CSS px gets one device row or column doubled by the pixelated upscale
+       (360x740 @2: H 165 -> 742.5 px). Grow W and H by up to 4 art px until it is whole; the extra lies off screen */
+    for (var g = 0; g < 4 && Math.abs(W * k / dpr - Math.round(W * k / dpr)) > 1e-6; g++) W++;
+    if (Math.abs(W * k / dpr - Math.round(W * k / dpr)) > 1e-6) W -= g;
+    for (g = 0; g < 4 && Math.abs(H * k / dpr - Math.round(H * k / dpr)) > 1e-6; g++) H++;
+    if (Math.abs(H * k / dpr - Math.round(H * k / dpr)) > 1e-6) H -= g;
+    function dev(v) { return Math.round(v * dpr) / dpr; }
+    if (!L.view || L.W !== W || L.H !== H) {
+      D.cv.width = W; D.cv.height = H;
+      L.view = A.blank(W, H); L.img = D.ctx.createImageData(W, H); L.bgc = [];
+    }
+    L.k = k; L.dpr = dpr; L.css = css; L.W = W; L.H = H; L.ox = ox; L.oy = oy; L.stride = W + 8; L.rect = null;
+    L.hudB = hudB; L.chipTop = chipTop; L.safe = [sT, sR, sB, sL]; L.vw = vw; L.vh = vh;
+    D.cv.style.width = (W * k / dpr) + 'px'; D.cv.style.height = (H * k / dpr) + 'px';
+    var sim = D.sim.style;
+    sim.left = (ox * css) + 'px'; sim.top = (oy * css) + 'px'; sim.width = (ART_W * css) + 'px'; sim.height = (ART_H * css) + 'px';
+    var top0 = dev(Math.max(LAY.PAD, sT + LAY.PAD)), left0 = dev(Math.max(LAY.PAD, sL + LAY.PAD)), right0 = dev(Math.max(LAY.PAD, sR + LAY.PAD)), ring = dev((LAY.HIT - LAY.CLOSE) / 2);
+    D.dlg.style.setProperty('--ck-px2', dev(2) + 'px');
+    D.close.style.left = dev(vw - right0 + ring - LAY.HIT) + 'px'; D.close.style.top = (top0 - ring) + 'px';   /* left: on a device px */
+    D.close.style.width = dev(LAY.HIT) + 'px'; D.close.style.height = dev(LAY.HIT) + 'px'; D.close.style.padding = ring + 'px';
+    D.verb.style.left = dev(Math.round((vw - LAY.CHIP) / 2)) + 'px'; D.verb.style.top = dev(chipTop) + 'px';
+    D.verb.style.width = dev(LAY.CHIP) + 'px'; D.verb.style.height = dev(LAY.CHIP) + 'px';
+    D.note.style.left = left0 + 'px'; D.note.style.right = right0 + 'px'; D.note.style.top = dev(hudB + LAY.PAD) + 'px';
+    /* stickers (5.4): one sticker px = n device px; the engine draws at 2 CSS px a sticker px, so the layer is zoomed by
+       n / dpr / 2 and its own lengths are given before the zoom. Shown only above STICK_ROW, decided at n0 = floor(2 dpr)
+       as before; 11-18: when shown, n is the largest of n0 .. floor(3 dpr) that still fits (up to 1.5x, never smaller),
+       (11-18 lead: no '1/64 zoom' rule any more. The drift a zoom like 4/3 showed at DPR 2.625 came from the test browser's
+       DPR emulation, which lays out in CSS 1/64 units; on the real render path (a phone, or Chromium with
+       --force-device-scale-factor=2.625) zooms 6/5.25, 7/5.25 and 8/5.25 all give exact n x n blocks.) n0 is kept as it
+       always was. Measured: 360x740 @2 and @3, 412x915 @2, 390x844 @3 -> 96 CSS; 412x915 @2.625 -> 85.3 (n 7) */
+    /* 11-21 (owner: "all stickers larger"): the step strip is gone, so the stickers start in the HUD row itself (top0) and
+       may grow to floor(4 dpr) device px per sticker px; the right one stops left of the close chip. Measured: 360x740 @2
+       -> 128 CSS, 320x568 @2 -> 80 (hidden there before), 412x915 @2.625 -> 121.9 (n 10). They end 8 px above stage row
+       STICK_ROW (36): no step of any dish puts food that is touched above it */
+    var n0 = Math.max(1, Math.floor(2 * dpr + 1e-6)), n3 = Math.max(n0, Math.floor(4 * dpr + 1e-6)), stickRoom = (LAY.STICK_ROW + oy) * css;
+    var closeL = vw - right0 - LAY.CLOSE - LAY.PAD;
+    function stickFits(n) {   /* measured: at a whole DPR of 3 or more an odd n that is no multiple of it (7 at @3) lands 0.05 device px off the grid */
+      if (n > n0 && dpr >= 3 && dpr === Math.floor(dpr) && n % 2 && n % dpr) return false;
+      var sz = 32 * n / dpr; return top0 + sz + 8 <= stickRoom && left0 + sz + LAY.PAD <= closeL - sz;
+    }
+    var showStick = stickFits(n0), n2 = n0;
+    if (showStick) for (var nn = n3; nn > n0; nn--) {
+      if (stickFits(nn)) { n2 = nn; break; }
+    }
+    var s = 32 * n2 / dpr, z = n2 / dpr / 2, st = D.stick.style;
+    D.stick.hidden = !showStick;
+    st.zoom = Math.abs(z - 1) < 1e-9 ? '' : String(z);
+    st.top = (top0 / z) + 'px'; st.left = '0px'; st.width = (vw / z) + 'px'; st.height = (s / z) + 'px';
+    st.setProperty('--ck-s0', (left0 / z) + 'px'); st.setProperty('--ck-s1', (dev(closeL - s) / z) + 'px');   /* slot 1 from the left: a device px */
+    sizeIcons();
+    L.endKey = -1; updEnd();
+    if (L.book) bookSync();
+    L.dirty = true;
+  }
+  function refit() { try { if (isOpen()) fit(); return isOpen(); } catch (e) { return false; } }
 
   /* ---------- frame loop ---------- */
   function update() {
     var t = simT(), run = L.run;
-    if (run && L.screen !== 'counter') { tick(run, t); handle(drain(run)); if (!L) return; run = L.run; }
-    if (L.titleUntil && t >= L.titleUntil) hideTitle();
+    if (run) { tick(run, t); handle(drain(run)); if (!L) return; run = L.run; }
+    if (L.titleUntil && t >= L.titleUntil) L.titleUntil = 0;
+    if (L.screen === 'book') bookUpdate(t);
+    if (run && run.phase === 'step' && run.st.kind === 'pour' && run.st.hold && performance.now() - (L.sndAt.pour || 0) >= 400) sound({ act: 'pour' });   /* the pour sounds for as long as it is held */
     if (L.screen === 'step' && run && run.phase === 'step') {
       if (!L.titleUntil && L.demoAt !== run.si) maybeDemo();
       checkIdle(run);
+      if (L && L.run === run) checkEase(run);
     }
     if (L.hint && t - L.hint.at >= L.hint.dur) { if (L.hint.seen) markSeen(L.hint.seen); L.hint = null; L.dirty = true; }
+    if (L.landBuzz != null && t >= L.landBuzz) { L.landBuzz = null; buzz('flip'); }   /* the landing frame (arc frame 3) */
     if (L.screen === 'reveal') {
-      if (D.name.hidden && t - L.revealAt >= (TUNE.reveal.frames - 1) * FMS) { D.name.hidden = false; placeTags(); }
-      if (L.revealFocus && t >= L.revealFocus) { L.revealFocus = 0; focusEl(kbd ? D.verb : D.stage); }
-      if (L.revealIdle && t >= L.revealIdle && !L.hint) {   /* nothing says how to go on: one tap hand on the plate, the button shows */
-        L.revealIdle = 0; startHand('tap', 'idle'); L.stats.idle++;
-        if (!L.shown) { L.shown = true; updVerb(); }
+      if (!L.chipOn && t >= L.chipAt) {   /* 450 ms: the end buttons show; by key the first one takes focus */
+        L.chipOn = true; L.shown = true; updVerb();
+        focusEl(kbd ? (L.canCall ? D.call : D.table) : D.stage);
+      }
+      /* first time on a plate (this device): one ghost hand carries the dish to its place, twice over 3 s */
+      if (L.chipOn && !L.serveHint && !L.pd && !L.hint && L.seen.indexOf('serve') < 0 && t >= L.chipAt + SERVE.hintMs && spots().length) {
+        var to = spots()[0];
+        L.serveHint = true; L.hint = { spec: { kind: 'carry', x0: SERVE.dish[0], y0: SERVE.dish[1], x1: to.x, y1: to.y }, at: t, dur: 36 * FMS, why: 'serve', seen: null }; L.stats.hints++; L.dirty = true;
       }
     }
     if (L.auto) autoStep(t);
     var jf = frameSig(t);
     if (jf !== L.jf) { L.jf = jf; L.dirty = true; }
   }
-  /* redraw when any 12 fps frame changes: the global grid (bubbles, flames) and every reaction's own frame count from its
-     start (a bright rim lasts exactly one 83 ms frame, not until the next global tick), and the art's own counters
-     (fh, fbc, fl, t: each runs from its event, so each is painted once per frame, never held a frame and then skipped) */
+  /* redraw when any 12 fps frame changes: the global grid (bubbles, flames), every reaction's own frame count from its
+     start, the slide frame, and the art's own counters (fh, fbc, fl, t: each runs from its event, so each is painted once
+     per frame, never held a frame and then skipped) */
   function frameSig(t) {
     var s = Math.floor(t / FMS) >>> 0, i, fx;
     for (i = 0; i < L.fxq.length; i++) s = (Math.imul(s, 31) + Math.floor((t - L.fxq[i].at) / FMS)) >>> 0;
     for (i = 0; i < L.parts.length; i++) s = (Math.imul(s, 31) + Math.floor((t - L.parts[i].at) / FMS)) >>> 0;
     if (L.hint) s = (Math.imul(s, 31) + Math.floor((t - L.hint.at) / FMS)) >>> 0;
+    if (L.slide) s = (Math.imul(s, 31) + 0x51 + Math.floor((t - L.slide.t0) / FMS)) >>> 0;
+    if (L.book) { var bk = bookFrame(t).key; for (i = 0; i < bk.length; i++) s = (Math.imul(s, 31) + bk.charCodeAt(i)) >>> 0; }
+    var bl = bellNow(t); if (bl && bl.f < 8) s = (Math.imul(s, 31) + 0xbe11 + bl.f) >>> 0;
     if (!L.reduced && L.run) {
       fx = fxNow(L.run, t);
       [fx.fh, fx.fbc, fx.fl, fx.t].forEach(function (v) { s = (Math.imul(s, 31) + (v == null ? 0x5bd1 : v + 1)) >>> 0; });
     }
     return s;
+  }
+  /* 11-18 the bell (spec 2.1): null, or { f (12 fps frames since the golden moment), shown (painted now: the flip step is
+     golden and not flipped yet) } */
+  function bellNow(t) {
+    var run = L.run, st = run && run.st, b = L.bell;
+    if (!b || !run || b.si !== run.si || run.t0 == null || b.at < run.t0) return null;
+    return { f: Math.max(0, Math.floor((t - b.at) / FMS)), shown: run.phase === 'step' && !!st && (st.kind === 'flip' || st.kind === 'bake') && st.band === 1 && st.res === null };
   }
   var FL_MAX = 48;   /* the landing counter stops at 4 s (the art's landing bloom ends at 36): no more redraws for it */
   function fxNow(run, t) {   /* frame counters for the art's stateless heat effects (12 fps); null = not known */
@@ -1472,21 +1969,62 @@ var COOK = (function () {
     if (run && run.phase === 'reveal' && !L.reduced) o.t = Math.max(0, Math.floor((t - L.revealAt) / FMS));
     return o;
   }
-  function render() {
-    if (!L.dirty) return;
-    L.dirty = false; L.frames++;
-    var A = art(), b = L.buf, t = L.lastT, run = L.run, J = juiceAt(t), f = L.reduced ? 0 : Math.floor(t / FMS), fx = fxNow(run, t);
-    if (!run || L.screen === 'counter') A.counter(b, { plate: L.plate, pending: L.pending });
-    else if (run.phase === 'reveal') A.revealScene(b, { look: lookOf(run), herb: run.swaps.herb, f: J.rise, t: fx.t, seed: fx.seed, still: L.reduced });
+  /* 11-18 round 6: the two new dishes paint with COOK_ART.dishes[recipe] (js/cook-dishes.js), the same option shapes as the
+     jeon painters. false for the jeon (paintStage paints it). A missing painter paints the station background only. */
+  function cutOf(J) { var c = J.cut; return c == null ? null : typeof c === 'object' ? c : { i: c, f: 0 }; }   /* K1: null | { i, f } (a number before) */
+  function lastHit(st, t) {   /* the mark hit last and 12 fps frames since (kkochi: which cube squashes or drops) */
+    var m = L.hitMemo, n = st.marks.map(function (k) { return k.n; });
+    if (!m || m.si !== L.run.si || m.id !== L.run.id) m = L.hitMemo = { si: L.run.si, id: L.run.id, n: n.slice(), m: null, at: 0 };
+    for (var i = 0; i < n.length; i++) if (n[i] !== m.n[i]) { if (n[i] > m.n[i]) { m.m = i; m.at = t; } m.n[i] = n[i]; }
+    return m.m === null ? null : { m: m.m, fr: Math.max(0, Math.floor((t - m.at) / FMS)) };
+  }
+  function paintDish(b, J, t, f, fx) {
+    var run = L.run; if (!run || run.recipe === 'jeon') return false;
+    var P = dishArt(run.recipe), st = run.st, lk = lookOf(run), sta = stationNow(), c = cutOf(J), r2 = recipe(run.recipe);
+    try {
+      if (r2 && r2.v2 && P && P.stepScene) {   /* 11-21 a book dish: one painter draws every step from the recipe's own data */
+        if (run.phase === 'reveal') P.revealScene(b, { id: run.recipe, look: lk, t: fx.t, still: L.reduced });
+        else P.stepScene(b, { step: r2.steps[Math.min(run.si, r2.steps.length - 1)], st: st, band: lk.band, J: { flash: J.flash, squash: J.squash, bump: J.bump, arc: J.arc, cut: c },
+          hit: st.kind === 'tap' ? lastHit(st, t) : null, finger: L.finger, f: f, still: L.reduced,
+          idle: run.phase === 'step' && !st.done && !L.hint && !Object.keys(L.down).length && (run.t - run.t0) - st.prog >= IDLE_GLOW,   /* 11-24 r5: the thing to touch breathes */
+          dust: L.dust, glide: glideNow(t) });
+        return true;
+      }
+      if (run.phase === 'reveal') {
+        if (P && P.revealScene) { P.revealScene(b, { geo: 'close', look: lk, f: J.rise, t: fx.t, seed: fx.seed, still: L.reduced }); return true; }
+      } else if (st.kind === 'tap' && P && P.tapScene) {
+        P.tapScene(b, { shape: st.shape, dents: st.dents, marks: st.marks, per: st.per, flash: J.flash, squash: J.squash, dust: L.dust, f: f, look: lk,
+          hit: lastHit(st, t), still: L.reduced });
+        return true;
+      } else if (st.kind === 'flip' && P && P.flipScene) {
+        P.flipScene(b, { heat: st.heat, band: st.band, res: J.arc ? null : st.res, arc: J.arc, dents: run.looks[0] && run.looks[0].dents ? run.looks[0].dents : [],
+          spatula: L.finger && !J.arc ? L.finger : undefined, arrow: st.heat && st.res === null ? (L.reduced ? 0 : (f >> 2) & 1) : null,
+          bump: J.bump, flash: J.flash, still: L.reduced, f: f, seed: fx.seed, fh: fx.fh, fbc: fx.fbc, fl: fx.fl });
+        return true;
+      } else if (st.kind === 'slice' && P && P.sliceScene) {
+        P.sliceScene(b, { lines: st.lines, cur: st.cur, flash: c ? c.i : null, pop: !!(c && c.f === 0), hand: st.hand, f: f, seed: fx.seed, still: L.reduced });
+        return true;
+      }
+    } catch (e) { L.err++; }
+    var A = art(), base = P && typeof P.base === 'function' ? P : A;   /* no painter: the station only */
+    try { base.base(b, { station: sta, pan: sta === 'stove', look: lk }); } catch (e2) { try { A.base(b, { station: 'counter' }); } catch (e3) { /* nothing */ } }
+    return true;
+  }
+  function paintStage(b, J, t, bare) {   /* the stage scene into the 144 x 160 buffer; bare: no particles and no hand (slides) */
+    var A = art(), run = L.run, f = L.reduced ? 0 : Math.floor(t / FMS), fx = fxNow(run, t);
+    if (!run) return;
+    if (paintDish(b, J, t, f, fx)) {} else
+    if (run.phase === 'reveal') A.revealScene(b, { geo: 'close', look: lookOf(run), herb: run.swaps.herb, f: J.rise, t: fx.t, seed: fx.seed, still: L.reduced });
     else {
       var st = run.st, herb = run.swaps.herb, d0 = run.looks[0] && run.looks[0].dents ? run.looks[0].dents : [];
       if (st.kind === 'tap') A.tapScene(b, { shape: st.shape, dents: st.dents, marks: st.marks, per: st.per, herb: herb, flash: J.flash, squash: J.squash, dust: L.dust, f: f });
       else if (st.kind === 'flip') {
         A.flipScene(b, { heat: st.heat, band: st.band, res: J.arc ? null : st.res, arc: J.arc, herb: herb, dents: d0,
-          spatula: L.finger && !J.arc ? L.finger : undefined, arrow: st.heat && st.res === null ? (f >> 2) & 1 : null,
+          spatula: L.finger && !J.arc ? L.finger : undefined, arrow: st.heat && st.res === null ? (L.reduced ? 0 : (f >> 2) & 1) : null,
           bump: J.bump, flash: J.flash, still: L.reduced, f: f, seed: fx.seed, fh: fx.fh, fbc: fx.fbc, fl: fx.fl });
       } else if (st.kind === 'slice') {
-        A.sliceScene(b, { band: run.looks[1] ? run.looks[1].band : 1, herb: herb, dents: d0, lines: st.lines, cur: st.cur, flash: J.cut, hand: st.hand, f: f, seed: fx.seed, fl: fx.fl, still: L.reduced });
+        A.sliceScene(b, { band: run.looks[1] ? run.looks[1].band : 1, herb: herb, dents: d0, lines: st.lines, cur: st.cur,
+          flash: J.cut ? J.cut.i : null, pop: !!(J.cut && J.cut.f === 0), hand: st.hand, f: f, seed: fx.seed, fl: fx.fl, still: L.reduced });
       }
     }
     if (J.squash) L.stats.squash++;
@@ -1499,16 +2037,39 @@ var COOK = (function () {
         if (x >= 2 && y >= 2 && x < ART_W - 2 && y < ART_H - 2) list.push({ x: x, y: y, k: p.k, a: a, life: p.life });
         return true;
       });
-      A.particles(b, list);
+      if (!bare) A.particles(b, list);
     }
-    if (L.hint) {
+    if (L.hint && !bare && L.screen !== 'reveal') {   /* on the plate the hand goes over the two places (render) */
       var h = L.hint, hf = Math.floor((t - h.at) / FMS) % 4, o = {};
       for (var key in h.spec) o[key] = h.spec[key];
       o.f = L.reduced ? 0 : hf; o.still = L.reduced;
-      A.hand(b, o);
+      if (HAND2[o.kind] && A.steps) A.steps.hand2(b, o, ((t - h.at) % (18 * FMS)) / (18 * FMS), L.reduced);
+      else A.hand(b, o);
     }
-    if (J.shake) { A.shake(b, J.shake[0], J.shake[1]); L.stats.shake++; }
-    L.img.data.set(b.d);
+  }
+  function render() {
+    if (!L.dirty || !L.view) return;
+    L.dirty = false; L.frames++;
+    var t = L.lastT, V = L.view;
+    if (L.screen === 'book' && L.book) { paintBook(V, t); L.img.data.set(V.d); D.ctx.putImageData(L.img, 0, 0); return; }
+    var J = juiceAt(t), sp = slideAt(t), sl = sp ? L.slide : null;
+    if (!sp) L.slide = null;
+    if (sl) {
+      if (!sl.inb) paintStage(L.buf, J, t, true);   /* the live scene comes in (again, or no station bases in the art) */
+      composeSlide(V, sl, sp);
+    } else {
+      paintStage(L.buf, J, t, false);
+      var bl = bellNow(t), BA = art();   /* 11-18: the golden bell sits on top of the stove scene */
+      if (bl && bl.shown && BA && BA.bell && BA.GEO.bell) BA.bell(L.buf, BA.GEO.bell[0], BA.GEO.bell[1], bl.f, L.reduced);
+      if (L.screen === 'reveal') {
+        paintServe(L.buf, t);
+        if (L.hint) { var hh = L.hint, ho = {}; for (var hk in hh.spec) ho[hk] = hh.spec[hk]; ho.f = L.reduced ? 0 : Math.floor((t - hh.at) / FMS) % 4; ho.still = L.reduced;
+          if (HAND2[ho.kind] && BA.steps) BA.steps.hand2(L.buf, ho, ((t - hh.at) % (18 * FMS)) / (18 * FMS), L.reduced); else BA.hand(L.buf, ho); }
+      }
+      layer(V, stationNow(), L.buf, L.ox, L.oy, 0, V.w);
+    }
+    if (J.shake) { shakeView(V, J.shake[0], J.shake[1]); L.stats.shake++; }
+    L.img.data.set(V.d);
     D.ctx.putImageData(L.img, 0, 0);
   }
   function frame() {
@@ -1517,50 +2078,68 @@ var COOK = (function () {
     try { update(); if (L === me) render(); } catch (e) { me.err++; }
     if (L === me) me.raf = window.requestAnimationFrame(frame);
   }
-  function autoStep(t) {   /* tests: the button path with short pauses, one dish, then back to the counter */
+  function autoStep(t) {   /* tests: the chip path with short pauses through the current dish; it stops on the plate */
     var a = L.auto, run = L.run;
-    if (L.screen === 'counter') { if (a.started) L.auto = null; else { pick(PROPS[0].recipe); if (L.screen !== 'counter') a.started = true; } return; }   /* retried until the counter's calm is over */
     if (L.screen === 'step' && run && run.phase === 'step') {
       if (run.t - run.t0 >= TUNE.gateMs + 50 && t >= a.next) { a.next = t + 300; send({ t: t, k: 'b' }); }
       return;
     }
-    if (L.screen === 'reveal') { if (!a.back) a.back = t + 900; else if (t >= a.back) { L.auto = null; backToCounter(); } }
+    if (L.screen === 'reveal') L.auto = null;
   }
 
-  /* ---------- dialog ---------- */
+  /* ---------- dialog (spec 2.5) ---------- */
   function build() {
     if (D) return;
     var d = {};
-    d.sky = el('div', { class: 'ck-sky', 'aria-hidden': 'true' });
+    d.cv = el('canvas', { class: 'ck-cv', width: String(LAY.VIEW_W), height: String(ART_H), 'aria-hidden': 'true' });
+    d.sim = el('div', { class: 'ck-sim', 'aria-hidden': 'true' });       /* the invisible 288 x 320 logical box */
+    d.stick = el('div', { class: 'ck-stick', 'aria-hidden': 'true' });   /* reaction stickers mount here: sticker() */
+    d.stage = el('div', { class: 'ck-stage', tabindex: '-1' }, [d.cv, d.sim, d.stick]);
+    d.closeCv = el('canvas', { width: '16', height: '16', 'aria-hidden': 'true' });
+    d.close = el('button', { type: 'button', class: 'ck-close', 'aria-label': WORDS.close }, [el('span', { class: 'ck-chip ck-paper', 'aria-hidden': 'true' }, [d.closeCv])]);
+    d.closeCv.ckIcon = null; d.closeCv.ckN = 0;
+    d.hud = el('div', { class: 'ck-hud' }, [d.close]);
+    d.verbCv = el('canvas', { width: '16', height: '16', 'aria-hidden': 'true' });
+    d.verb = el('button', { type: 'button', class: 'ck-verb ck-paper', 'aria-label': '', hidden: '' }, [d.verbCv]);
     d.noteT = el('p', { class: 'ck-note-t' });
     d.noteGo = el('button', { type: 'button', class: 'ck-note-go' });
     d.note = el('div', { class: 'ck-note', hidden: '' }, [d.noteT, d.noteGo]);
-    d.strip = el('div', { class: 'ck-strip', 'aria-hidden': 'true' });
-    d.close = el('button', { type: 'button', class: 'ck-close', text: WORDS.close });
-    d.head = el('div', { class: 'ck-head' }, [d.note, d.strip, d.close]);
-    d.cv = el('canvas', { class: 'ck-cv', width: String(ART_W), height: String(ART_H), 'aria-hidden': 'true' });
-    d.stick = el('div', { class: 'ck-stick', 'aria-hidden': 'true' });   /* reaction stickers mount here: sticker() */
-    d.props = el('div', { class: 'ck-props' });
-    d.title = el('p', { class: 'ck-title', 'aria-hidden': 'true', hidden: '' });
-    d.name = el('p', { class: 'ck-name', 'aria-hidden': 'true', hidden: '' });
-    d.stage = el('div', { class: 'ck-stage', tabindex: '-1' }, [d.cv, d.stick, d.props, d.title, d.name]);
-    d.verb = el('button', { type: 'button', class: 'ck-verb', hidden: '' });
-    d.verbRow = el('div', { class: 'ck-verbrow' }, [d.verb]);
-    d.foot = el('div', { class: 'ck-foot', 'aria-hidden': 'true' });
     d.say = el('p', { class: 'ck-say', 'aria-live': 'polite' });
-    d.dlg = el('dialog', { class: 'ck-dlg', id: 'cook-dlg', 'aria-label': WORDS.kitchen }, [d.sky, d.head, d.stage, d.verbRow, d.foot, d.say]);
+    d.probe = el('div', { class: 'ck-probe', 'aria-hidden': 'true' });
+    /* 11-21 the end buttons (picture only) and the book's invisible buttons: one over the dish picture, one per bookmark tab */
+    var XW = EXT ? EXT.WORDS : { call: '', table: '' };
+    d.callCv = el('canvas', { width: '20', height: '20', 'aria-hidden': 'true' });
+    d.call = el('button', { type: 'button', class: 'ck-end ck-call ck-paper', 'aria-label': XW.call, hidden: '' }, [d.callCv]);
+    d.tableCv = el('canvas', { width: '20', height: '20', 'aria-hidden': 'true' });
+    d.table = el('button', { type: 'button', class: 'ck-end ck-table ck-paper', 'aria-label': XW.table, hidden: '' }, [d.tableCv]);
+    d.bkGo = el('button', { type: 'button', class: 'ck-bk-go', 'aria-label': '' });
+    d.bkTabs = [];
+    for (var bi = 0; bi < bookIds().length; bi++) d.bkTabs.push(el('button', { type: 'button', class: 'ck-bk-tab', 'aria-label': '', 'aria-pressed': 'false' }));
+    d.bkWords = el('div', { class: 'ck-bk-words', 'aria-hidden': 'true' });   /* 11-24 r5: the page's words (bookWords) */
+    d.bk = el('div', { class: 'ck-bk', hidden: '' }, [d.bkWords].concat(d.bkTabs, [d.bkGo]));
+    d.dlg = el('dialog', { class: 'ck-dlg', id: 'cook-dlg', 'aria-label': WORDS.dish.jeon }, [d.stage, d.hud, d.bk, d.verb, d.call, d.table, d.note, d.say, d.probe]);
     d.ctx = d.cv.getContext('2d');
     document.body.appendChild(d.dlg);
     D = d;
-    d.close.addEventListener('click', close);
+    d.close.addEventListener('click', function (e) { if (L && e && e.detail === 0) L.closeKbd = true; close(); });   /* detail 0: a key or a screen reader */
     d.verb.addEventListener('click', onVerb);
+    d.call.addEventListener('click', function (e) { try { serve('call', e); } catch (x) { if (L) L.err++; } });
+    d.table.addEventListener('click', function (e) { try { serve('table', e); } catch (x) { if (L) L.err++; } });
+    d.bkGo.addEventListener('click', bookClick(bookGo));
+    d.bkTabs.forEach(function (b, i) { b.addEventListener('click', bookClick(function () { bookTurn(i, 0); })); });
+    d.dlg.addEventListener('pointerdown', function (e) { try { bookDown(e); } catch (x) { if (L) L.err++; } }, true);
+    d.dlg.addEventListener('pointerup', function (e) { try { bookUp(e); } catch (x) { if (L) L.err++; } }, true);
+    d.dlg.addEventListener('keydown', function (e) {   /* the book: left / right turn the page */
+      if (!L || L.screen !== 'book' || !L.book || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+      e.preventDefault(); bookTurn(L.book.sel + (e.key === 'ArrowRight' ? 1 : -1), e.key === 'ArrowRight' ? 1 : -1);
+    });
     d.noteGo.addEventListener('click', noticeGo);
+    d.dlg.addEventListener('cancel', function () { if (L) L.closeKbd = true; });   /* Esc: closed by key */
     d.dlg.addEventListener('close', onClosed);
     d.dlg.addEventListener('keydown', function (e) {   /* a held Enter / Space presses once (design 2.3, test L11) */
       if (e.repeat && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) { e.preventDefault(); e.stopPropagation(); }
     }, true);
     d.dlg.addEventListener('pointerdown', function () { if (L) { L.downAt = performance.now(); L.rowPress = false; } }, true);   /* every press, first */
-    d.verbRow.addEventListener('pointerdown', function (e) { try { onRowDown(e); } catch (x) { if (L) L.err++; } }, true);
     d.stage.addEventListener('pointerdown', function (e) { try { onDown(e); } catch (x) { if (L) L.err++; } });
     d.stage.addEventListener('pointermove', function (e) { try { onMove(e); } catch (x) { if (L) L.err++; } });
     d.stage.addEventListener('pointerup', function (e) { try { onUp(e); } catch (x) { if (L) L.err++; } });
@@ -1568,19 +2147,10 @@ var COOK = (function () {
     d.stage.addEventListener('lostpointercapture', function (e) {   /* an up that never came: free the finger (flip and slice follow one) */
       try { if (L && L.down[e.pointerId]) onCancel(e); } catch (x) { if (L) L.err++; }
     });
-    d.stage.addEventListener('click', function (e) {   /* plate reveal: a fresh tap anywhere on the stage goes back to the counter */
-      if (!L || L.screen !== 'reveal' || L.revealDown === null) return;
-      if (e.target && e.target.closest && e.target.closest('button')) return;
-      L.revealDown = null; backToCounter();
-    });
     d.stage.addEventListener('contextmenu', function (e) { e.preventDefault(); });
     d.dlg.addEventListener('contextmenu', function (e) { if (e.target === d.cv) e.preventDefault(); });
-    window.addEventListener('resize', function () { if (L) fit(); });
-    try {   /* light / dark wall follows the colour scheme while open */
-      var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
-      if (mq && mq.addEventListener) mq.addEventListener('change', function () { if (L) wallBg(); });
-    } catch (e) { /* old browser: the wall keeps its first look */ }
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', function () { if (L) fit(); });
+    window.addEventListener('resize', function () { try { if (L) fit(); } catch (e) { if (L) L.err++; } });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', function () { try { if (L) fit(); } catch (e) { if (L) L.err++; } });
     document.addEventListener('visibilitychange', function () {
       if (!L) return;
       try {
@@ -1596,7 +2166,7 @@ var COOK = (function () {
   }
   function settle0(me) {   /* closing work for one open: save, quiet, stop the loop (runs once per open) */
     if (!me || me.closed) return;
-    me.closed = true;
+    me.closed = true; lastErr = me.err;
     var keep = L; L = me;
     try { savePot(); } catch (e) { /* storage */ }
     sound({ act: 'quiet' });
@@ -1608,15 +2178,15 @@ var COOK = (function () {
   }
   function onClosed() {
     if (!L || (D && D.dlg.open)) return;   /* a late close event after a new open is not ours */
-    var me = L;
+    var me = L, byKey = !!(me.closeKbd || kbd);
     settle0(me);
     L = null;
-    D.note.hidden = true; D.dlg.classList.remove('ck-noting');
+    D.note.hidden = true; D.bk.hidden = true; bookWordsOff(); D.call.hidden = true; D.table.hidden = true;
     if (!me.after) {   /* focus back to the opener, else the play-room door, else the main button (design 3.3) */
       var list = [me.opener, document.getElementById('btn-play-door'), document.getElementById('btn-go')];
       for (var i = 0; i < list.length; i++) if (shownEl(list[i])) { focusEl(list[i]); break; }
     }
-    if (typeof me.onClose === 'function') { try { me.onClose(); } catch (e) { /* host */ } }
+    if (typeof me.onClose === 'function') { try { me.onClose({ kbd: byKey, served: me.served || null }); } catch (e) { /* host */ } }
     if (typeof me.after === 'function') { try { me.after(); } catch (e) { /* host */ } }
   }
   function close() { try { if (D && D.dlg.open) D.dlg.close(); } catch (e) { /* already closed */ } }
@@ -1634,25 +2204,37 @@ var COOK = (function () {
       L = { opener: opts.opener || document.activeElement, day: typeof opts.day === 'string' && DAY_RE.test(opts.day) ? opts.day : null,
         reduced: wantReduced(opts.reduced), slow: Math.max(0.25, Math.min(16, slow)), rec: !!(opts.rec || urlOpt('rec') === '1'),
         seed: seed === undefined || seed === null || seed === '' ? null : toU32(seed),
+        recipe: typeof opts.recipe === 'string' && recipe(opts.recipe) ? opts.recipe : null, hitMemo: null,
         palette: typeof opts.palette === 'string' ? opts.palette.slice(0, 16) : null,
-        onResult: opts.onResult, onClose: opts.onClose, after: null, closed: false,
+        onResult: opts.onResult, onClose: opts.onClose, onServe: opts.onServe, after: null, closed: false, closeKbd: false,
+        /* 11-21 host context (contract C2): canCall = the 'call the octopus' button may show; unlocked = the book dishes that
+           may be started (null = all: the standalone page). No ctx inside a host = no call, the three free dishes */
+        canCall: opts.ctx && typeof opts.ctx === 'object' ? opts.ctx.canCall === true : !opts.host,
+        unlocked: opts.ctx && typeof opts.ctx === 'object' && Array.isArray(opts.ctx.unlocked) ? opts.ctx.unlocked.filter(function (x) { return typeof x === 'string'; }).slice(0, 32) : opts.host && EXT ? EXT.FREE.slice() : null,
+        book: null, served: null, endKey: -1, pd: null, glide: null, serveHint: false, handDish: null,
         clock: { base: 0, since: document.hidden ? null : performance.now() }, lastT: 0, jf: -1,
-        run: null, runDay: null, screen: 'counter', pot: null, pending: null, plate: null, seen: [], shown: false, finished: null,
+        run: null, runDay: null, screen: 'step', seen: [], shown: false, finished: null,
         fx: 0, fxq: [], parts: [], dust: [], prng: null, hint: null, hintKey: null, demoAt: -1, titleUntil: 0, finger: null,
-        down: {}, rect: null, sndAt: {}, said: [], note: null, auto: null, revealAt: 0, revealFocus: 0, revealDown: null, revealIdle: 0, counterAt: 0,
-        downAt: 0, rowPress: false, nudges: 0, taught: 0,
-        stats: { parts: 0, squash: 0, shake: 0, arc: 0, hints: 0, idle: 0, flips: 0, teach: 0, rowPress: 0 }, frames: 0, err: 0, dirty: true,
-        buf: art().blank(ART_W, ART_H), img: D.ctx.createImageData(ART_W, ART_H), raf: 0, k: 1, css: 2, cw: LAY.column, tight: false };
+        down: {}, rect: null, sndAt: {}, said: [], note: null, auto: null, revealAt: 0, chipAt: 0, againAt: 0, chipOn: false,
+        downAt: 0, rowPress: false, nudges: 0, taught: 0, landAt: null, landBuzz: null, nextAt: null, noSlide: false, slide: null,
+        stats: { parts: 0, squash: 0, shake: 0, arc: 0, hints: 0, idle: 0, flips: 0, teach: 0, rowPress: 0, slides: 0, potOld: 0, turns: 0, serve: 0, buzz: { tap: 0, flip: 0, cut: 0 }, good: 0, sloppy: 0, ease: 0 },
+        frames: 0, err: 0, dirty: true, buf: art().blank(ART_W, ART_H), view: null, img: null, bgc: [], raf: 0,
+        k: 1, css: 1, dpr: 1, W: 0, H: 0, ox: 0, oy: 0, stride: 8, hudB: 0, chipTop: 0, safe: [0, 0, 0, 0], vw: 0, vh: 0 };
       if (L.palette && /^[a-z0-9-]+$/.test(L.palette)) D.dlg.setAttribute('data-palette', L.palette); else D.dlg.removeAttribute('data-palette');
-      D.note.hidden = true; D.dlg.classList.remove('ck-noting'); D.title.hidden = true; D.name.hidden = true; D.say.textContent = ''; D.strip.textContent = '';
+      D.note.hidden = true; D.say.textContent = ''; D.closeCv.ckIcon = iconOf('close'); D.closeCv.ckN = 0;
+      D.verbCv.ckName = null; D.bk.hidden = true; bookWordsOff(); D.call.hidden = true; D.table.hidden = true;
+      D.dlg.classList.toggle('ck-spots', !!(art().steps && art().steps.serveSpot));   /* the plate's places are drawn: the end buttons are the keyboard path */
+      if (art().steps) { D.callCv.ckIcon = art().steps.endIcon('call'); D.tableCv.ckIcon = art().steps.endIcon('table'); D.callCv.ckN = 0; D.tableCv.ckN = 0; }
       document.documentElement.classList.add('ck-open');
-      setKbd(kbd);
+      setKbd(typeof opts.kbd === 'boolean' ? opts.kbd : kbd);   /* the host's own last input (cook.html in the game), else ours */
       D.dlg.showModal();
-      refreshCounter();
       fit();
+      /* 11-21 (owner A1): the recipe book first. Straight into cooking only when a dish was asked for (opts.recipe) or a
+         half-made pot has a finished step (the old rule: progress always wins); opts.book === false keeps the old open */
+      var pot0 = readStore().pot, run0 = pot0 ? resumeRun(pot0) : null;
+      var wantBook = !!EXT && opts.book !== false && !L.recipe && !(run0 && run0.si >= 1);
+      if (!(wantBook && bookOpen()) && !begin(false)) throw new Error('no dish');
       L.raf = window.requestAnimationFrame(frame);
-      if (opts.recipe && recipe(opts.recipe)) pick(opts.recipe);
-      else focusEl(propFor(L.pot ? L.pot.recipe : PROPS[0].recipe));
       return true;
     } catch (e) {
       try { if (L) settle0(L); L = null; if (D && D.dlg.open) D.dlg.close(); document.documentElement.classList.remove('ck-open'); } catch (e2) { /* nothing more to undo */ }
@@ -1660,7 +2242,8 @@ var COOK = (function () {
     }
   }
 
-  /* ---------- the notice slot (design 3.4): the host says the octopus is back; no focus is taken ---------- */
+  /* ---------- the notice slot (dormant: nothing calls it; it shows words, so any use needs the owner): under the HUD,
+     it never moves the canvas or takes focus ---------- */
   function notice(o) {
     try {
       if (!isOpen()) return false;
@@ -1668,9 +2251,9 @@ var COOK = (function () {
       var text = String(o.text || '').slice(0, 80), short = String(o.short || o.text || '').slice(0, 40);
       if (!text) return false;
       L.note = { text: text, short: short, fn: typeof o.fn === 'function' ? o.fn : null };
-      D.noteT.textContent = L.tight ? short : text;
+      D.noteT.textContent = text;
       D.noteGo.textContent = String(o.label || WORDS.go).slice(0, 20);
-      D.note.hidden = false; D.dlg.classList.add('ck-noting');
+      D.note.hidden = false;
       say(text);
       return true;
     } catch (e) { return false; }
@@ -1697,27 +2280,35 @@ var COOK = (function () {
       if (key) curKey = key;
       var inc = normStore(obj), o = readStore();
       o.book = inc.book; o.pot = null;
-      inc.seen.forEach(function (k) { if (o.seen.indexOf(k) < 0 && o.seen.length < 8) o.seen.push(k); });
+      inc.seen.forEach(function (k) { if (o.seen.indexOf(k) < 0 && o.seen.length < SEEN_MAX) o.seen.push(k); });
       return writeStore(o);
     } catch (e) { return false; } finally { curKey = keep; }
   }
 
-  /* ---------- test hooks ---------- */
+  /* ---------- test hooks (spec 14) ---------- */
   function live() {
-    if (!L) return { screen: 'closed', recipe: null, si: null, kind: null, phase: null, progress: 0, done: false, tag: null, band: null, quiet: true, fx: 0 };
-    var run = L.run, st = run && run.st;
-    return { screen: L.screen, recipe: run ? run.recipe : null, si: run ? run.si : null, kind: st && run.phase !== 'reveal' ? st.kind : null,
+    if (!L) return { screen: 'closed', recipe: null, si: null, kind: null, phase: null, progress: 0, done: false, tag: null, band: null, quiet: true, fx: 0,
+      station: null, slide: null, view: null, verb: '', stick: false, err: lastErr, bell: null };
+    var run = L.run, st = run && run.st, sp = slideAt(L.lastT), sl = L.slide, B = L.book;
+    return { book: B ? { ids: B.ids.slice(), sel: B.sel, id: B.ids[B.sel], locked: Object.keys(B.locked), made: Object.keys(B.made), open: bookFrame(L.lastT).open, lay: clone(B.lay) } : null,
+      end: { call: !D.call.hidden, table: !D.table.hidden, at: L.screen === 'reveal' ? L.againAt : null }, canCall: L.canCall, served: L.served,
+      spots: L.screen === 'reveal' && L.chipOn ? spots().map(function (o) { return { m: o.m, x: (o.x + L.ox) * L.css, y: (o.y + L.oy) * L.css }; }) : [],   /* 11-24 r5: client px */
+      dish: L.screen === 'reveal' ? { x: (SERVE.dish[0] + L.ox) * L.css, y: (SERVE.dish[1] + L.oy) * L.css } : null, holding: !!(L.pd && L.pd.drag),
+      screen: L.screen, recipe: run ? run.recipe : null, si: run ? run.si : null, kind: st && run.phase !== 'reveal' ? st.kind : null,
       phase: run ? run.phase : null, progress: st ? st.progress : 0, done: run ? !!run.done : false, tag: st ? st.tag : null,
-      band: st && st.kind === 'flip' ? st.band : null, quiet: !(L.shown || document.activeElement === D.verb), fx: L.fx,
-      verb: D.verb.hidden ? '' : D.verb.textContent, hint: L.hint ? L.hint.why : null, title: !D.title.hidden, note: !D.note.hidden,
-      k: L.k, css: L.css, tight: L.tight, reduced: L.reduced, slow: L.slow, frames: L.frames, err: L.err, said: L.said.slice(),
+      band: st && (st.kind === 'flip' || st.kind === 'bake') ? st.band : null, quiet: !(kbd && (L.shown || document.activeElement === D.verb)), fx: L.fx,
+      verb: D.verb.hidden ? '' : D.verb.getAttribute('aria-label') || '', hint: L.hint ? L.hint.why : null, title: false, note: !D.note.hidden,
+      station: stationNow(), slide: sp && sl ? { from: sl.from, to: sl.to, f: sp.f, s: sp.s, carry: sl.carry } : null,
+      view: { k: L.k, css: L.css, W: L.W, H: L.H, ox: L.ox, oy: L.oy, hudB: L.hudB, chipTop: L.chipTop, safe: L.safe.slice() },
+      stick: !D.stick.hidden, chip: L.chipOn, t0: run ? run.t0 : null, revealAt: L.screen === 'reveal' ? L.revealAt : null,
+      k: L.k, css: L.css, tight: false, reduced: L.reduced, slow: L.slow, frames: L.frames, err: L.err, said: L.said.slice(),
       stats: clone(L.stats), seed: run ? run.seed : null, id: run ? run.id : null, look: run ? lookOf(run) : null,
-      st: st ? clone(st) : null, pending: !!L.pot, key: curKey, seen: L.seen.slice() };
+      st: st ? clone(st) : null, pending: !!(run && !run.done), key: curKey, seen: L.seen.slice(), bell: bellNow(L.lastT) };
   }
-  function auto(on) { if (!isOpen()) return false; L.auto = on ? { started: L.screen !== 'counter', next: 0, back: 0 } : null; return true; }
+  function auto(on) { if (!isOpen()) return false; L.auto = on ? { next: 0 } : null; return true; }
 
-  API.open = open; API.close = close; API.isOpen = isOpen; API.notice = notice;
-  API.exportData = exportData; API.importData = importData; API.live = live; API.auto = auto;
+  API.open = open; API.close = close; API.isOpen = isOpen; API.notice = notice; API.refit = refit;
+  API.exportData = exportData; API.importData = importData; API.live = live; API.auto = auto; API.pick = pick; API.setCtx = setCtx;
 
   return API;
 })();

@@ -22,13 +22,38 @@ var SCENE3D = (function () {
   var RF = 3.5, R_SPAN = R + RF, R_MID = (RF - R) / 2;
   var SOFA = { x0: -R + 0.20, z: 2.0 };   /* 소파: 등 쪽 끝 x (왼벽 샛기둥 앞) · 가운데 z */
   var ANCHORS = { door: [1.95, 0, -2.05], window: [-1.8, 0, 0.4], crate: [1.25, 0, -1.0], board: [0.1, 0, -2.0], blanket: [-0.65, 0, 1.6], center: [0, 0, 0.2],
-    salon: [-1.75, 0, -1.1] };   /* salon = 미용실 거울 옆 (docs/SALON.md §2.1): 거울의 왼쪽 아래에 서서 거울을 가리지 않는다 · 상자 더미 앞면에서 0.53 m · 대야 자리에서 0.79 m */
+    salon: [-1.75, 0, -1.1] };
+  var ANCHORS0 = JSON.parse(JSON.stringify(ANCHORS));   /* 11-15: 기본 자리 (가구가 덮으면 ANCHORS 만 비켜 가고, 가구가 비키면 여기로 돌아온다) */   /* salon = 미용실 거울 옆 (docs/SALON.md §2.1): 거울의 왼쪽 아래에 서서 거울을 가리지 않는다 · 상자 더미 앞면에서 0.53 m · 대야 자리에서 0.79 m */
   /* 놀이방 (8물결, docs/SCENE.md '놀이방'): 다락·바깥처럼 따로 그리는 세 번째 장소 'play'. 바닥 ±PLAY_R · 벽 PLAY_H (받침 포함 화면 높이 ≈ 135 아트px). 처음 들어갈 때만 만든다.
      문 앞 앵커 = 나중의 걸어 다니는 내 캐릭터가 문을 열기 전에 서는 자리 (각 장소 그룹 좌표, 그룹은 원점). 문어 앵커(ANCHORS)와 따로 — 문어는 놀이방에 안 간다 */
   var PLAY_R = 2.8, PLAY_H = 2.2;   /* 11-10 (3): 2.4 → 2.8 (주인 "너무 좁아 보여, 전처럼 조금만 넓혀 줘") — 화면보다 넓어진 만큼은 거실처럼 카메라가 캐릭터를 따라간다 */   /* 11-10: 1.7 → 2.4 (바닥 3.4 → 4.8 m, 넓이 두 배 — 주인 "부엌~게임기 쪽이 너무 좁음, 특히 넓혀 줘"). 한 화면 배치로 장면이 화면을 다 써서 세로가 넉넉하다 */   /* ROOM_EXPANSION §5.2 의 3.6 × 2.4 m 는 360×640 장면(139 아트px)에 145 px 라 위아래가 잘려, 카드의 둘째 후보 3.4 × 2.2 m (≈ 135 px) 로 — scene-api.md '크기' */
-  var LOFT_R = 2.2, LOFT_H = 1.5, LOFT_PEAK = 3.15;   /* 11-10 위층 다락 (지붕 밑 방): 바닥 4.4 m · 무릎벽 1.5 m · 박공 꼭대기 3.15 m */
-  var STAIR = { x0: 2.62, x1: 3.46, z0: -2.42, z1: -1.72, top: 2.5 }, HATCH = { x0: 1.3, x1: 2.0, z0: -2.0, z1: -1.2 };   /* 거실 뒷벽 오른쪽 구석의 가파른 계단 · 위층 바닥의 계단 구멍 */
-  var DOOR_ANCHORS = { atticPlayDoor: [RF - 0.55, 0, 1.92], playAtticDoor: [-(PLAY_R - 0.35), 0, -0.33], atticStair: [2.3, 0, -2.05], loftStair: [0.95, 0, -1.35] };   /* 11-11: 옷감 선반(앞면 z −1.72)의 둘레에 걸리지 않게 조금 앞으로 */   /* 내 캐릭터가 문을 열기 전에 서는 자리. 다락 문은 +x 벽에서 카메라 쪽으로 서 있어 문 바로 안쪽(z 1.4)에 서면 문짝 뒤에 다 가려진다 → 손잡이 쪽 옆(z 1.92, 문 끝 1.76 에서 0.16 m)에 선다 · 놀이방 문은 −x 벽이라 문 앞(x −1.35)이 문보다 앞에 보인다 */
+  var LOFT_R = 2.2, LOFT_H = 1.5, LOFT_PEAK = 3.15;
+  var YARD_L = 4.6;   /* 11-15 마당 받침 반폭 (바깥 3.2 보다 넓게 — 밭 여섯 칸 · 둘레 나무) */   /* 11-10 위층 다락 (지붕 밑 방): 바닥 4.4 m · 무릎벽 1.5 m · 박공 꼭대기 3.15 m */
+  /* 11-18 넓은 바깥 (시험 중 — 주소에 ?wide=1 이 있을 때만 켠다. 꺼져 있으면 마당은 예전 그대로): 받침이 허공에 뜬 섬 대신 화면 끝까지 이어지는 땅 · 앞 모서리의 울타리 문 · 문 밖으로 나가는 길과 숲.
+     대각 좌표 s = (x + z)/√2 (화면 아래쪽 = 카메라 쪽) · t = (x − z)/√2 (화면 오른쪽). 걷는 곳 = 마당 네모 + 문 밖 띠 (S_OUT ≤ s ≤ S1 · |t| ≤ T). G0..G1 = 깔아 둔 땅 (x · z), PAN_* = 화면이 따라갈 수 있는 범위 */
+  var YARD_WIDE = (function () { try { return !/[?&]wide=0(?:&|$)/.test(String(location.search || '')); } catch (e) { return true; } })();   /* 11-21 7차: 기본이 넓은 바깥 — 주소에 wide=0 일 때만 예전 마당 (시험용) */
+  var WIDE = { T: 3.0, S_OUT: 5.0, S1: 59.7, PAN_T: 13, PAN_S0: -3, PAN_S1: 66.5, gate: 2.74,
+    L0: -60, LAND: 46, SEA: 60, SEA1: 140, GT: 80, BEACH_Y: -0.6, PIER_Y: -0.42, STEP_S: 46, STEP_D: 0.6,
+    /* 11-21 7차 (갈래 W): 집 문 → 숲길 → 마을 → 광장 → 계단 → 모래 → 바다 한 장. S1 = 걸어서 닿는 물가 · PAN_* = 화면 가운데가 볼 수 있는 땅 (대각 네모) ·
+       L0..LAND = 풀 땅 · LAND 부터 0.6 m 낮은 모래 · SEA 부터 물 (SEA1 까지) · GT = 땅의 반폭. AREAS = 걷는 곳 [s0, s1, t0, t1] (이웃끼리 조금 겹친다 — 마당 네모는 따로) */
+    AREAS: [[5.0, 20.1, -3, 3], [20, 38.1, -2.2, 2.2], [30.3, 36.7, 2.1, 6.9], [38, 46.1, -8, 8], [46, 49.1, -3, 3], [49, 59.7, -12, 12], [55.9, 65.7, 6.45, 7.55]],   /* 마을 길은 ±2.2 (리드 11-21: 360 폭 화면이 6.7 m 라 가게 앞 |t| 2.3 ~ 3.3 이 화면에 들게) */
+    SIGNS: [[6, 2.2], [39, 0], [50, 0]],   /* 표지판 (s, t) */
+    ARRIVE: { home: [6.6, 0, -1], village: [37, 0, 1], beach: [51.5, 0.9, 1] },   /* 빠른 이동 도착 자리 (s, t, 보는 쪽: +1 = 바다 쪽 · −1 = 집 쪽) */
+    SHELLS: [[52.0, -6.5], [53.4, 4.4], [56.4, -2.6], [57.8, 10.2], [58.6, -6.0]],   /* 조개 자리 다섯 (s, t) */
+    ROCKS: [[55, -9, 0.62, 0.42], [53.2, -12.7, 0.4, 0.3], [57.3, -12.6, 0.34, 0.24], [51.2, 12.75, 0.46, 0.34], [54.6, 12.6, 0.36, 0.26]] };   /* 바위 (s, t, 반지름, 높이) — 첫째가 잠든 문어 sleep-3 의 넓적 바위 */   /* gate = 앞쪽 두 변에서 울타리가 끝나는 자리 (그 뒤 모서리까지가 문) */
+  function wideXZ(sd, td) { return [(sd + td) * Math.SQRT1_2, (sd - td) * Math.SQRT1_2]; }
+  /* 11-21 7차: 넓은 바깥에 얹는 것들의 등록부 — 갈래 W 가 읽고 (buildYard 끝 · 톡 · 부딪힘 · 가리기 · 프레임), 갈래 V 가 채운다. 서로의 함수를 고치지 않게.
+     builders: function (g) (마당 그룹에 메시를 더한다) · spots: { key, btn, x, y, z, r } (누르는 자리 → 단추 id) · boxes: [x0, z0, x1, z1] · circles: [x, z, r] (부딪힘) ·
+     segments: { s0, s1, obj } (대각 s 범위가 화면 밖이면 숨길 것) · frame: function (dt, now) (마당이 보이는 동안 프레임마다) */
+  var WIDE_REG = { builders: [], spots: [], boxes: [], circles: [], segments: [], frame: [] };
+  /* 11-22 7차 계약 C9: 걸어 들어가는 방의 등록부 — 갈래 V 가 채우고 W 가 그린다 (장소 'inside' 하나를 열쇠별로).
+     ROOM_REG[key] = { half: [hx, hz] (바닥 반폭 m), wallH, door: [x, z] (방 안 문 자리 — 앞쪽 가장자리), outside: 넓은 바깥의 자리 열쇠 | [s, t] (문 밖에 서는 곳),
+       build(g, kit) (방 그룹에 메시를 더한다 — shell: false 면 바닥 · 벽도 스스로), boxes: [x0, z0, x1, z1], circles: [x, z, r], spots: [{ key, btn, x, y, z, r, stand: [x, z] }],
+       lights: [[x, y, z], [x, y, z]], frame(dt, t), slots: 아무 값 (roomSlots 가 그대로 돌려준다) }. 좌표는 방 안 m · 원점 = 바닥 가운데 */
+  var ROOM_REG = {};
+  var STAIR = { x0: -2.32, x1: -1.50, z0: 2.78, z1: 3.44, top: 2.5 }, HATCH = { x0: 1.3, x1: 2.0, z0: -2.0, z1: -1.2 };   /* 거실 왼벽 앞쪽 구석의 가파른 계단 (발치 x1 → 왼벽 쪽 x0 로 오른다) · 위층 바닥의 계단 구멍 */   /* 11-18 (주인: "계단이랑 방이 붙어있어서 잘못 방문 — 계단이나 문을 옮겨줘"): 예전 자리(뒷벽 오른쪽 구석 x 2.62~3.46)는 발치가 마당 문간 앞 0.4 m 였다 → 두 문(마당 · 놀이방)에서 가장 먼 왼벽 앞쪽 구석으로. 소파 기본 자리(z ≤ 2.68) 바로 앞 · 왼벽 샛기둥(z 3.25) 앞에서 멈춘다. 발치 x1 −1.50 = 소파 기본 자리의 앞 끝 — 둘의 둘레가 한 줄 (−1.25) 이라 소파 앞면을 타고 내려오다 2 cm 턱에 걸리지 않는다 (검증 11-18: −1.48 일 땐 프레임에 따라 걸리거나 미끄러져 들어갔다) */
+  var DOOR_ANCHORS = { atticPlayDoor: [RF - 0.55, 0, 1.92], playAtticDoor: [-(PLAY_R - 0.35), 0, -0.33], atticStair: [STAIR.x1 + 0.32, 0, 3.11], loftStair: [0.95, 0, -1.35],
+    atticYard: [1.9, 0, -1.95], yardAttic: [0.42, 0, -1.1] };   /* 11-15 마당: 다락 뒷벽 문간(문어 산책 문 — x 1.5~2.4) 앞 · 11-18 마당 집 현관 마루 위 문 앞 (마루 x 0.1~0.48 · 계단 세 칸 ~1.2 — 예전엔 계단 발치 x 1.62 라 뒤돌기만 해도 집으로 들어갔다, 주인 11-18) */   /* 11-11: 옷감 선반(앞면 z −1.72)의 둘레에 걸리지 않게 조금 앞으로 */   /* 내 캐릭터가 문을 열기 전에 서는 자리. 다락 문은 +x 벽에서 카메라 쪽으로 서 있어 문 바로 안쪽(z 1.4)에 서면 문짝 뒤에 다 가려진다 → 손잡이 쪽 옆(z 1.92, 문 끝 1.76 에서 0.16 m)에 선다 · 놀이방 문은 −x 벽이라 문 앞(x −1.35)이 문보다 앞에 보인다 */
   var EXPRESSIONS = ['idle', 'blink', 'happy', 'pet', 'sleep', 'curious', 'calm', 'sleepy'];   /* 표정 8 (DESIGN §15.2) — 장면과 초상이 setExpression 하나로 공유 */
 
   /* ───────────────────────── 색 수학 (sRGB ↔ 선형 ↔ OKLab) ───────────────────────── */
@@ -123,7 +148,8 @@ var SCENE3D = (function () {
     'varying vec2 vUv;',
     'uniform sampler2D tDiffuse, tDepth, tNormal, uBayer, tBloom; uniform vec2 uRes; uniform float uNear, uFar;',
     'uniform vec3 uPalOk[72]; uniform vec3 uPalRgb[72]; uniform int uPalN; uniform vec3 uW;',
-    'uniform float uDither, uOutline, uHasNormal, uVig, uBloom, uKeepAlpha, uFade, uSky, uStars; uniform vec3 uFadeOk, uSkyOk;',   /* uFade (바깥·전환): 0 = 끔, 1 = 전부 허공색 — 정렬 Bayer 로 픽셀 단위 디더 페이드 */   /* uKeepAlpha 1 = 뷰티 알파를 그대로 (초상 투명 배경) */
+    'uniform float uDither, uOutline, uHasNormal, uVig, uBloom, uKeepAlpha, uFade, uSky, uStars; uniform vec3 uFadeOk, uSkyOk;',
+    'uniform sampler2D tVista; uniform vec2 uVistaRes, uVistaOff; uniform float uVista;',   /* 11-21 먼 풍경 (js/vista.js 그림 한 장): 실내의 허공 픽셀에만 · uVista 0 = 끔 (바깥 · 입장 연출 · 초상) · uVistaOff = 돌려 볼 때 조금 밀리는 아트 px */   /* uFade (바깥·전환): 0 = 끔, 1 = 전부 허공색 — 정렬 Bayer 로 픽셀 단위 디더 페이드 */   /* uKeepAlpha 1 = 뷰티 알파를 그대로 (초상 투명 배경) */
     'vec3 srgbToLinear(vec3 c){ vec3 lo = c / 12.92; vec3 hi = pow((c + 0.055) / 1.055, vec3(2.4)); return mix(lo, hi, step(vec3(0.04045), c)); }',
     'vec3 linToOklab(vec3 c){ c = max(c, vec3(0.0));',
     '  float l = 0.412221469470763 * c.r + 0.5363325372617348 * c.g + 0.0514459932675022 * c.b;',
@@ -174,6 +200,10 @@ var SCENE3D = (function () {
     '  ok = mix(ok, uSkyOk, sa);',
     '  float sh = fract(sin(dot(ap, vec2(12.9898, 78.233))) * 43758.5453);',
     '  ok.x += sk * uStars * step(0.9945, sh) * smoothstep(0.5, 0.62, vUv.y) * (0.35 + 0.3 * step(0.9985, sh));',
+    /* 11-21 (주인: "화면이 비는 느낌이 최대 문제점"): 허공에 먼 풍경 그림 — 다락은 바닷가 마을 위 높은 곳. 아트 px 하나 = 그림 texel 하나 (윗줄부터 그린 그림이라 세로를 뒤집어 읽는다).
+       그림 색은 팔레트 칸 그대로라 아래 스냅을 지나도 안 바뀐다 (위의 하늘 띠 · 별 · 비네트는 이 그림이 덮는다) */
+    '  float vk = step(uFar - 0.5, d0) * step(0.5, uVig) * (1.0 - om) * uVista;',
+    '  ok = mix(ok, linToOklab(srgbToLinear(texture2D(tVista, (vec2(ap.x + uVistaOff.x, uRes.y - 1.0 - ap.y + uVistaOff.y) + 0.5) / uVistaRes).rgb)), vk);',
     '  if (bayer(ap) + 0.5 < uFade) ok = uFadeOk;',   /* 장소 전환 크로스페이드: 아트 픽셀 단위 정렬 디더로 허공색에 덮였다 걷힌다 (uFade 0 이면 bayer+0.5 ≥ 1/32 라 늘 통과 = 변화 없음) */
     '  float best = 1e9, bestL = 0.0; int bi = 0;',
     '  for (int i = 0; i < 72; i++) { if (i >= uPalN) break;',
@@ -280,8 +310,9 @@ var SCENE3D = (function () {
     day: { sun: '#dfe9ff', sunI: 3.0, elev: 30, az: 30, sky: '#d6ecf6', gnd: '#4a4030', hemiI: 0.36, fill: '#a9cbe2', fillI: 1.3, out: '#9fc7e8', lamp: 0.25, lampD: 5, glow: 0.4, pool: 0.3, candle: 0.4, em: 0.25, winEm: '#78a0c0', bg: '#1b1522' },
     dawn: { sun: '#f6b4a6', sunI: 2.0, elev: 20, az: 30, sky: '#e0c0c8', gnd: '#4a3a38', hemiI: 0.28, fill: '#c9b0bc', fillI: 0.8, out: '#e8b0b8', lamp: 0.5, lampD: 5.5, glow: 0.55, pool: 0.6, candle: 0.7, em: 0.6, winEm: '#a88090', bg: '#1b1522' },
     dusk: { sun: '#ffb070', sunI: 1.8, elev: 16, az: 30, sky: '#d08860', gnd: '#3a2e30', hemiI: 0.26, fill: '#b89a90', fillI: 0.7, out: '#e39a8c', lamp: 0.8, lampD: 6, glow: 0.6, pool: 0.75, candle: 0.85, em: 0.8, winEm: '#a87060', bg: '#1b1522' },
-    night: { sun: '#93a7c4', sunI: 0.5, elev: 30, az: 30, sky: '#1b2740', gnd: '#090b12', hemiI: 0.16, fill: '#4a5a80', fillI: 0.06, out: '#141c33', lamp: 1.2, lampD: 6, glow: 0.7, pool: 1.0, candle: 1.0, em: 1.0, winEm: '#3c507a', bg: '#0b1020' }
+    night: { sun: '#93a7c4', sunI: 0.5, elev: 30, az: 30, sky: '#1b2740', gnd: '#090b12', hemiI: 0.16, fill: '#4a5a80', fillI: 0.06, out: '#141c33', lamp: 1.5, lampD: 7.5, glow: 0.7, pool: 1.0, candle: 1.0, em: 1.0, winEm: '#3c507a', bg: '#0b1020' }
   };
+  /* 11-15 밤 등불 1.2 → 1.5 · 닿는 거리 6 → 7.5 (주인 11-14 "저녁이라 해도 너무 어두워서 조금 더 밝게") — 웅덩이 데칼도 lampD/6 만큼 넓어진다 */
   /* 발광 색 (룩 패스 6): 등불 유리 속 심지·양초 불꽃의 발광 타깃 색. 시각대 `em` 과 등불 칸 수로 배율, `winEm` 은 창 유리 발광 색(낮 = 하늘 밝게, 밤 = 희미한 차가운 색) */
   var EM = { lamp: '#ffc46a', flame: '#ffd990' };
   /* 첫 불 (소유자 폰 22:51 · 등불 0 · 비 = 창과 달빛 조각만 보이고 문어를 못 찾던 칠흑): 처음부터 방이 '어둑하지만 아늑한 다락' 으로 읽히고 문어가 늘 찾아지게. 전부 밤에만 (em 0.8→1 = nightK) — 낮·새벽·노을·바깥은 예전 그대로.
@@ -289,27 +320,68 @@ var SCENE3D = (function () {
      밤 바닥 = 다락 헤미를 sky/gnd · hemiI 쪽으로 (keep = 등불 칸과 무관하게 남는 몫: 1 = 모든 칸에서 같은 달빛 바닥 → 등불 빛이 안 닿는 앞쪽 바닥·깔개도 허공색에 묻히지 않고, 칸을 채워도 앞쪽이 어두워지지 않는다) ·
      필은 등불 칸이 낮을 때(0칸 전부 → upTo 칸 0) fillI 까지 ·
      문어 자체광 = 몸색(알베도)에 비례하는 흐린 빛 glow × (glow0 → glow8, 등불 칸에 따라 선형) — 동공·입은 어두운 채, 몸·흰자만 한 칸 뜬다 (블러·새 패스 없음, 툰 재질 유니폼 하나). 옅은 살구색이라 파랑·보라·초록 몸도 빨강만큼 뜬다 */
-  var FIRST_LIGHT = { ember: 0.25, sky: '#4d4a70', gnd: '#2a2024', hemiI: 0.4, keep: 1, fillI: 0.12, upTo: 4, glow: '#ffd8b0', glow0: 0.14, glow8: 0.06 };
+  var FIRST_LIGHT = { ember: 0.25, sky: '#4d4a70', gnd: '#2a2024', hemiI: 0.48, keep: 1, fillI: 0.12, upTo: 4, glow: '#ffd8b0', glow0: 0.14, glow8: 0.06 };
+  /* 11-15: 달빛 바닥 hemiI 0.4 → 0.48 (등불과 무관하게 남는 몫 — 0칸에서도 방이 한 칸 밝다) */
   function phaseOf(h) { return h < 6 ? 'night' : h < 9 ? 'dawn' : h < 17 ? 'day' : h < 19 ? 'dusk' : 'night'; }
+  /* 11-15 노을 → 밤 천천히 (주인 11-14 "저녁이라 해도 너무 어두워서"): 19시에 밤으로 툭 바뀌던 것을 19-21시 두 시간에 걸쳐 15분마다 한 칸, 8칸으로.
+     매 분 섞지 않고 칸으로 끊는다 — 픽셀 팔레트 스냅·디더가 일렁이지 않게. 값 = 밤 몫 (0 = 노을 그대로 · 1 = 밤). 6시 전 밤도 1, 낮·새벽·노을은 0 */
+  var DUSK_STEPS = 8, DUSK_H0 = 19, DUSK_H1 = 21;
+  function duskBlend(h) { h = ((+h % 24) + 24) % 24; if (h < 6) return 1; if (h < DUSK_H0) return 0; if (h >= DUSK_H1) return 1; return Math.floor((h - DUSK_H0) / (DUSK_H1 - DUSK_H0) * DUSK_STEPS + 1e-6) / DUSK_STEPS; }
+  function lightKey(h) { var ph = phaseOf(h), k = duskBlend(h); return ph === 'night' && k < 1 ? 'dn' + Math.round(k * DUSK_STEPS) : ph; }   /* 같은 열쇠 = 같은 조명 (setTime 이 다시 섞지 않는다) */
+  function lightAt(h) {   /* 그 시각의 조명 표: 19-21시 칸이면 노을·밤을 섞은 새 표 (LIGHTS 를 런타임에 바꿔도 다음 setTime 에 반영되게 캐시하지 않는다) */
+    var ph = phaseOf(h), k = duskBlend(h);
+    if (ph !== 'night' || k >= 1) return LIGHTS[ph];
+    var a = LIGHTS.dusk, b = LIGHTS.night, o = {};
+    Object.keys(b).forEach(function (key) { o[key] = typeof b[key] === 'number' ? a[key] + (b[key] - a[key]) * k : mixHex(a[key], b[key], k); });
+    return o;
+  }
 
   /* ═══════════════════════════ init ═══════════════════════════ */
   /* ── 내 캐릭터 파츠 카탈로그 (docs/PLAYER_PARTS.md §2·§3) — 정적 export (SCENE3D.PLAYER_PARTS · PLAYER_DEFAULT, 2D 폴백도 SCENE3D 가 있으면 읽는다).
      id 순서 = 설정 시트 칩 순서, name 은 칩 글자(한국어 4자 안팎). hairColor·eyeColor 의 hex 는 알베도 — 툰 3단 · 푸른 필 빛을 거쳐 apollo 어느 칸에 앉는지는 문서 §2.2·§2.4 (금발 amber[3] → #e8c170, v0 #ffd27a 는 올리브로 떴다).
      기하 빌더는 init 안 PL_PARTS (T·PAL 이 필요하다). 모르는 범주·id 는 normalizePlayer 가 기본값으로 — 앱의 설정 복원도 같은 함수를 쓴다 */
   var PLAYER_PARTS = {
-    hair: [{ id: 'bob', name: '단발' }, { id: 'short', name: '숏컷' }, { id: 'long', name: '긴생머리' }, { id: 'twin', name: '양갈래' }, { id: 'pony', name: '포니테일' }, { id: 'wave', name: '웨이브' }],
+    hair: [{ id: 'bob', name: '단발' }, { id: 'short', name: '숏컷' }, { id: 'long', name: '긴생머리' }, { id: 'twin', name: '양갈래' }, { id: 'pony', name: '포니테일' }, { id: 'wave', name: '웨이브' },
+      { id: 'crop', name: '크롭컷' }, { id: 'dandy', name: '댄디컷' }, { id: 'tousle', name: '부스스' }, { id: 'part', name: '중단발' }, { id: 'curl', name: '곱슬' }, { id: 'twoblock', name: '투블럭' }, { id: 'lowtail', name: '꽁지머리' }],   /* 11-21: 짧은 · 중간 머리 일곱 (주인 "남캐도 자유롭게") */
     bangs: [{ id: 'spiky', name: '삐죽' }, { id: 'full', name: '일자' }, { id: 'side', name: '옆가르마' }, { id: 'center', name: '가운데' }, { id: 'see', name: '시스루' }],   /* 앞머리 (주인 11-10 "몇 종류로 확실히 나눠서 선택 가능하게") — 머리 모양과 따로 고른다 */
     hairColor: [{ id: 'blonde', name: '금발', hex: '#e8a93a' },{ id: 'brown', name: '밤갈색', hex: '#9a5a3a' }, { id: 'ink', name: '먹남색', hex: '#1e2a44' }, { id: 'silver', name: '은빛', hex: '#cfc9c0' }, { id: 'pink', name: '분홍', hex: '#de8fa9' }, { id: 'lime', name: '연두', hex: '#a0d070' }],   /* 금발 #e8a93a → 필 빛에서 #de9e41 (amber[3] 은 #e8c170 로 살결 #e7d5b3 와 거의 같은 칸이라 1× 에서 머리가 한 덩이 공으로 읽혔다 — 리뷰 11-08) */
-    eyes: [{ id: 'round', name: '동그란' }, { id: 'sparkle', name: '반짝' }, { id: 'sleepy', name: '졸린' }, { id: 'almond', name: '또렷' }, { id: 'smile', name: '웃는' }, { id: 'dot', name: '점' }],   /* 눈동자 그림 스타일 (주인 11-08 피드백 6: 눈 모양이 아니라 '눈동자 그림', 전부 귀엽게) */
+    eyes: [{ id: 'round', name: '동그란' }, { id: 'sparkle', name: '반짝' }, { id: 'sleepy', name: '졸린' }, { id: 'almond', name: '또렷' }, { id: 'smile', name: '웃는' }, { id: 'dot', name: '점' }, { id: 'calm', name: '차분' }, { id: 'upturn', name: '날렵' }, { id: 'droop', name: '순한' }, { id: 'narrow', name: '눈웃음' }],   /* 눈동자 그림 스타일 (주인 11-08 피드백 6: 눈 모양이 아니라 '눈동자 그림', 전부 귀엽게) */
+    brow: [{ id: 'none', name: '없음' }, { id: 'soft', name: '둥근' }, { id: 'flat', name: '일자' }, { id: 'bold', name: '짙은' }],   /* 11-21 눈썹 (머리 색을 따른다) */
+    body: [{ id: 'a', name: '동글' }, { id: 'b', name: '반듯' }],   /* 11-21 몸 둘: a = 예전 그대로 · b = 어깨가 조금 넓고 곧은 몸. 어느 옷이든 둘 다 맞는다 */
     nose: [{ id: 'none', name: '없음' }, { id: 'dot', name: '콩코' }, { id: 'tri', name: '세모코' }],
     mouth: [{ id: 'none', name: '없음' }, { id: 'smile', name: '미소' }, { id: 'line', name: '새침' }, { id: 'pout', name: '뾰로통' }, { id: 'open', name: '활짝' }, { id: 'o', name: '오' }],
     cheek: [{ id: 'none', name: '없음' }, { id: 'freckle', name: '주근깨' }],   /* 코 · 입 · 볼 (11-09 주인 "동물의 숲 같은 기존 게임들 얼굴 느낌 참고") — 눈과 같은 아틀라스의 도트 그림. 볼터치('blush' 발그레)는 주인 11-10 "볼터치가 이상하게 보여서 없애는 게 나을 듯" 으로 뺐다 — 저장된 'blush' 는 모르는 id 라 기본값(없음)이 된다 */
     eyeColor: [{ id: 'dark', name: '흑갈색', hex: '#6a3a30', hi: '#884b2b', sh: '#be772b' }, { id: 'hazel', name: '호두색', hex: '#884b2b', hi: '#be772b', sh: '#de9e41' }, { id: 'sea', name: '바다색', hex: '#3c5e8b', hi: '#4f8fba', sh: '#73bed3' }, { id: 'leaf', name: '잎새색', hex: '#468232', hi: '#75a743', sh: '#a8ca58' }, { id: 'honey', name: '꿀색', hex: '#be772b', hi: '#de9e41', sh: '#de9e41' }, { id: 'violet', name: '제비꽃', hex: '#7a367b', hi: '#c65197', sh: '#df84a5' }],   /* hex = 홍채 텍셀(앞면 칸: 흑갈 #602c2c · 호두 #884b2b · 나머지는 apollo 그대로) · hi = 한 칸 밝은 홍채('반짝' 눈의 아랫빛) · sh = 반짝 점(11-10 — 흰색 글린트 대신 **눈 색을 두 칸 밝힌 색 점** 하나: 흑갈 눈엔 호박색, 바다 눈엔 하늘색. 꿀색은 한 칸만 — 두 칸 위 #e8c170 은 살결 옆에서 흰 점처럼 떴다). 흑갈색 옛 #4d2b32 는 동공 #151d28 과 두 칸뿐이라 2× 에서 한 덩어리였고 램프 디더에 #411d31 로 떨어졌다 (11-09) */
     skin: [{ id: 'peach', name: '살구', hex: '#ffd096' }, { id: 'fair', name: '밝은', hex: '#ffe2c4' }, { id: 'honey', name: '꿀빛', hex: '#e9b27c' }, { id: 'chestnut', name: '밤빛', hex: '#c48a5c' }, { id: 'cocoa', name: '카카오', hex: '#8f5d3e' }],   /* 피부색 (주인 11-10 "피부색도 고를 수 있게") */
-    outfit: [{ id: 'dress', name: '원피스' }, { id: 'knit', name: '니트' }, { id: 'hoodie', name: '후드' }, { id: 'overall', name: '멜빵' }, { id: 'raincoat', name: '비옷' }, { id: 'hanbok', name: '한복' }, { id: 'uniform', name: '교복' }, { id: 'varsity', name: '야구점퍼' }, { id: 'flannel', name: '체크셔츠' }],   /* 11-10: 한복 · 한국 교복 · 미국풍 둘 (일본풍은 넣지 않는다 — 주인) */
-    shoes: [{ id: 'flat', name: '단화' }, { id: 'boot', name: '부츠' }, { id: 'sneaker', name: '운동화' }, { id: 'loafer', name: '로퍼' }],
-    acc: [{ id: 'none', name: '없음' }, { id: 'ribbon', name: '리본' }, { id: 'beret', name: '베레모' }, { id: 'glasses', name: '동글안경' }, { id: 'catears', name: '고양이귀' }, { id: 'strawhat', name: '밀짚모자' }] };
-  var PLAYER_DEFAULT = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };   /* 기본 모습 (단발 · 금발 · 동그란 눈 · 어두운 눈 · 세모코 · 미소 · 볼 없음 · 남색 원피스 · 단화 · 리본) */
+    outfit: [{ id: 'dress', name: '원피스' }, { id: 'knit', name: '니트' }, { id: 'hoodie', name: '후드' }, { id: 'overall', name: '멜빵' }, { id: 'raincoat', name: '비옷' }, { id: 'hanbok', name: '한복' }, { id: 'uniform', name: '교복' }, { id: 'varsity', name: '야구점퍼' }, { id: 'flannel', name: '체크셔츠' },
+      { id: 'octee', name: '문어 티' }, { id: 'shirt', name: '셔츠' }, { id: 'jersey', name: '운동복' }, { id: 'sailor', name: '세일러' }, { id: 'fisher', name: '어부 니트' }, { id: 'windbreak', name: '바람막이' }, { id: 'cardigan', name: '가디건' }, { id: 'suit', name: '정장' }],   /* 11-10: 한복 · 한국 교복 · 미국풍 둘 (일본풍은 넣지 않는다 — 주인) */
+    shoes: [{ id: 'flat', name: '단화' }, { id: 'boot', name: '부츠' }, { id: 'sneaker', name: '운동화' }, { id: 'loafer', name: '로퍼' }, { id: 'hightop', name: '하이탑' }, { id: 'sandal', name: '샌들' }],
+    acc: [{ id: 'none', name: '없음' }, { id: 'ribbon', name: '리본' }, { id: 'beret', name: '베레모' }, { id: 'glasses', name: '동글안경' }, { id: 'catears', name: '고양이귀' }, { id: 'strawhat', name: '밀짚모자' },
+      { id: 'cap', name: '야구모자' }, { id: 'bandana', name: '두건' }, { id: 'headphones', name: '헤드폰' }, { id: 'scarf', name: '목도리' }, { id: 'sqglasses', name: '네모안경' }, { id: 'bag', name: '작은 가방' },
+      { id: 'paper_crown', name: '종이 왕관' }, { id: 'emperor_cape', name: '황제 망토' }] };   /* 11-24 (주인: "문어가 안 입어도 캐릭터 옷장에는 넣어줘"): 다락방 달리기 주간 상 — 상을 받으면 내 옷장에도 들어온다 (앱 awardWardrobe) */
+  /* 11-21 기본 모습 둘: PLAYER_DEFAULT = 새로 시작하는 사람의 모습 (어느 쪽으로도 읽히는 차림: 부스스 짧은 머리 · 문어 티와 청바지 · 운동화 · 장식 없음).
+     PLAYER_LEGACY = 이번 판 전의 기본 (단발 · 남색 원피스 · 리본) — 이미 있던 모습에서 빠졌거나 모르는 칸은 이쪽으로 채운다 (저장된 모습이 그대로 보이게: 몸 a · 눈썹 없음) */
+  var PLAYER_DEFAULT = { hair: 'tousle', bangs: 'spiky', hairColor: 'brown', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'octee', shoes: 'sneaker', acc: 'none', brow: 'soft', body: 'a' };   /* 열쇠 차례 = 앱의 PLAYER_CATS (눈썹 · 몸은 뒤) */
+  var PLAYER_LEGACY = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon', brow: 'none', body: 'a' };
+  /* 11-21 옷장 목록 (가게 · 콘테스트가 읽는다): 물건마다 tags (느낌 낱말 + 색 갈래 c-…) 와 shop ({ price: 조개 } | null = 누구나 가진 것). 이번 판 전부터 있던 id 는 전부 null — 입고 있던 것이 사라지지 않게.
+     적는 법: '갈래:id': '낱말 낱말 … [$값]'
+     11-24 (넷째 바퀴 · 가게 갈래): 첫날 조개 3 개로도 하나는 살 수 있게 야구모자 4 · 목도리 5 — 옷가게는 날마다 이 둘 중 하나를 진열에 넣는다 (js/shop.js SMALL) */
+  var PLAYER_META = {
+    'hair:bob': 'cute neat', 'hair:short': 'sporty fresh', 'hair:long': 'neat cool', 'hair:twin': 'cute flower', 'hair:pony': 'sporty fresh', 'hair:wave': 'cosy flower',
+    'hair:crop': 'sporty cool', 'hair:dandy': 'neat cool', 'hair:tousle': 'cosy fresh', 'hair:part': 'cool neat', 'hair:curl': 'cute cosy', 'hair:twoblock': 'cool sporty', 'hair:lowtail': 'cool sea',
+    'outfit:dress': 'cute neat c-blue', 'outfit:knit': 'cosy warm c-red', 'outfit:hoodie': 'cosy sporty c-white', 'outfit:overall': 'cute fresh c-blue', 'outfit:raincoat': 'fresh sea c-orange', 'outfit:hanbok': 'neat flower c-red',
+    'outfit:uniform': 'neat cool c-blue', 'outfit:varsity': 'sporty cool c-red', 'outfit:flannel': 'cosy warm c-red',
+    'outfit:octee': 'cute sea fresh c-white', 'outfit:shirt': 'neat cool c-blue', 'outfit:jersey': 'sporty fresh c-green', 'outfit:sailor': 'sea neat fresh c-blue $24', 'outfit:fisher': 'cosy warm sea c-white $22',
+    'outfit:windbreak': 'sporty fresh c-yellow $20', 'outfit:cardigan': 'cosy neat flower c-pink $18', 'outfit:suit': 'neat cool star c-black $36',
+    'shoes:flat': 'neat c-black', 'shoes:boot': 'warm sea c-blue', 'shoes:sneaker': 'sporty c-red', 'shoes:loafer': 'neat c-brown', 'shoes:hightop': 'sporty cool c-black $14', 'shoes:sandal': 'fresh sea c-brown',
+    'acc:none': '', 'acc:ribbon': 'cute c-red', 'acc:beret': 'neat cosy c-red', 'acc:glasses': 'neat c-black', 'acc:catears': 'cute star c-black', 'acc:strawhat': 'fresh flower c-yellow',
+    'acc:cap': 'sporty cool c-blue $4', 'acc:bandana': 'cool sea c-blue', 'acc:headphones': 'cool star c-white $20', 'acc:scarf': 'warm cosy c-orange $5', 'acc:sqglasses': 'neat cool c-black', 'acc:bag': 'neat cosy c-brown $16',
+    'acc:paper_crown': 'cute star c-yellow !award', 'acc:emperor_cape': 'cool star warm c-red !award' };   /* !award = 가게에서 안 판다 · 상을 받아야 가진다 */
+  Object.keys(PLAYER_PARTS).forEach(function (cat) { PLAYER_PARTS[cat].forEach(function (x) {
+    var m = PLAYER_META[cat + ':' + x.id], w = typeof m === 'string' ? m.split(' ').filter(Boolean) : [], aw = w.indexOf('!award') >= 0, pr;
+    w = w.filter(function (t) { return t !== '!award'; }); pr = w.length && w[w.length - 1].charAt(0) === '$' ? +w.pop().slice(1) : 0;
+    x.tags = w; x.shop = pr > 0 ? { price: pr } : null; if (aw) x.award = true;
+  }); });
   /* 문어 코스튬 (11-10 주인: "코스튬 그림 · 문어에게 씌우는 장면 코드 · 선물 상자 화면 · 내밀었을 때 문어의 선택 연출 — 진행하자", docs/MINIGAMES.md §6).
      slot head = 머리 위 · back = 등. award = 다락방 달리기 주간 상으로 받아야 상자에 들어온다 (나머지는 처음부터). 기하 빌더는 init 안 OCT_WEAR */
   var COSTUMES = [{ id: 'ribbon', name: '리본', slot: 'head' }, { id: 'beret', name: '베레모', slot: 'head' }, { id: 'strawhat', name: '밀짚모자', slot: 'head' }, { id: 'gat', name: '갓', slot: 'head' }, { id: 'partyhat', name: '고깔모자', slot: 'head' },
@@ -317,7 +389,8 @@ var SCENE3D = (function () {
   function plPart(cat, id) { var L = PLAYER_PARTS[cat] || []; for (var i = 0; i < L.length; i++) if (L[i].id === id) return L[i]; return null; }
   function normalizePlayer(cfg) {   /* cfg → 열 범주가 다 있는 새 객체. 모르는 범주는 버리고 모르는 id 는 기본값 */
     var out = {}; cfg = cfg && typeof cfg === 'object' ? cfg : {};
-    Object.keys(PLAYER_DEFAULT).forEach(function (k) { out[k] = plPart(k, cfg[k]) ? cfg[k] : PLAYER_DEFAULT[k]; });
+    var base = Object.keys(cfg).length ? PLAYER_LEGACY : PLAYER_DEFAULT;   /* 11-21: 빈 것 = 새 사람 (새 기본) · 이미 있는 모습의 빈 칸 = 예전 기본 */
+    Object.keys(PLAYER_DEFAULT).forEach(function (k) { out[k] = plPart(k, cfg[k]) ? cfg[k] : base[k]; });
     return out;
   }
 
@@ -387,16 +460,20 @@ var SCENE3D = (function () {
     var PLAY = null;   /* 놀이 kit (play.html 전용, makePlay): inst.play() 를 부르기 전엔 늘 null → 아래 `if (PLAY)` 훅 4개는 본 게임에서 아무것도 안 한다 */
     var PROOM = null;  /* 놀이방 장소 (8물결, buildPlayRoom): 처음 들어갈 때까지 null → `if (PROOM)` 훅들은 아무것도 안 한다 (시작 비용 0). 컵 놀이 kit 의 PLAY 와 다른 것 */
     var LROOM = null;  /* 위층 다락 (11-10, buildLoft): 처음 올라갈 때 만든다 */
-    function isRoomP(p) { return p === 'play' || p === 'loft'; }
+    var YROOM = null;  /* 11-15 마당 (buildYard): 처음 나갈 때 만든다 — 문어 산책 화면(extG)과 따로 된 내 장소 */
+    var ATTIC_CUE = null;  /* 11-15 계단 표시 (stairCue): 다락 계단의 옅은 디딤판 띠 + 발치 초롱 */
+    function isRoomP(p) { return p === 'play' || p === 'loft' || p === 'yard' || p === 'inside'; }   /* 11-22: inside = 걸어 들어가는 방 (ROOM_REG) */
+    function outdoorP(p) { return p === 'exterior' || p === 'yard'; }   /* 11-15: 열린 하늘 아래 (해 방향 · 밤 헤미 · 허공 하늘 없음 — 마당은 바깥 빛을 그대로 쓴다) */
     /* 11-11 미용실 이사 (주인: "윗층 다락방에 미용실"): 거울 코너(salG)는 위층 뒷벽에 산다. 코너 · 연출의 좌표는 예전 다락 좌표 그대로 두고, 위층 안의 감싸는 그룹 LSALW 를 (dx, 0, dz) 만큼 옮겨 뒷벽에 맞춘다.
        문어는 깨어서 집에 있을 때 내가 위층에 오르면 따라 올라온다 (octMountLoft: octG 를 LSALW 로 — 그래서 문어 좌표도 연출 좌표 그대로. 차례 뒤 깨어 있는 틈엔 안 온다 — 주인 11-12) · 내려오거나 의식이 시작되면 다락으로 돌아간다 */
     var LSALW = null, LSAL = { dx: 0, dz: 0 };
     function octUp() { return !!LSALW && octG.parent === LSALW; }   /* 문어가 없는 '내 방' 들 */
-    var EXT_TARGET = new T.Vector3(0.4, 1.55, 0.0);   /* 바깥 디오라마 카메라 타깃 (같은 요·틸트·픽셀 밀도; 집 용마루·굴뚝과 오른쪽 아래 가장자리 출구가 한 화면에) */
+    var EXT_TARGET = new T.Vector3(0.4, 1.55, 0.0);
+    var YARD_TARGET = new T.Vector3(1.0, 1.25, 1.0), YARD_Y = YARD_TARGET.y;   /* 11-15 마당: 집 현관과 밭 여섯 칸이 한 화면에 (밭 쪽으로 조금) */   /* 바깥 디오라마 카메라 타깃 (같은 요·틸트·픽셀 밀도; 집 용마루·굴뚝과 오른쪽 아래 가장자리 출구가 한 화면에) */
     function camTargetNow() {   /* look.focus='oct': 문어 중심 (look-shots close). 장소 그룹은 순수 평행이동이라 부모 위치를 더하면 월드 좌표. 입장 연출 중이면 그 위로 introOffset() 만큼 (하늘) */
       var b;
       if (st.look.focus === 'oct' && octG) { _tg.copy(octG.position).add(_focusUp); if (octG.parent) _tg.add(octG.parent.position); b = _tg; }
-      else b = PLACE.vis === 'exterior' ? EXT_TARGET : PLACE.vis === 'play' ? PLAY_TARGET : PLACE.vis === 'loft' ? LOFT_TARGET : camTarget;
+      else b = PLACE.vis === 'inside' ? IN.target : yawPivot(PLACE.vis === 'exterior' ? EXT_TARGET : PLACE.vis === 'yard' ? YARD_TARGET : PLACE.vis === 'play' ? PLAY_TARGET : PLACE.vis === 'loft' ? LOFT_TARGET : camTarget);   /* 11-15: 돌려 보기 (갈래 A) · 마당 (갈래 D) */
       if (PLAY && PLAY.cam) b = PLAY.cam;   /* 놀이: 컵 줄을 화면 아래쪽 60 % 쯤에 */
       return INTRO.on ? _ti.copy(b).setY(b.y + introOffset()) : b;
     }
@@ -414,7 +491,7 @@ var SCENE3D = (function () {
        그래서 낮은 장면(360×326 · 가로 폰 · 쌓는 배치)에선 올릴 자리가 없어 보정이 정확히 0 이고 예전 구도 그대로다. 각도 · 밀도 · 밀기 경계(panBox 는 타깃을 따라간다)는 안 바뀐다.
        FRAME_PT[장소] = [바닥 앞 모서리, 꼭대기 점] (월드 m). 바깥의 꼭대기는 상자 모서리가 아니라 굴뚝 테 — 화면에서 가장 높은 건 그쪽이다 */
     var FRAME_Y = 0.68, FRAME_TOP = 48, UP_Y = Math.cos(TILT), UP_XZ = Math.sin(TILT) * Math.SQRT1_2, ATTIC_Y = camTarget.y, EXT_Y = EXT_TARGET.y;
-    var FRAME_PT = { attic: [[RF + 0.22, 0, RF + 0.22], [-2.72, 3.0, -2.72]], exterior: [[3.42, 0, 3.42], [-1.5, 3.3, -1.52]], play: [[PLAY_R, 0, PLAY_R], [-PLAY_R, PLAY_H, -PLAY_R]], loft: [[LOFT_R, 0, LOFT_R], [-LOFT_R, LOFT_PEAK + 0.25, 0]] };
+    var FRAME_PT = { attic: [[RF + 0.22, 0, RF + 0.22], [-2.72, 3.0, -2.72]], exterior: [[3.42, 0, 3.42], [-1.5, 3.3, -1.52]], play: [[PLAY_R, 0, PLAY_R], [-PLAY_R, PLAY_H, -PLAY_R]], yard: [[3.6, 0, 3.6], [-1.5, 3.3, -1.52]], loft: [[LOFT_R, 0, LOFT_R], [-LOFT_R, LOFT_PEAK + 0.25, 0]] };
     function liftOf(bx, by, bz, pt) {   /* 기본 타깃 (bx, by, bz) 에서 타깃을 내릴 월드 y (≥ 0, 아트 픽셀 정수 배) */
       var N0 = Math.round(baseN()), f = pt[0], t = pt[1];
       var below = ((by - f[1]) * UP_Y + (f[0] - bx + f[2] - bz) * UP_XZ) * N0, above = ((t[1] - by) * UP_Y + (bx - t[0] + bz - t[2]) * UP_XZ) * N0;   /* 화면 가운데에서 앞 모서리까지 아래로 · 꼭대기까지 위로 (아트 px, 1×) */
@@ -423,6 +500,7 @@ var SCENE3D = (function () {
     function frameView() {
       camTarget.y = ATTIC_Y - liftOf(camTarget.x, ATTIC_Y, camTarget.z, FRAME_PT.attic);
       EXT_TARGET.y = EXT_Y - liftOf(EXT_TARGET.x, EXT_Y, EXT_TARGET.z, FRAME_PT.exterior);
+      YARD_TARGET.y = YARD_Y - liftOf(YARD_TARGET.x, YARD_Y, YARD_TARGET.z, FRAME_PT.yard);
       framePlay();
     }
     function frameY() {   /* 지금 보이는 장소의 바닥 앞 모서리가 장면 높이의 어디에 있나 (0 = 위 끝 · 1 = 아래 끝). 실제 카메라로 투영 — 줌 · 밀기 · 입장 연출도 그대로 반영 (stats().frameY · tools/layout-shots.js) */
@@ -447,7 +525,11 @@ var SCENE3D = (function () {
       return INTRO.H * (1 - p) - (k > EASE.bump ? INTRO.D * Math.sin(Math.PI * clamp((k - EASE.bump) / (1 - EASE.bump), 0, 1)) : 0);
     }
     var S = { W: 0, H: 0, p: DEF_P, rw: 4, rh: 4, cw: 4, ch: 4, N: SNAP_N, pw: PX, offX: 0, offY: 0 };   /* pw = pixelWorldSize: 아트 픽셀 한 변(월드 m), resize 에서 프러스텀 폭 / 타깃 폭 */
-    function yawDelta() { var y = clamp(yawDrag + st.look.yaw * DEG, -25 * DEG, 25 * DEG); return Math.round(y / (9 * DEG)) * 9 * DEG; }   /* 9° 스냅 */
+    /* 11-15 돌려 보기 (주인: "두 손가락 비틀기로 360° 전부 · 손가락 각도 1:1 · 끝 없음 · 살짝 관성 · 각도는 저장 안 함"): yawDrag = 내가 돌린 각 (rad, 끝 없음, 이 세션만).
+       YAWX.show = 지금 그려지는 각 — 보통은 yawDrag 그대로 (1:1), 출발·귀가 의식 · 입장 · 바깥 · 미용실 연출 · 놀이 kit · 문어 초점 동안은 가장 가까운 한 바퀴(= 기본 구도)로
+       0.3 s 쯤에 갔다가 끝나면 yawDrag 로 돌아온다 (yawDrag 는 그대로). YAWX.v = 뗀 뒤 관성 (rad/s, 0.12 s 로 줄어든다 · 모션 줄이기면 없음) · YAWX.kt = Q/E · setYaw 의 목표 */
+    var YAWX = { v: 0, show: 0, ease: false, kt: null, held: false };
+    function yawDelta() { return YAWX.show + st.look.yaw * DEG; }
     var _off = new T.Vector3(), _r = new T.Vector3(), _u = new T.Vector3(), _ax = new T.Vector3(1, 0, 0), _ay = new T.Vector3(0, 1, 0);
     /* 11-11 (검증 P4): 위층에서 미용실 시트가 화면 아래를 덮을 때, 거울 코너와 문어가 시트 위로 보이도록 장면을 위로 올린다 (좁은 화면 · 병 7개 · 이름 줄 두 줄이면 문어가 시트 밑에 깔렸다).
        LIFT.y = 올린 높이 (월드 m, 화면 위쪽) — 밀기(PAN)와 따로라 경계 · 고무줄에 안 걸린다. 시트가 닫히거나 장소가 바뀌면 0 으로 */
@@ -469,17 +551,66 @@ var SCENE3D = (function () {
       if (LIFT.y === LIFT.to) return;
       var d = LIFT.to - LIFT.y; LIFT.y = st.reduced || Math.abs(d) < 0.5 / S.N ? LIFT.to : LIFT.y + d * Math.min(1, dt / 0.1); dither.still = 0;
     }
+    /* 11-18 넓은 바깥 (검증): 카메라가 타깃에서 24 m 면 near 평면이 s ≈ 30 에서 땅 · 나무를 자른다 (길 끝에 서면 화면 아래 나무가 속 빈 고리 · 높은 화면과 아래로 민 화면은 허공 띠).
+       넓은 마당이 보이는 동안만 카메라를 시선 축으로 뒤로 빼고 (직교라 구도는 그대로) far 도 늘린다 — 깔아 둔 땅 (G0..G1) 이 어느 각에서나 near 와 far 사이에 든다 (땅을 더 넓히면 이 둘도 같이).
+       후처리는 uFar 로 깊이를 푼다 (외곽선 문턱 · 허공 판정) → 같은 값으로. 다른 방 · 산책 바깥 · 끈 마당은 24 m · 60 그대로 (near 는 늘 0.1 — 음수면 광선 톡이 틀어진다) */
+    var WIDE_CAM = { dist: 44, far: 90 }, CAM_FAR = camera.far;
+    function camDepth(wide) {   /* placeCamera 가 부른다 — 장소가 바뀐 바로 그 프레임에 바뀌고 되돌아온다 */
+      var f = wide ? WIDE_CAM.far : CAM_FAR; if (camera.far === f) return;
+      camera.far = f; camera.updateProjectionMatrix(); post.uniforms.uFar.value = f;
+    }
+    var _camZ = new T.Vector3();
     function placeCamera() {
-      var tgt = camTargetNow(), ref = tgt;
-      _off.set(0, 0, DIST).applyAxisAngle(_ax, -TILT).applyAxisAngle(_ay, YAW + yawDelta());
+      var tgt = camTargetNow(), ref = tgt, wide = YARD_WIDE && PLACE.vis === 'yard';
+      if (YARD_WIDE) camDepth(wide);
+      _off.set(0, 0, wide ? WIDE_CAM.dist : DIST).applyAxisAngle(_ax, -TILT).applyAxisAngle(_ay, YAW + yawDelta());
       camera.position.copy(tgt).add(_off); camera.lookAt(tgt); camera.updateMatrixWorld();
       _r.setFromMatrixColumn(camera.matrixWorld, 0); _u.setFromMatrixColumn(camera.matrixWorld, 1);
       if (panOn() && (PAN.x || PAN.y)) {   /* 밀기: 카메라를 화면 우/상 축으로 평행이동 (직교라 = 타깃 이동). 스냅 기준도 밀린 타깃 → 1 아트px 계단 */
         ref = _pnt.copy(tgt).addScaledVector(_r, PAN.x).addScaledVector(_u, PAN.y); camera.position.addScaledVector(_r, PAN.x).addScaledVector(_u, PAN.y);
+        if (wide && PAN.y) camera.position.addScaledVector(_camZ.setFromMatrixColumn(camera.matrixWorld, 2), -PAN.y / Math.tan(TILT));   /* 11-21 7차: 긴 맵 — 세로로 민 만큼 시선 축으로도 옮겨 카메라 높이를 그대로 둔다 (직교라 그림은 같다). 안 그러면 s 55 쯤에서 카메라가 땅 밑으로 내려가 near · far 가 땅을 자른다 */
       }
       if (LIFT.y) { if (ref === tgt) ref = _pnt.copy(tgt); ref.addScaledVector(_u, -LIFT.y); camera.position.addScaledVector(_u, -LIFT.y); }   /* 시트가 아래를 덮는 동안 장면을 위로 (setSheetInset) */
-      snapScreen(camera.position, ref);   /* 타깃을 카메라 우/상 축 기준 pixelWorldSize 격자에 스냅 → 패닝/추적 중 픽셀 크리프 없음 */
+      if (!camLock(ref)) { snapScreen(camera.position, ref); _camSD[0] = _camSD[1] = 0; }   /* 타깃을 카메라 우/상 축 기준 pixelWorldSize 격자에 스냅 → 패닝/추적 중 픽셀 크리프 없음 */
       camera.updateMatrixWorld();
+    }
+    /* [7-W] 다섯째 바퀴 (주인: "뛸 때 화면이 같이 흔들려 울렁거려"): 카메라와 내 캐릭터가 저마다 따로 아트px 격자에 반올림돼서, 따라가는 동안 둘의 차이가
+       프레임마다 0 · 1 아트px 사이를 오갔다 (캐릭터가 화면에서 1 아트px = 폰 2 CSS px 씩 앞뒤로 떤다 · 잰 값 wip/round7/r5/W).
+       → 화면이 내 캐릭터를 따라 움직이는 동안 (따라가기 · 걷기) 은 그려지는 카메라 칸을 셋 중에서 고른다 (화면 축마다):
+         ① 캐릭터와 같이 한 칸 (캐릭터의 화면 자리 그대로) ② 지난 칸 그대로 ③ 가장 가까운 칸 — 매끄러운 카메라에서 1 아트px 안이고,
+         카메라가 가는 쪽과 거꾸로 가지 않는 첫 것. 그래서 캐릭터는 화면에서 안 떨고, 땅은 한 방향으로만 흐른다 (앞뒤로 안 떤다).
+       화면이 서 있으면 (매끄러운 카메라가 안 움직임) 예전 그대로 가장 가까운 칸. 카메라는 늘 월드 격자 위 (다른 물건도 정수 px 그대로) */
+    var _camSD = [0, 0], _clr = new T.Vector3(), CLK = { on: false, place: '', pw: 0, c: [0, 0], rel: [0, 0], ref: [0, 0], dir: [0, 0], at: [0, 0] };
+    function camLock(ref) {
+      var want = typeof PL !== 'undefined' && !!PL && !!plG && !!plG.parent && PL.place === PLACE.vis && panOn() && !INTRO.on && !PAN.cut && !!S.pw && (PAN.mode === 'follow' || !!PL.moving || !!PL.stick);
+      if (!want) {
+        var was = CLK.on && CLK.place === PLACE.vis && !GEST.mode && (_camSD[0] || _camSD[1]); CLK.on = false;
+        if (!was || !panOn() || PAN.mode) return false;
+        PAN.x += _camSD[0]; PAN.y += _camSD[1]; camera.position.addScaledVector(_r, _camSD[0]).addScaledVector(_u, _camSD[1]); _camSD[0] = _camSD[1] = 0;   /* 걷기가 끝난 프레임 (모션 줄이기의 딱 따라가기 등): 지금 그려진 칸으로 밀기를 옮겨 둔다 — 가장 가까운 칸으로 돌아가며 한 칸 튀지 않게 */
+        return true;
+      }
+      var pw = S.pw, g = plG.parent.position, fresh = !CLK.on || CLK.place !== PLACE.vis || CLK.pw !== pw;
+      _clr.copy(PL.pos); _clr.y += (PL.place === 'yard' ? plGroundY(PL.pos.x, PL.pos.z) : 0) + (PL.lift || 0);   /* plSnap 과 같은 점 (부모 그룹 안 좌표) — 몸의 통통 · 출렁임은 안 넣는다 */
+      for (var k = 0; k < 2; k++) {
+        var ax = k ? _u : _r, rp = ref.dot(ax) / pw, P = Math.round(_clr.dot(ax) / pw) + g.dot(ax) / pw, c = Math.round(rp);
+        if (!fresh) {
+          var v = rp - CLK.ref[k];
+          if (Math.abs(v) <= 1e-4) { if (Math.abs(CLK.c[k] - rp) <= 1) c = CLK.c[k]; }   /* 같은 프레임에 다시 놓거나 화면이 서 있음: 고른 칸 그대로 */
+          else {
+            var cand = [Math.round(P - CLK.rel[k]), CLK.c[k], c], hit = false;
+            for (var i = 0; i < 3 && !hit; i++) {
+              var st2 = cand[i] - CLK.c[k], flip = st2 && CLK.dir[k] && (st2 > 0 ? 1 : -1) !== CLK.dir[k] && frameNo - CLK.at[k] <= 4;   /* 방금 한 칸 간 쪽을 4 프레임 안에 되돌리지 않는다 (방향을 틀 때 땅이 한 칸 앞뒤로 떨지 않게) */
+              if (Math.abs(cand[i] - rp) <= 1 && st2 * v >= 0 && !flip) { c = cand[i]; hit = true; }
+            }
+            if (!hit && Math.abs(CLK.c[k] - rp) <= 1.5) c = CLK.c[k];
+          }
+        }
+        if (!fresh && c !== CLK.c[k]) { CLK.dir[k] = c > CLK.c[k] ? 1 : -1; CLK.at[k] = frameNo; } else if (fresh) CLK.dir[k] = 0;
+        CLK.c[k] = c; CLK.rel[k] = P - c; CLK.ref[k] = rp; _camSD[k] = (c - rp) * pw;
+      }
+      CLK.on = true; CLK.place = PLACE.vis; CLK.pw = pw;
+      camera.position.addScaledVector(_r, _camSD[0]).addScaledVector(_u, _camSD[1]);
+      return true;
     }
     /* ── 밀기 + 관성 + 고무줄 (docs/INTERIOR_MODE.md §3.4): PAN.x/y = 카메라 오프셋(월드 m, 화면 우/상 축). 손가락 1:1 · 뗄 때 마지막 100 ms 평균 속도(80 ms 멈췄으면 0,
        0.25 px/ms 미만 0, 최대 2 px/ms) → 매 프레임 v = v·e^(−dt/0.25 s), 0.03 px/ms 아래면 멈춤 · 경계 = 장소 상자를 화면 축에 투영 + 여백 12 아트px (방이 화면 밖으로 안 나간다) ·
@@ -487,22 +618,35 @@ var SCENE3D = (function () {
        의식·입장 연출 중엔 밀기를 안 받고 0.3 s 만에 0 으로 — 단 의식 중 확대해 있으면 0 대신 문어를 따라간다(cerFollow: 화면 가운데 절반 안, 경계 안 · 문어가 보일 때만 ·
        가속 한도가 있는 부드러운 따라가기라 멀리서 나타나도 휙 날아가지 않는다), 장소가 바뀌면 0.
        1× 에선 경계가 0 (가로·세로 고무줄만, 떼면 가운데로 · §3.4 '1×') — 첫 멈춤까지 경계가 줌에 비례해 열린다. 놀이(PLAY)·문어 초점(look-shots close) 중엔 꺼짐 */
-    var PAN = { x: 0, y: 0, vx: 0, vy: 0, mode: '', t: 0, dur: 0, fx: 0, fy: 0, tx: 0, ty: 0, cut: false };   /* cut = 장소가 막 바뀜 (다음 따라가기는 미끄러지지 않고 바로) */
+    var PAN = { x: 0, y: 0, vx: 0, vy: 0, mode: '', t: 0, dur: 0, fx: 0, fy: 0, tx: 0, ty: 0, cut: false, arrive: false };   /* cut = 장소가 막 바뀜 (다음 따라가기는 미끄러지지 않고 바로) · arrive = 방을 옮김 (연출이 끝나면 캐릭터가 화면 안에 들게 한 번) */
     var GEST = { mode: '', pts: {}, n: 0, hold: false, wheelT: 0 };   /* 손가락 상태기계 하나 (아래 '입력'): '' | press | pan | multi | pinch | twist | yaw | done */
-    var PLACE_BOX = { attic: [[-2.72, RF + 0.22], [-0.48, 3.0], [-2.72, RF + 0.22]], exterior: [[-3.42, 3.42], [-0.48, 3.3], [-3.42, 3.42]],
+    var PLACE_BOX = { attic: [[-2.72, RF + 0.22], [-0.48, 3.0], [-2.72, RF + 0.22]], exterior: [[-3.42, 3.42], [-0.48, 3.3], [-3.42, 3.42]], yard: [[-YARD_L, YARD_L], [-0.48, 3.3], [-YARD_L, YARD_L]],
       play: [[-PLAY_R - 6 / 27, PLAY_R + 6 / 27], [-0.48, PLAY_H], [-PLAY_R - 6 / 27, PLAY_R + 6 / 27]],
       loft: [[-LOFT_R - 6 / 27, LOFT_R + 6 / 27], [-0.48, LOFT_PEAK + 0.25], [-LOFT_R - 6 / 27, LOFT_R + 6 / 27]] };   /* 받침 포함 (x · y · z) */
     function panOn() { return !PLAY && st.look.focus !== 'oct'; }
     function panLocked() { return INTRO.on || !!(CER && CER.active && !isRoomP(PLACE.vis)) || !!PLACE.trans || DQ.active; }   /* 연출 중: 손가락 밀기 X (문어가 화면 밖으로 안 나가게). 줌은 된다 · 놀이방에선 안 보이는 의식이 밀기를 잠그지 않는다 */
     function panBox() {   /* 카메라 오프셋 허용 범위 [x0, x1, y0, y1] (m). 방이 화면보다 크면 화면이 방(+여백) 안, 작으면 방이 화면 안. 0(기본 구도)은 늘 포함 */
       var b = PLACE_BOX[PLACE.vis] || PLACE_BOX.attic, tgt = camTargetNow(), m = 12 / S.N, hw = S.rw / 2 / S.N, hh = S.rh / 2 / S.N, a0 = 1e9, a1 = -1e9, c0 = 1e9, c1 = -1e9;
+      var wp = YARD_WIDE && PLACE.vis === 'yard' ? widePts() : null;   /* 11-18 넓은 바깥: 네모 상자가 아니라 화면 아래로 뻗은 띠 */
+      if (wp) m = hw = hh = 0;   /* 11-21 7차: 띠 = 화면 '가운데' 가 볼 수 있는 땅 (PAN_*) — 화면 크기와 상관없이 캐릭터를 가운데 두고 끝까지 따라간다. 땅 · 바다는 그 둘레로 넉넉히 깔려 있다 */
       for (var i = 0; i < 8; i++) {
-        _pnt.set(b[0][i & 1], b[1][(i >> 1) & 1], b[2][(i >> 2) & 1]).sub(tgt); var a = _pnt.dot(_r), c = _pnt.dot(_u);
+        if (wp) _pnt.set(wp[i][0], wp[i][1], wp[i][2]).sub(tgt); else _pnt.set(b[0][i & 1], b[1][(i >> 1) & 1], b[2][(i >> 2) & 1]).sub(tgt);
+        var a = _pnt.dot(_r), c = _pnt.dot(_u);
         if (a < a0) a0 = a; if (a > a1) a1 = a; if (c < c0) c0 = c; if (c > c1) c1 = c;
       }
       var x0 = a0 - m + hw, x1 = a1 + m - hw, y0 = c0 - m + hh, y1 = c1 + m - hh;
       var s = PLACE.vis === 'attic' || isRoomP(PLACE.vis) ? 1 : clamp((st.zoomF - 1) / (ZOOM_STEPS[1] - 1), 0, 1);   /* 다락은 1× 에서도 방이 화면보다 넓다 (11-10 넓히기) → 늘 온전한 경계 */   /* 1× = 0 (고무줄만 — 360 폭에서도 기본 구도가 비뚤게 남지 않는다) → 첫 멈춤(1.12×)에서 온전한 경계. 핀치가 1× 로 돌아올 때 한 번에 튀지 않게 비례 */
+      if (wp && _wideKeep.on) {   /* 넓은 바깥: 돌려 보기가 맞춘 값 (wideHoldCentre) 은 띠 경계 밖이어도 품는다 — 안 그러면 손을 떼거나 빈 땅 톡 · 키우기에서 잘려 화면이 덜컥 돌아갔다 (11-18 검증).
+                                     쉴 때 정수 아트px 로 맞춰도 안이게 한 칸까지. 세로 (카메라 높이) 는 띠 경계가 0° · 180° 에서 내주는 데까지만 — 더 가면 길 끝 너머의 땅이 카메라 앞뒤 평면에 잘려 허공이 남는다 */
+        var kx = _wideKeep.x * S.N, ky = _wideKeep.y * S.N;   /* 11-21 7차: 카메라 높이가 그대로라 (placeCamera) 세로도 맞춘 값 그대로 품는다 */
+        return [Math.min(x0, x1, 0, Math.floor(kx + 1e-6) / S.N), Math.max(x0, x1, 0, Math.ceil(kx - 1e-6) / S.N), Math.min(y0, y1, 0, Math.floor(ky + 1e-6) / S.N), Math.max(y0, y1, 0, Math.ceil(ky - 1e-6) / S.N)];
+      }
       return [Math.min(x0, x1, 0) * s, Math.max(x0, x1, 0) * s, Math.min(y0, y1, 0) * s, Math.max(y0, y1, 0) * s];
+    }
+    var _widePts = null, _wideKeep = { on: false, x: 0, y: 0 };   /* _wideKeep = 돌려 보기가 마지막으로 맞춘 밀기 값 (m) — 걸으면 화면이 지나온 데까지로 줄어든다 (plFollow) */
+    function widePts() {
+      if (!_widePts) { _widePts = []; for (var i = 0; i < 8; i++) { var q = wideXZ(i & 1 ? WIDE.PAN_S1 : WIDE.PAN_S0, i & 2 ? WIDE.PAN_T : -WIDE.PAN_T); _widePts.push([q[0], 0, q[1]]); } }
+      return _widePts;
     }
     function band(v, lo, hi) {   /* 고무줄: 경계 밖 e → M(1 − e^(−0.4 e / M)) (기울기 0.4 로 시작, M = 20 아트px 에 포화). 모션 감소면 딱 멈춤 */
       var M = 20 / S.N;
@@ -544,17 +688,27 @@ var SCENE3D = (function () {
       }   /* 안 보이면 목표 = 지금 자리 (경계 안) → 움직이던 화면은 같은 감속으로 선다 */
       return [clamp(Math.round(tx * S.N) / S.N, b[0], b[1]), clamp(Math.round(ty * S.N) / S.N, b[2], b[3])];
     }
-    function plFollow() {   /* 스틱 · 방향키로 걷는 동안만: 캐릭터가 화면 안쪽(가장자리에서 1.1 m)에 들도록 밀 목표. 이미 들어 있으면 null (화면을 빼앗지 않는다) */
-      if (typeof PL === 'undefined' || !PL || !PL.stick || !(PLACE.vis === 'attic' || isRoomP(PLACE.vis)) || PL.place !== PLACE.vis) return null;
+    function plFollow(arrive) {   /* 스틱 · 방향키로 걷는 동안만 (arrive = 방을 옮긴 뒤 한 번, 아래 PAN.arrive): 캐릭터가 화면 안쪽(가장자리에서 1.1 m)에 들도록 밀 목표. 이미 들어 있으면 null (화면을 빼앗지 않는다).
+                                     11-18: 문 · 계단을 톡해 혼자 걸어가는 동안에도 (PL.camGap m — playerWalkTo) — 계단 발치는 360px 폰의 기본 구도에서 화면 밖이라, 안 따라가면 캐릭터가 화면 밖으로 걸어 나갔다 */
+      var wideAuto = YARD_WIDE && (PLACE.vis === 'yard' || PLACE.vis === 'inside'),   /* 11-22 (검증): 방 안에서 무엇을 톡해 걸어갈 때도 화면이 따라간다 */ auto = !arrive && typeof PL !== 'undefined' && PL && !PL.stick && PL.walking && (PL.camGap > 0 || wideAuto) && !GEST.mode;   /* 11-21 7차: 넓은 바깥에선 혼자 걷는 길 (가게 · 카페 자리 · 조개로 가는 걸음) 도 늘 따라간다 — 화면보다 맵이 훨씬 커서 안 따라가면 캐릭터가 화면 밖으로 걸어 나갔다 */
+      if (typeof PL === 'undefined' || !PL || !(PL.stick || arrive || auto) || !(PLACE.vis === 'attic' || isRoomP(PLACE.vis)) || PL.place !== PLACE.vis) return null;
       var b = panBox();
+      if (YARD_WIDE && PLACE.vis === 'yard' && _wideKeep.on) {   /* 넓은 바깥: 따라가기는 예전 띠 경계로 잰다 (걸으면 화면이 띠 안으로 돌아온다). 돌려 보기가 넓혀 둔 몫 (panBox) 은 화면이 지나온 데까지로 줄인다 — 걷다 서도 튀지 않고, 다시 넓어지지 않는다 */
+        _wideKeep.x = clamp(PAN.x, b[0], b[1]); _wideKeep.y = clamp(PAN.y, b[2], b[3]); _wideKeep.on = false; b = panBox();
+        _wideKeep.on = _wideKeep.x < b[0] || _wideKeep.x > b[1] || _wideKeep.y < b[2] || _wideKeep.y > b[3];   /* 띠 경계 안에 다 들어왔으면 끝 */
+      }
       _fw.copy(PL.pos).setY(0.6).sub(camTargetNow());
-      var ox = _fw.dot(_r), oy = _fw.dot(_u), hx = Math.max(0, S.rw / 2 / S.N - 1.1), hy = Math.max(0, S.rh / 2 / S.N - 1.4);
+      var atFoot = arrive && PL.place === 'attic' && PL.pos.x < STAIR.x1 + 0.7 && PL.pos.z > STAIR.z0 - 0.3;   /* 위층에서 막 내려와 계단 발치에 서 있다 → 계단 몸까지 보이게 (1.5 m) */
+      var ox = _fw.dot(_r), oy = _fw.dot(_u), hx = Math.max(0, S.rw / 2 / S.N - (auto ? PL.camGap : atFoot ? 1.5 : arrive ? 0.5 : 1.1)), hy = Math.max(0, S.rh / 2 / S.N - 1.4);   /* 도착은 몸이 화면 안이면 됨 (0.5 m — 0° 기본 구도는 안 민다) */
+      if ((PLACE.vis === 'yard' || PLACE.vis === 'inside') && !arrive && (!auto || (wideAuto && !(PL.camGap > 0)))) { hx = Math.min(hx, YARD_FOLLOW[0]); hy = Math.min(hy, YARD_FOLLOW[1]); if (YARD_WIDE && !auto) { ox += WSTATE.la[0]; oy += WSTATE.la[1]; } }   /* 11-21 7차: 넓은 바깥은 가는 쪽을 조금 더 보여 준다 (앞보기 — wideStep 이 천천히 옮긴다) */   /* 11-18 마당 (바깥): 캐릭터를 화면 가운데 가까이 두고 따라간다 (가운데에서 0.8 · 1.0 m 벗어나면 민다) — 방은 가장자리에 닿을 때만 미는 예전 그대로. 넓은 바깥의 첫 단계 */
       var tx = clamp(PAN.x, ox - hx, ox + hx), ty = clamp(PAN.y, oy - hy, oy + hy);
-      tx = clamp(Math.round(tx * S.N) / S.N, b[0], b[1]); ty = clamp(Math.round(ty * S.N) / S.N, b[2], b[3]);
-      return (Math.abs(tx - PAN.x) < 0.5 / S.N && Math.abs(ty - PAN.y) < 0.5 / S.N && PAN.mode !== 'follow') ? null : [tx, ty];
+      if (arrive) { tx = Math.round(tx * S.N) / S.N; ty = Math.round(ty * S.N) / S.N; }   /* [7-W] 다섯째 바퀴: 걷는 동안의 목표는 반올림하지 않는다 — 계단처럼 뛰는 목표를 쫓으면 카메라 속도가 프레임마다 출렁였다. 쉴 때는 followStep 이 격자에 맞춘다 */
+      tx = clamp(tx, b[0], b[1]); ty = clamp(ty, b[2], b[3]);
+      var tol = arrive ? 0.5 / S.N : 1 / S.N;   /* 쉬는 화면은 격자에 맞춰 목표에서 반 칸까지 비켜 있다 → 한 칸 안이면 다시 안 움직인다 (섰다 · 움직였다 · 섰다 떨림 없음) */
+      return (Math.abs(tx - PAN.x) < tol && Math.abs(ty - PAN.y) < tol && PAN.mode !== 'follow') ? null : [tx, ty, !arrive];
     }
     function stepPan(dt) {
-      stepLift(dt);
+      stepLift(dt); stepYaw(dt);   /* 11-15 돌려 보기: 각도 · 관성 · 벽 자르기 (밀기 경계가 돌아간 방을 따르게 먼저) */
       if (!panOn()) { PAN.x = PAN.y = PAN.vx = PAN.vy = 0; PAN.mode = ''; PAN.cut = false; return; }
       if (panLocked()) {
         var f = cerFollow();
@@ -564,8 +718,15 @@ var SCENE3D = (function () {
         if ((PAN.x || PAN.y) && PAN.mode !== 'home') panTo(0, 0, 0.3, 'home');
       } else {
         PAN.cut = false;
-        var pf = plFollow();   /* 내 캐릭터가 화면 가장자리로 걸어가면 화면이 따라간다 (넓어진 다락) */
+        var pf = plFollow(false);   /* 내 캐릭터가 화면 가장자리로 걸어가면 화면이 따라간다 (넓어진 다락) */
+        if (pf === null && PAN.arrive) {   /* 11-15 (검증 V1 S3 남은 것): 돌린 각에서 방을 옮기면 들어온 문이 1× 화면 밖일 수 있다 (180° 위층 → 다락) →
+                                              도착한 뒤 한 번, 캐릭터가 화면 안에 들게 따라간다. 이미 들어 있으면 그대로 (0° 는 예전 그대로). 손가락이 닿거나 캐릭터가 서서 화면 안이면 끝 */
+          pf = GEST.mode ? null : plFollow(true);
+          if (pf === null && (GEST.mode || !(PL && (PL.moving || PL.walking || PL.pending)))) PAN.arrive = false;
+        }
         if (pf !== null) { followStep(pf, dt); return; }
+        if (PAN.mode === 'follow' && PAN.spr && !st.reduced) { followSpring([PAN.lfx, PAN.lfy, true], dt); return; }   /* [7-W] 다섯째 바퀴: 손을 떼 서면 마지막 목표로 스프링이 마저 선다 (바로 정수 px 로 끊으면 한 칸 튀었다) */
+        if (PAN.mode === 'follow' && CLK.on) { panToDrawn(); return; }   /* 모션 줄이기로 딱 따라가다 섰다 */
         if (PAN.mode === 'follow') panSettle();   /* 의식이 끝나면 따라가던 자리에서 정수 px 로 */
       }
       if (!PAN.mode) return;
@@ -586,10 +747,34 @@ var SCENE3D = (function () {
        남은 거리에서 그 가속으로 설 수 있는 속도(√(2ad)) 이하 → 출발은 천천히 붙고 넘치지 않고 선다 (2× 에서 60 아트px 를 0.3 s 에 프레임당 19 CSS px 로 휙 가던 것
        → 최고 프레임당 ≈ 5 CSS px). 반 아트px 안·거의 멈춤이면 정수 px 에 쉰다. 장소가 막 바뀐 프레임(cut)·모션 감소 = 바로 그 자리 */
     var FOLLOW = { tau: 0.12, vmax: 3, amax: 8 };
+    var YARD_FOLLOW = [0.8, 1.0];   /* 마당에서 스틱으로 걸을 때 캐릭터가 화면 가운데에서 벗어나도 되는 거리 (m: 가로 · 세로) */
+    /* [7-W] 다섯째 바퀴: 내 캐릭터 따라가기 (f[2]) 는 감쇠 스프링 — 임계 감쇠 (ω = FOLLOW.w) + 목표 속도 앞먹임 (0.12 s 로 고른 값). 일정하게 뛰면 뒤처짐 없이 같은 속도로,
+       뛰기 시작 · 방향 틀기 · 서기는 0.2 ~ 0.4 s 에 걸쳐 부드럽게 (튕김 없음). 걸음마다 바뀌는 잰 속도 (예전 WSTATE.vmax) 를 최고 속도로 쓰지 않는다 — 그 값이 프레임마다 흔들려
+       화면도 같이 흔들렸다. 아주 멀리 떨어진 목표 (방을 옮긴 뒤 등) 만 가속 상한이 받는다. 쉬면 지금 그려진 격자 자리에 선다 (한 칸 튐 없음) */
+    FOLLOW.w = 8; FOLLOW.amax2 = 30;
+    function followSpring(f, dt) {
+      if (PAN.mode !== 'follow' || !PAN.spr) { PAN.fvx = PAN.fvy = 0; PAN.lfx = f[0]; PAN.lfy = f[1]; } PAN.spr = true;
+      var ivx = (f[0] - PAN.lfx) / Math.max(dt, 1e-4), ivy = (f[1] - PAN.lfy) / Math.max(dt, 1e-4); PAN.lfx = f[0]; PAN.lfy = f[1];
+      if (Math.hypot(ivx, ivy) > 14) ivx = ivy = 0;   /* 목표가 순간 옮겨짐 (빠른 이동 · 시험) — 속도로 치지 않는다 */
+      var kf = 1 - Math.exp(-dt / 0.12); PAN.fvx += (ivx - PAN.fvx) * kf; PAN.fvy += (ivy - PAN.fvy) * kf;
+      var n = Math.max(1, Math.ceil(dt / (1 / 60) - 1e-6)), h = dt / n, w = FOLLOW.w;   /* 느린 프레임 (폰이 버벅일 때 dt 0.1 s) 도 같은 곡선 */
+      for (var i = 0; i < n; i++) {
+        var ax = w * w * (f[0] - PAN.x) + 2 * w * (PAN.fvx - PAN.vx), ay = w * w * (f[1] - PAN.y) + 2 * w * (PAN.fvy - PAN.vy), al = Math.hypot(ax, ay);
+        if (al > FOLLOW.amax2) { ax *= FOLLOW.amax2 / al; ay *= FOLLOW.amax2 / al; }
+        PAN.vx += ax * h; PAN.vy += ay * h; PAN.x += PAN.vx * h; PAN.y += PAN.vy * h;
+      }
+      var d = Math.hypot(f[0] - PAN.x, f[1] - PAN.y) * S.N;
+      if (d < 0.5 && Math.hypot(PAN.vx, PAN.vy) * S.N < 6 && Math.hypot(PAN.fvx, PAN.fvy) * S.N < 3) {
+        panToDrawn(); PAN.fvx = PAN.fvy = 0;   /* 지금 그려진 자리 (격자 위) 에 선다 */
+      } else { PAN.mode = 'follow'; dither.still = 0; }
+    }
+    function panToDrawn() { PAN.x += _camSD[0]; PAN.y += _camSD[1]; _camSD[0] = _camSD[1] = 0; PAN.vx = PAN.vy = 0; PAN.mode = ''; }   /* 밀기를 지금 그려진 카메라 칸으로 (camLock 이 고른 칸) — 따라가기를 끝낼 때 한 칸 튀지 않게 */
     function followStep(f, dt) {
+      if (f[2] && st.reduced && !PAN.cut) { PAN.x = f[0]; PAN.y = f[1]; PAN.vx = PAN.vy = 0; PAN.mode = 'follow'; PAN.spr = false; return; }   /* [7-W] 다섯째 바퀴: 모션 줄이기 = 스프링 없이 딱 붙어 따라가되 프레임마다 (예전엔 반 칸씩 모였다 두 프레임에 한 번 움직였다) — 서면 그려진 칸에 선다 (stepPan) */
       if (PAN.cut || st.reduced) { PAN.x = f[0]; PAN.y = f[1]; PAN.vx = PAN.vy = 0; PAN.cut = false; PAN.mode = ''; return; }
+      if (f[2]) { followSpring(f, dt); return; } PAN.spr = false;
       var dx = f[0] - PAN.x, dy = f[1] - PAN.y, d = Math.hypot(dx, dy);
-      var sp = d > 1e-6 ? Math.min(FOLLOW.vmax, d / FOLLOW.tau, Math.sqrt(2 * FOLLOW.amax * d)) : 0;
+      var vm = YARD_WIDE && PLACE.vis === 'yard' ? WSTATE.vmax : FOLLOW.vmax, sp = d > 1e-6 ? Math.min(vm, d / FOLLOW.tau, Math.sqrt(2 * FOLLOW.amax * d)) : 0;   /* 11-21 7차: 넓은 바깥은 걷는 속도를 따라 (wideStep) */
       var ax = (d > 1e-6 ? dx / d * sp : 0) - PAN.vx, ay = (d > 1e-6 ? dy / d * sp : 0) - PAN.vy, al = Math.hypot(ax, ay), am = FOLLOW.amax * Math.max(dt, 1e-4);
       if (al > am) { ax *= am / al; ay *= am / al; }
       PAN.vx += ax; PAN.vy += ay; PAN.x += PAN.vx * dt; PAN.y += PAN.vy * dt;
@@ -598,11 +783,52 @@ var SCENE3D = (function () {
       else { PAN.mode = 'follow'; dither.still = 0; }
     }
     function panReset() { PAN.x = PAN.y = PAN.vx = PAN.vy = 0; PAN.mode = ''; }
+    /* ── 11-15 돌려 보기: 각도 한 프레임 (위 YAWX) ── */
+    var TAU = Math.PI * 2, YAW_TAU = 0.12, YAW_EASE = 0.09, YAW_VMAX = 3.5, _tr = new T.Vector3();
+    function yawHeld() { return INTRO.on || PLACE.vis === 'exterior' || PLACE.vis === 'inside' || !!PLAY || st.look.focus === 'oct' || !!(SAL && SAL.active) || !!(CER && CER.active && !isRoomP(PLACE.vis)) || !!(typeof FM !== 'undefined' && FM && FM.on); }   /* 11-15 합침 (검증 V1 S4): 가구 모드 중엔 기본 구도 그대로 — 모드 안에서 돌리면 방향키 한 칸이 화면과 어긋났다 */   /* 기본 구도가 필요한 연출 (산책 의식 · 입장 · 바깥 · 미용실 무대) — 끝나면 돌려 둔 각으로 */
+    function yawGest() { return GEST.mode === 'twist' || GEST.mode === 'yaw' || (GEST.mode === 'pinch' && !!GEST.multi && GEST.multi.yOn); }
+    function yawPivot(b) {   /* 방 가운데(PLACE_BOX 의 xz 가운데)를 축으로 타깃도 같이 돈다 — 탁자 위 사진을 돌리듯 구도가 따라 돈다 (0° 면 그대로 · 바깥은 돌리지 않는다) */
+      var a = yawDelta(), pb = PLACE_BOX[PLACE.vis]; if (!a || !pb || PLACE.vis === 'exterior') return b;
+      var px = (pb[0][0] + pb[0][1]) / 2, pz = (pb[2][0] + pb[2][1]) / 2, dx = b.x - px, dz = b.z - pz, c = Math.cos(a), sn = Math.sin(a);
+      return _tr.set(px + dx * c + dz * sn, b.y, pz - dx * sn + dz * c);
+    }
+    function yawMoved() {   /* 그려지는 각이 바뀌었다: 디더 쉼 · 쉬는 문어는 카메라 쪽을 본다 (내 캐릭터는 돌리지 않는다 — 11-18 주인: 보던 쪽 그대로) */
+      dither.still = 0;
+      if (PAN.mode === 'follow' && PAN.spr && !(typeof PL !== 'undefined' && PL && PL.stick)) { PAN.mode = ''; PAN.vx = PAN.vy = 0; }   /* [7-W] 다섯째 바퀴: 손을 뗀 뒤 마저 서던 스프링은 돌리면 그 자리에서 끝 — 돌리기 전 화면 축의 목표를 쫓아 화면이 흘러갔다 (L8) */
+      if (oct && !oct.walking && !(CER && CER.active) && !(SAL && SAL.active) && st.octState !== 'walk' && st.octState !== 'carry' && st.octState !== 'away') oct.wantYaw = camYaw();
+    }
+    function yawLive() {   /* 손가락 · 마우스가 yawDrag 를 바꿨다 → 바로 그 각으로 (1:1) */
+      if (!YAWX.held) { YAWX.show = yawDrag; YAWX.ease = false; }
+      yawMoved(); placeCamera(); applyCuts(); if (panOn()) clampPan();
+    }
+    function stepYaw(dt) {
+      var held = yawHeld();
+      if (held) { YAWX.v = 0; YAWX.kt = null; }
+      if (YAWX.v) {   /* 관성: 0.12 s 로 줄어든다 (0.4 s 면 거의 0) · 다시 잡으면 멈춘다 */
+        if (yawGest()) YAWX.v = 0;
+        else { yawDrag += YAWX.v * dt; YAWX.v *= Math.exp(-dt / YAW_TAU); if (Math.abs(YAWX.v) < 0.05) YAWX.v = 0; }
+      }
+      if (YAWX.kt != null) {   /* Q/E · setYaw(각, false): 0.25 s 쯤 이징 */
+        var dk = YAWX.kt - yawDrag;
+        if (st.reduced || Math.abs(dk) < 1e-3 || yawGest()) { if (!yawGest()) yawDrag = YAWX.kt; YAWX.kt = null; } else yawDrag += dk * Math.min(1, dt / 0.07);
+      }
+      if (held !== YAWX.held) { YAWX.held = held; YAWX.ease = !st.reduced; }
+      var want = held ? Math.round(YAWX.show / TAU) * TAU : yawDrag, d = want - YAWX.show, prev = YAWX.show;
+      if (YAWX.ease && !st.reduced && Math.abs(d) > 1e-3) YAWX.show += d * Math.min(1, dt / YAW_EASE);
+      else { YAWX.show = want; YAWX.ease = false; }
+      if (YAWX.show !== prev) yawMoved();
+      applyCuts();
+    }
+    function setYaw(deg, instant) {   /* 앱 · 가구 모드 (갈래 B: 가구 모드에 들어가면 0) · 도구: 0 = 기본 구도. instant 면 바로, 아니면 0.25 s 이징. 저장하지 않는다 */
+      var y = (+deg || 0) * DEG; YAWX.v = 0;
+      if (instant || st.reduced) { YAWX.kt = null; yawDrag = y; yawLive(); } else YAWX.kt = y;
+      return +(y / DEG).toFixed(2);
+    }
     /* touch-action (§5.3): 평소 1× = pan-y (세로로 쓸면 페이지가 내려간다) · 확대했거나 물건을 든 동안·놀이 = none. 손짓 도중엔 브라우저가 안 바꾸므로
        두 손가락·들기·밀기 중에는 touchmove 를 막는다 (아래 '입력'). 인라인이라 CSS 의 #scene3d { touch-action: none } 을 이긴다 */
     var touchNow = '';
     function touchMode() {
-      var want = PLAY || st.zoomF > 1.001 || GEST.hold ? 'none' : 'pan-y';
+      var want = PLAY || st.zoomF > 1.001 || GEST.hold || (FM && FM.on) ? 'none' : 'pan-y';   /* 11-15: 가구 모드 = 한 손가락이 가구 · 바닥 몫 (페이지 스크롤 없음) */
       if (want === touchNow) return;
       touchNow = want; container.style.touchAction = want; canvas.style.touchAction = want;
     }
@@ -631,7 +857,7 @@ var SCENE3D = (function () {
       applyZoom();
     }
     function applyZoom() {   /* 줌만 바뀔 때 (핀치·휠): 프러스텀·N·pw·카메라·입자 재스냅만 — renderer.setSize 는 캔버스 버퍼를 다시 잡아 한 프레임 비므로 resize() 에서만 */
-      S.N = Math.round(PX_PER_M * 3 / S.p * st.zoomF);   /* 픽셀을 줄이면 같은 구도에 디테일만 는다 · 매 멈춤이 정수 아트px/m */
+      S.N = Math.round(PX_PER_M * 3 / S.p * st.zoomF * wideZ());   /* 11-21 7차: 넓은 바깥은 기본이 2/3 배 (wideZ) */   /* 픽셀을 줄이면 같은 구도에 디테일만 는다 · 매 멈춤이 정수 아트px/m */
       camera.left = -S.rw / 2 / S.N; camera.right = S.rw / 2 / S.N; camera.top = S.rh / 2 / S.N; camera.bottom = -S.rh / 2 / S.N; camera.updateProjectionMatrix();
       S.pw = (camera.right - camera.left) / S.rw;   /* pixelWorldSize = 직교 프러스텀 폭 / 렌더 타깃 폭 (= 1/N: p=3 줌 1 → 1/18 m, p=2 → 1/27, 줌 ×2 → 1/36) */
       placeCamera();
@@ -651,7 +877,8 @@ var SCENE3D = (function () {
     }
     /* 핀치 (§3.5): 손가락 거리 비율을 연속으로 따르되 매번 정수 아트px/m (N) 로 → 한 번에 한 N (p=2 에서 27→54 사이 ≈ 2~4 %) 씩, 덜컥 12 % 건너뛰지 않는다.
        손을 떼면 가장 가까운 멈춤으로 0.15 s (ease-out, 매 프레임 정수 N) — 모션 감소면 바로. 끝나면 밀기도 경계 안 정수 px 로 (panSettle) */
-    function baseN() { return PX_PER_M * 3 / S.p; }
+    function baseN() { return PX_PER_M * 3 / S.p * wideZ(); }
+    function wideZ() { return YARD_WIDE && PLACE && PLACE.vis === 'yard' ? 2 / 3 : 1; }   /* 11-21 7차 (리드): 넓은 바깥은 한 칸 멀리서 — p = 2 에서 m 당 18 아트px (가로 10 m). 360 폭 폰이 6.7 m 만 보여 길에 서면 가게가 화면 밖이었다. 키우기 멈춤은 그대로 일곱 (2/3 … 4/3 배). 방은 예전 그대로 */
     function zoomN(f, cx, cy) { var b = baseN(); return setZoom(clamp(Math.round(b * clamp(f, 1, 2)), Math.round(b), Math.round(b * 2)) / b, cx, cy); }
     var ZT = null;
     function zoomEase(f, cx, cy) {   /* 멈춤 f 로 0.15 s ease-out (매 프레임 정수 N) — 모션 감소면 바로 */
@@ -684,7 +911,7 @@ var SCENE3D = (function () {
     var candleLight = new T.PointLight(C('#ffb066').getHex(), 0, 2, 2); atticG.add(candleLight);   /* 양초 = 두 번째 작은 따뜻한 점광 (0.35, d 2) */
     /* 빛 차폐 (룩 패스 4): 보이지 않는 지붕·앞벽·오른벽. 그림자만 던지고(colorWrite 끔) 노멀 패스에서는 숨긴다 → 태양·달이 창으로만 들어와 바닥에 창 모양 빛 조각 */
     var SHADE = [[-3.1, RF + 0.6], [-0.6, 3.25], [-3.1, RF + 0.6]];   /* 그림자 카메라 피팅용 상자 (x · y · z) */
-    var SHADE_EXT = [[-3.7, 3.7], [-0.6, 3.6], [-3.7, 3.7]];   /* 바깥: 받침 + 집(용마루 2.94 · 굴뚝 3.3) + 나무 — 장소마다 그림자 카메라를 다시 맞춘다 */
+    var SHADE_EXT = [[-3.7, 3.7], [-0.6, 3.6], [-3.7, 3.7]], SHADE_YARD = [[-YARD_L - 0.3, YARD_L + 0.3], [-0.6, 3.6], [-YARD_L - 0.3, YARD_L + 0.3]];   /* 11-15 마당: 바깥보다 넓은 받침 (반폭 YARD_L) */   /* 바깥: 받침 + 집(용마루 2.94 · 굴뚝 3.3) + 나무 — 장소마다 그림자 카메라를 다시 맞춘다 */
     var SHADE_LOFT = [[-LOFT_R - 0.6, LOFT_R + 0.6], [-0.6, LOFT_PEAK + 0.4], [-LOFT_R - 0.6, LOFT_R + 0.6]];
     var SHADE_PLAY = [[-PLAY_R - 0.6, PLAY_R + 0.6], [-0.6, PLAY_H + 0.1], [-PLAY_R - 0.6, PLAY_R + 0.6]];   /* 놀이방: 받침 + 벽 + 차폐 */
     var shade = new T.Mesh(keep(mergeParts([{ g: box(R_SPAN + 1.2, 0.05, R_SPAN + 1.2), m: M(R_MID, 3.08, R_MID), c: '#000000' }, { g: box(R_SPAN + 1.2, 3.7, 0.05), m: M(R_MID, 1.35, RF + 0.55), c: '#000000' }, { g: box(0.05, 3.7, R_SPAN + 1.2), m: M(RF + 0.55, 1.35, R_MID), c: '#000000' },
@@ -693,16 +920,77 @@ var SCENE3D = (function () {
     shade.castShadow = true; shade.receiveShadow = false; shade.frustumCulled = false; shade.renderOrder = -10; atticG.add(shade);
     var _sm = new T.Matrix4(), _sv = new T.Vector3();
     function fitShadow() { /* 방 상자 8꼭짓점을 빛 공간으로 → 직교 그림자 카메라를 딱 맞춘다 (p=3 에서 아트px 당 ≥ 10 텍셀) */
+      if (YARD_WIDE && PLACE.vis === 'yard') { fitShadowView(); return; }
       _sm.lookAt(sun.position, sun.target.position, _ay).transpose();
       var mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
       for (var i = 0; i < 8; i++) {
-        var SB = PLACE.vis === 'exterior' ? SHADE_EXT : PLACE.vis === 'play' ? SHADE_PLAY : PLACE.vis === 'loft' ? SHADE_LOFT : SHADE;
+        var SB = PLACE.vis === 'inside' ? IN.shade : PLACE.vis === 'exterior' ? SHADE_EXT : PLACE.vis === 'yard' ? SHADE_YARD : PLACE.vis === 'play' ? SHADE_PLAY : PLACE.vis === 'loft' ? SHADE_LOFT : SHADE;
         _sv.set(SB[0][i & 1], SB[1][(i >> 1) & 1], SB[2][(i >> 2) & 1]).sub(sun.position).applyMatrix4(_sm);
         var v = [_sv.x, _sv.y, _sv.z]; for (var k = 0; k < 3; k++) { if (v[k] < mn[k]) mn[k] = v[k]; if (v[k] > mx[k]) mx[k] = v[k]; }
       }
       var c = sun.shadow.camera; c.left = mn[0] - 0.1; c.right = mx[0] + 0.1; c.bottom = mn[1] - 0.1; c.top = mx[1] + 0.1; c.near = -mx[2] - 0.1; c.far = -mn[2] + 0.1; c.updateProjectionMatrix();
     }
-    var light = { from: null, to: LIGHTS[phaseOf(st.hour)], t: 1, dur: 60, sunI: 0 };
+    /* 11-18 넓은 바깥: 그림자 카메라가 화면에 보이는 땅 (가로 화면 폭 + 세로 화면 높이 / sin 틸트, 둘레 1.2 m) 을 따라간다 — 땅이 장소 상자 하나에 안 들어간다.
+       빛 공간에서 폭 · 높이를 0.5 m 눈금으로 올림 하고 왼쪽 · 아래를 텍셀 눈금에 맞춘다 → 화면이 밀려도 그림자 가장자리가 어른거리지 않는다. 해 쪽 (near) 은 넉넉히 — 화면 밖의 나무가 드리운 그림자도 들어온다 */
+    var _svd = new T.Vector3(), _svg = new T.Vector3(), _svc = new T.Vector3();
+    function fitShadowView() {
+      if (!S || !S.N) return;
+      camera.getWorldDirection(_svd); if (!(_svd.y < -1e-3)) return;
+      _svc.copy(camera.position).addScaledVector(_svd, camera.position.y / -_svd.y);   /* 화면 가운데가 보는 땅 */
+      _svg.set(_u.x, 0, _u.z).normalize();   /* 땅 위에서 화면 위쪽 */
+      var hw = S.rw / 2 / S.N + 1.2, hd = S.rh / 2 / S.N / Math.sin(TILT) + 1.2;
+      _sm.lookAt(sun.position, sun.target.position, _ay).transpose();
+      var mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+      for (var i = 0; i < 8; i++) {
+        _sv.copy(_svc).addScaledVector(_r, i & 1 ? hw : -hw).addScaledVector(_svg, i & 2 ? hd : -hd).setY(i & 4 ? 3.6 : -0.6).sub(sun.position).applyMatrix4(_sm);
+        var v = [_sv.x, _sv.y, _sv.z]; for (var k = 0; k < 3; k++) { if (v[k] < mn[k]) mn[k] = v[k]; if (v[k] > mx[k]) mx[k] = v[k]; }
+      }
+      var c = sun.shadow.camera, ms = sun.shadow.mapSize.x || 2048, w = Math.ceil((mx[0] - mn[0] + 0.2) * 2) / 2, h = Math.ceil((mx[1] - mn[1] + 0.2) * 2) / 2, tx = w / ms, ty = h / ms;
+      var l = Math.floor((mn[0] - 0.1) / tx) * tx, bt = Math.floor((mn[1] - 0.1) / ty) * ty, nr = -mx[2] - 12, fr = -mn[2] + 0.5;
+      if (c.left === l && c.right === l + w && c.bottom === bt && c.top === bt + h && c.near === nr && c.far === fr) return;
+      c.left = l; c.right = l + w; c.bottom = bt; c.top = bt + h; c.near = nr; c.far = fr; c.updateProjectionMatrix();
+    }
+    /* 넓은 바깥의 숲은 인스턴스 190 그루 — 다 그리면 패스마다 삼각형 ≈ 10만 (화면엔 4분의 1 만 보인다). 화면이 0.75 m 넘게 움직이거나 각 · 크기 · 해가 바뀔 때,
+       보이는 나무 (밑동이 화면 둘레 안 — 카메라 쪽은 키만큼 더) 와 그림자가 화면에 드는 나무만 인스턴스 앞쪽에 다시 채운다. 마당 안 나무 (base 개) 는 늘 그린다 */
+    var WIDE_IM = null, _wideKey = '', _wideAt = new T.Vector3(1e9, 0, 0);
+    /* 넓은 바깥을 돌려 볼 때: 방은 방 가운데를 축으로 돌지만 (yawPivot), 길을 따라 멀리 나와 있으면 그 축이 화면 밖이라 캐릭터가 화면 밖으로 휙 돌아 나간다 →
+       각이 바뀐 프레임마다, 돌기 전에 내 캐릭터가 서 있던 화면 자리에 그대로 서 있게 밀기 값을 맞춘다 (= 캐릭터를 축으로 돈다). 자리는 각이 안 바뀐 마지막 프레임의 것 (돌리는 동안 반올림이 쌓이지 않게) */
+    var _wideHold = new T.Vector3(), _wideYawPrev = null, _wideSeen = -9;
+    function wideCentre(out) { camera.getWorldDirection(_svd); if (!(_svd.y < -1e-3)) return false; out.copy(camera.position).addScaledVector(_svd, camera.position.y / -_svd.y); return true; }
+    function wideHoldCentre() {   /* placeCamera() 바로 뒤 */
+      var y = yawDelta(), fresh = _wideSeen === frameNo - 1; _wideSeen = frameNo;
+      var pin = PL.place === 'yard' && !!wideCentre(_svc);
+      if (pin) _svg.set(_u.x, 0, _u.z).normalize();
+      if (pin && fresh && _wideYawPrev !== null && y !== _wideYawPrev && !PAN.cut && !INTRO.on) {
+        var dx = PL.pos.x - _wideHold.x * _r.x - _wideHold.z * _svg.x - _svc.x, dz = PL.pos.z - _wideHold.x * _r.z - _wideHold.z * _svg.z - _svc.z;   /* 가운데가 가야 할 땅 − 지금 가운데 */
+        PAN.x += dx * _r.x + dz * _r.z; PAN.y += (dx * _svg.x + dz * _svg.z) * Math.sin(TILT);
+        _wideKeep.on = true; _wideKeep.x = PAN.x; _wideKeep.y = PAN.y;   /* 이 값은 밀기 경계가 품는다 (panBox) */
+        placeCamera();
+      } else {
+        if (pin) _wideHold.set((PL.pos.x - _svc.x) * _r.x + (PL.pos.z - _svc.z) * _r.z, 0, (PL.pos.x - _svc.x) * _svg.x + (PL.pos.z - _svc.z) * _svg.z);   /* 캐릭터의 화면 자리 (가운데에서 오른쪽 · 위쪽으로 몇 m — 땅 위) */
+        if (!pin || !fresh || y !== _wideYawPrev) _wideKeep.on = false;   /* 마당을 떠났다 왔거나 맞추지 않고 각만 바뀌었으면 옛 값은 버린다 */
+      }
+      _wideYawPrev = y;
+    }
+    function wideCull() {
+      if (!WIDE_IM || !S || !S.N) return;
+      var hw = S.rw / 2 / S.N, hd = S.rh / 2 / S.N / Math.sin(TILT);
+      var lx = sun.position.x - sun.target.position.x, ly = sun.position.y - sun.target.position.y, lz = sun.position.z - sun.target.position.z, lh = Math.hypot(lx, lz) || 1e-6;
+      var key = Math.round(yawDelta() * 200) + '|' + S.N + '|' + S.rw + '|' + S.rh + '|' + Math.round(lx * 8) + ',' + Math.round(ly * 8) + ',' + Math.round(lz * 8);
+      if (key === _wideKey && Math.abs(_svc.x - _wideAt.x) + Math.abs(_svc.z - _wideAt.z) < 0.75) return;
+      _wideKey = key; _wideAt.copy(_svc);
+      var sk = Math.min(9, 2.7 * lh / Math.max(0.05, ly)), sx = -lx / lh * sk, sz = -lz / lh * sk;   /* 배율 1 인 나무의 그림자 끝 (땅 위 벡터) */
+      WIDE_IM.forEach(function (w) {
+        var n = w.base;
+        for (var i = 0; i < w.list.length; i++) {
+          var t = w.list[i], dx = t[0] - _svc.x, dz = t[1] - _svc.z, a = dx * _r.x + dz * _r.z, c = dx * _svg.x + dz * _svg.z, vis = Math.abs(a) < hw + 2.4 && c > -(hd + 6) && c < hd + 2.4;
+          for (var j = 1; j <= 2 && !vis; j++) { var ex = dx + sx * t[2] * j / 2, ez = dz + sz * t[2] * j / 2; vis = Math.abs(ex * _r.x + ez * _r.z) < hw + 2 && Math.abs(ex * _svg.x + ez * _svg.z) < hd + 2; }
+          if (vis) w.im.setMatrixAt(n++, w.mats[i]);
+        }
+        w.im.count = n; w.im.instanceMatrix.needsUpdate = true;
+      });
+    }
+    var light = { from: null, to: lightAt(st.hour), key: lightKey(st.hour), t: 1, dur: 60, sunI: 0 };
     /* 창 빛 조각 일렁임 (룩 패스 7): 비·가는 비일 때 키 광 세기 ×0.8 / ×1.0 을 ≈0.6 s(시드 지터 0.42~0.78 s)마다 교대 — 유리를 타고 흐르는 물의 그림자. 맑음·눈·모션 감소 = 1.0 고정 */
     var shim = { k: 1, t: 0, dur: 0.6, cyc: 0 };
     function stepShimmer(dt) {
@@ -721,24 +1009,25 @@ var SCENE3D = (function () {
       function num(key) { return a[key] + (b[key] - a[key]) * e; }
       sun.color.copy(lerpC(a.sun, b.sun, e)); light.sunI = num('sunI') * keyK(); sun.intensity = light.sunI * shim.k;   /* × 창 빛 조각 2단 일렁임 (룩 패스 7, 비 올 때만) */
       var elev = num('elev') * DEG, az = num('az') * DEG;
-      if (PLACE.vis === 'exterior') sun.position.set(10 * Math.cos(elev) * Math.cos(az), 10 * Math.sin(elev) + 0.5, -10 * Math.cos(elev) * Math.sin(az));   /* 바깥: 차폐 없음, 해는 화면 오른쪽 옆(+x −z)에서 — 현관·계단 면(+x)이 밝고 그림자는 왼쪽으로 */
+      if (outdoorP(PLACE.vis)) sun.position.set(10 * Math.cos(elev) * Math.cos(az), 10 * Math.sin(elev) + 0.5, -10 * Math.cos(elev) * Math.sin(az));   /* 바깥: 차폐 없음, 해는 화면 오른쪽 옆(+x −z)에서 — 현관·계단 면(+x)이 밝고 그림자는 왼쪽으로 */
       else sun.position.set(-10 * Math.cos(elev) * Math.cos(az), 10 * Math.sin(elev) + 0.5, 10 * Math.cos(elev) * Math.sin(az));
       fitShadow();
-      base.sky.copy(lerpC(a.sky, b.sky, e)); base.gnd.copy(lerpC(a.gnd, b.gnd, e)); base.hemiI = num('hemiI') * fillK() * (PLACE.vis === 'exterior' ? 1 + 1.2 * clamp((num('em') - 0.25) / 0.75, 0, 1) : 1);   /* 바깥은 열린 하늘: 밤 헤미 ×2.2 (다락은 그대로) */
+      base.sky.copy(lerpC(a.sky, b.sky, e)); base.gnd.copy(lerpC(a.gnd, b.gnd, e)); base.hemiI = num('hemiI') * fillK() * (outdoorP(PLACE.vis) ? 1 + 1.2 * clamp((num('em') - 0.25) / 0.75, 0, 1) : 1);   /* 바깥은 열린 하늘: 밤 헤미 ×2.2 (다락은 그대로) */
       fill.color.copy(lerpC(a.fill, b.fill, e)); base.fillI = num('fillI') * fillK();
       glass.material.color.copy(lerpC(a.out, b.out, e));
       winEm.material.color.copy(lerpC(a.winEm, b.winEm, e));
       scene.background.copy(lerpC(a.bg, b.bg, e));
       light.lamp = num('lamp'); light.lampD = num('lampD'); light.glow = num('glow'); light.pool = num('pool'); light.candle = num('candle'); light.em = num('em');
       light.out = lerpC(a.out, b.out, e).clone(); light.winEm = lerpC(a.winEm, b.winEm, e).clone();
-      lampDirty = true; if (extReady) extApplyLight(); if (PROOM) playApplyLight(); if (LROOM) loftApplyLight(); if (ATTIC_DOOR) doorsApplyLight();   /* 헤미·필 최종값(applyFloor)은 applyLamp 가 — 다음 렌더 전에 frame 이 lampDirty 를 처리한다 (전환 중 프레임당 한 번) */
+      lampDirty = true; if (extReady) extApplyLight(); if (PROOM) playApplyLight(); if (LROOM) loftApplyLight(); if (ATTIC_DOOR) doorsApplyLight(); if (typeof IN !== 'undefined' && IN && IN.g) inApplyLight();
+      cueApply(ATTIC_CUE); if (LROOM) cueApply(LROOM.cue);   /* 11-15 계단 표시: 노을·밤에만 */   /* 헤미·필 최종값(applyFloor)은 applyLamp 가 — 다음 렌더 전에 frame 이 lampDirty 를 처리한다 (전환 중 프레임당 한 번) */
       if (SAL) salNight();   /* 미용실 유리·병·물: 밤이면 한 칸 어둡게 (빛을 안 타는 basicV 라 밤에 전구처럼 뜨지 않게) */
     }
     /* 첫 불 — 밤 바닥·문어 자체광 (FIRST_LIGHT): applyLight 가 구한 시각대 헤미·필(base) 위에 얹는다. applyLamp 가 부른다 */
     var base = { sky: new T.Color(), gnd: new T.Color(), hemiI: 0, fillI: 0 }, FL = FIRST_LIGHT;   /* FL 은 SCENE3D.FIRST_LIGHT 그대로 (LIGHTS 처럼 런타임에 바꾸면 다음 applyLight/applyLamp 에 반영) */
     var _flc = {};
     function flC(hex) { return _flc[hex] || (_flc[hex] = C(hex)); }   /* FIRST_LIGHT 색 캐시 (전환 중 매 프레임 new Color 없이) */
-    function nightK() { return PLACE.vis === 'exterior' ? 0 : clamp(((light.em == null ? 1 : light.em) - 0.8) / 0.2, 0, 1); }   /* 다락의 밤 정도: 노을(em 0.8) 이하 0 → 밤(1) 1. 낮·새벽·노을은 0 = 첫 불 전부 꺼짐 (낮 모습 그대로) */
+    function nightK() { return outdoorP(PLACE.vis) ? 0 : clamp(((light.em == null ? 1 : light.em) - 0.8) / 0.2, 0, 1); }   /* 다락의 밤 정도: 노을(em 0.8) 이하 0 → 밤(1) 1. 낮·새벽·노을은 0 = 첫 불 전부 꺼짐 (낮 모습 그대로) */
     function applyFloor() {
       var nk = nightK(), fade = clamp(1 - st.lantern / FL.upTo, 0, 1), wh = nk * (FL.keep + (1 - FL.keep) * fade), w = nk * fade;
       hemi.color.copy(base.sky).lerp(flC(FL.sky), wh); hemi.groundColor.copy(base.gnd).lerp(flC(FL.gnd), wh);
@@ -748,8 +1037,9 @@ var SCENE3D = (function () {
       toonP.emissive.copy(toon.emissive); toonEye.emissive.copy(toon.emissive);   /* 내 캐릭터(눈 평면 포함)도 밤엔 같은 첫 불 자체광 — 훅이 emissive × diffuseColor 라 흰자·글린트만 한 칸 뜨고 동공은 어둡다 */
     }
     function setTime(h, instant) {
-      st.hour = h; var ph = LIGHTS[phaseOf(h)];
-      if (ph === light.to && !instant) return;
+      st.hour = h; var lk = lightKey(h);   /* 11-15: 시각대 대신 열쇠로 (19-21시는 15분 칸마다 새 열쇠 → 칸마다 예전처럼 60 s 에 걸쳐 넘어간다) */
+      if (lk === light.key && !instant) return;
+      var ph = lk === light.key ? light.to : lightAt(h); light.key = lk;
       if (instant || !ready) { light.from = null; light.to = ph; light.t = 1; }
       else if (ph !== light.to) { light.from = snapshotLight(); light.to = ph; light.t = 0; }
       applyLight(); updateStars();
@@ -797,6 +1087,156 @@ var SCENE3D = (function () {
     function emTwin(parent, geo) { var m = new T.Mesh(geo, keep(new T.MeshBasicMaterial({ color: 0xffffff, depthWrite: false }))); m.layers.set(1); m.castShadow = false; parent.add(m); return m; }
     function snapXZ(o) { o.position.x = snapPos(o.position.x); o.position.z = snapPos(o.position.z); return o; }   /* 소품: 바닥 격자(x·z)만 스냅, y 는 올려놓은 면에 맞춘다 */
 
+    /* 11-15 계단 눈에 띄게 (주인 11-14 "계단이 어두울 때는 잘 안 보이는데 눈에 띄게 만들 방법 강구해줘"): 저녁·밤에만 ① 디딤판 앞 모서리의 옅은 띠 (빛을 받는 종이색 + 아주 흐린 발광 쌍둥이)
+       ② 계단 자기 기둥 위 작은 초롱 (발광 유리 + 글로우 원판 — 진짜 점광은 늘리지 않는다: 방마다 점광 수가 같아야 방을 옮길 때 새 셰이더가 안 생긴다). 재질은 전부 있는 것과 같은 종류라 새 프로그램 0.
+       낮·새벽엔 둘 다 숨긴다 (낮 모습 그대로). 벽이 아니라 계단 기둥에 달려 있어 어느 쪽으로 돌려 봐도 계단과 같이 보인다. edges = [x, y, z, w, h, d] 띠 상자들 · lanAt = 초롱 바닥 자리 */
+    function stairCue(parent, edges, lanAt, lowMax) {   /* 11-15 합침 (검증 V1 S2): lowMax 가 있으면 그 높이 아래 띠는 따로 (edgeLow) — 돌려 볼 때 계단이 아래 두 칸만 남게 잘려도 그 두 칸의 띠는 보인다 */
+      var lowE = lowMax == null ? [] : edges.filter(function (e) { return e[1] <= lowMax; }), highE = lowMax == null ? edges : edges.filter(function (e) { return e[1] > lowMax; });
+      function edgeMesh(list) { if (!list.length) return null; var g = keep(mergeParts(list.map(function (e) { return { g: box(e[3], e[4], e[5]), m: M(e[0], e[1], e[2]), c: PAL.paper[1] }; }))); var m = new T.Mesh(g, lambert); m.castShadow = false; m.receiveShadow = true; parent.add(m); m.userData.em = emTwin(m, g); return m; }
+      var edge = edgeMesh(highE), edgeLow = edgeMesh(lowE), edgeEm = edge.userData.em;
+      var lan = new T.Group(); lan.position.set(lanAt[0], lanAt[1], lanAt[2]); parent.add(lan);
+      var fp = [{ g: box(0.15, 0.025, 0.15), m: M(0, 0.012, 0), c: PAL.wood[1] }, { g: box(0.17, 0.03, 0.17), m: M(0, 0.235, 0), c: PAL.wood[1] }, { g: box(0.05, 0.06, 0.05), m: M(0, 0.28, 0), c: PAL.wood[1] }];
+      [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(function (q) { fp.push({ g: box(0.018, 0.21, 0.018), m: M(q[0] * 0.065, 0.125, q[1] * 0.065), c: PAL.wood[1] }); });
+      var frame = new T.Mesh(keep(mergeParts(fp)), lambert); frame.castShadow = false; lan.add(frame);
+      var gGeo = keep(mergeParts([{ g: box(0.115, 0.2, 0.115), m: M(0, 0.125, 0), c: PAL.amber[4] }, { g: box(0.04, 0.08, 0.04), m: M(0, 0.12, 0), c: PAL.amber[5] }]));
+      var glass = new T.Mesh(gGeo, basicV); glass.castShadow = false; lan.add(glass);
+      var glassEm = emTwin(glass, gGeo);
+      var glow = new T.Mesh(keep(new T.PlaneGeometry(1.0, 1.0)), keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[3]), transparent: true, opacity: 0, depthWrite: false })));
+      glow.position.y = 0.125; glow.renderOrder = 5; lan.add(glow);
+      var q = { edge: edge, edgeEm: edgeEm, edgeLow: edgeLow, lan: lan, glassEm: glassEm, glow: glow, k: -1 };
+      cueApply(q); return q;
+    }
+    var CUE = { edge: 0.5, glass: 1.0, glow: 0.42 };   /* 밤(k 1)에 띠 발광 · 초롱 유리 발광 · 글로우 불투명도 */
+    function stairCueK() { var em = light.em == null ? 1 : light.em; return clamp((em - 0.6) / 0.4, 0, 1); }   /* 시각대 em: 낮 0.25 · 새벽 0.6 → 0 (숨김) · 노을 0.8 → 0.5 · 밤 1 → 1 */
+    function cueApply(q) {
+      if (!q) return;
+      var k = stairCueK(), on = k > 0; q.k = k;
+      q.edge.visible = on; q.lan.visible = on;
+      q.edgeEm.material.color.copy(C(EM.flame)).multiplyScalar(CUE.edge * k);
+      if (q.edgeLow) { q.edgeLow.visible = on; q.edgeLow.userData.em.material.color.copy(C(EM.flame)).multiplyScalar(CUE.edge * k); }
+      q.glassEm.material.color.copy(C(EM.lamp)).multiplyScalar(CUE.glass * k);
+      q.glow.material.opacity = CUE.glow * k;
+    }
+
+    /* ── 11-15 돌려 보기: 벽 자르기 (주인: "어느 쪽에서 봐도 카메라와 방 사이의 벽(붙은 창 · 문 · 선반 포함)은 무릎 높이로 잘라 보이게 — 다락의 열린 앞처럼 · 모델 바깥면 · 빈 바닥이 안 보이게") ──
+       방마다 벽 넷 (왼 −x · 뒤 −z · 오른 +x · 앞 +z). 바깥쪽 법선이 카메라 쪽(수평 시선과 내적 > 0, 히스테리시스 ±0.06 ≈ 3.5°)이면 '자른다' = full 을 숨기고 low (무릎 높이 띠 위 테)를 보인다. 페이드 없이 바로 (픽셀 그림).
+       예전 벽 (왼 · 뒤): 짓는 코드는 그대로 두고, 합치기 직전 parts 를 cutSplit 이 나눈다 — 벽 판에서 0.32 m 안 · 무릎(KNEE) 위의 것 + 키 큰 기둥 → 그 벽 묶음, 바닥에 선 가구(계단 · 오락기 · 부엌 · 재봉 책상 · 옷감 선반)는 keep 상자로 남긴다.
+       무릎 아래 판자 줄은 늘 남아 띠가 된다. 새 벽 (오른 · 앞): 같은 판자 · 이음 · 샛기둥으로 지어 방을 닫는다 — 기본 각(0°)에선 둘 다 카메라 쪽이라 숨는다 (low 없음) → 0° 그림은 예전 그대로.
+       모서리 기둥 · 모서리 목재(거미줄 · 도르래)는 두 벽이 다 잘릴 때만 (대각 법선 · 문턱 0.707). 지붕 목재(서까래 · 도리 · 통나무)도 그 벽 쪽이면 같이 잘린다.
+       창 빛 조각: 잘린 벽은 안 그려지면 그림자도 안 던지므로, 예전 벽 묶음마다 같은 기하의 그림자 전용 쌍둥이(차폐 재질 · 차폐 메시의 자식 → 노멀 패스에선 같이 숨는다)를 둔다 → 빛 조각은 창 자리 그대로.
+       움직이거나 다른 코드가 visible 을 쥐는 벽 물건(창 유리 · 창밖 비 · 포스터 · 기념품 · 커튼 · 보드 · 선반 · 미용실 코너)은 숨김 대신 layers.mask = 0 (안 그려지고 레이캐스트 · 톡도 안 맞는다), 매 프레임 다시 맞춘다.
+       문(다락 ↔ 놀이방)은 자르지 않는다: 오늘의 다락 문처럼 혼자 선 문틀로 늘 보이고 눌린다. 갈래 D(마당)는 cutAdd('yard', …) 만 부른다 */
+    /* 11-15 돌려 보기: 장소마다 카메라 쪽이면 무릎 높이로 자르는 것들 — { place: [{ full: Object3D, low: Object3D|null, nx, nz, cx, cz }] }
+       full = 벽 + 거기 붙은 것 전부 (자를 때 숨김) · low = 무릎 높이 띠 (자를 때만 보임, 없으면 아무것도) · (nx, nz) = 바깥쪽 법선 · (cx, cz) = 벽 가운데 (장소 좌표) */
+    var CUTS = { attic: [], loft: [], play: [], yard: [] };
+    function cutAdd(place, full, low, nx, nz, cx, cz, th) {   /* th = 자르는 문턱 (기본 0 · 모서리 0.707 = 두 벽이 다 잘릴 때만) */
+      var l = Math.hypot(nx, nz) || 1, e = { full: full || null, low: low || null, nx: nx / l, nz: nz / l, cx: cx, cz: cz, th: th || 0, cut: false, key: '' };
+      if (e.low) e.low.visible = false;
+      (CUTS[place] || (CUTS[place] = [])).push(e); return e;
+    }
+    var KNEE = 0.6, CUT_HYS = 0.06, CUT_DYN = {}, cutMasked = 0;
+    function applyCuts() {   /* 매 프레임 (stepYaw): 지금 보이는 장소의 벽을 지금 각에 맞춘다 — 바뀔 때만 visible 을 쓴다 */
+      var list = CUTS[PLACE.vis]; if (!list) return;
+      var a = YAW + yawDelta(), dx = Math.sin(a), dz = Math.cos(a), any = false;   /* 타깃 → 카메라 수평 방향 */
+      for (var i = 0; i < list.length; i++) {
+        var e = list[i], dot = e.nx * dx + e.nz * dz, on = e.cut ? dot > e.th - CUT_HYS : dot > e.th + CUT_HYS;
+        if (on !== e.cut) { e.cut = on; if (e.full) e.full.visible = !on; if (e.low) e.low.visible = on; dither.still = 0; }
+        if (on) any = true;
+      }
+      if (any || cutMasked) cutDyn(PLACE.vis);
+    }
+    function cutMask(o, on) {   /* layers 를 비워 숨김 (visible 은 그 물건 코드의 몫이라 건드리지 않는다) · 되돌리면 원래 층 그대로 */
+      o.traverse(function (q) {
+        var u = q.userData;
+        if (on) { if (u._cm == null) { u._cm = q.layers.mask; q.layers.mask = 0; cutMasked++; } }
+        else if (u._cm != null) { q.layers.mask = u._cm; u._cm = null; cutMasked = Math.max(0, cutMasked - 1); }
+      });
+    }
+    function cutDyn(place) { var f = CUT_DYN[place], l = f ? f() : []; for (var i = 0; i < l.length; i++) if (l[i] && l[i][0]) cutMask(l[i][0], !!(l[i][1] && l[i][1].cut)); }
+    function cutOf(place, key) { var l = CUTS[place] || []; for (var i = 0; i < l.length; i++) if (l[i].key === key) return l[i]; return null; }
+    /* parts 나누기: cfg = { walls: [[key, 'x'|'z', 판 가운데 좌표, 지붕 띠]], knee, keep: [상자], to: [[상자…, key]] } (상자 = [x0, x1, y0, y1, z0, z1], 부품 AABB 가운데로 판단).
+       hi = 지붕 목재 (무릎 조건 없이 지붕 띠 안이면 · 두 벽 띠에 다 들면 모서리). parts 는 남는 것만 남게 고쳐 쓴다 → 아래 원래 줄이 그대로 합친다 */
+    var _cuB = new T.Box3(), _cuC = new T.Vector3(), _cuS = new T.Vector3();
+    function cutInBox(c, b) { return c.x >= b[0] && c.x <= b[1] && c.y >= b[2] && c.y <= b[3] && c.z >= b[4] && c.z <= b[5]; }   /* 11-15 합침: 이름이 갈래 B 의 inBox(x, z, b) 와 겹쳐 (함수 선언은 뒤의 것이 이긴다) 벽 자르기 준비가 터지고 3D 가 2D 로 떨어졌다 */
+    function cutSplit(parts, cfg, hi) {
+      var out = { corner: [] }, rest = [], kn = cfg.knee || KNEE;
+      cfg.walls.forEach(function (w) { out[w[0]] = []; });
+      parts.forEach(function (p) {
+        if (!p.g.boundingBox) p.g.computeBoundingBox();
+        _cuB.copy(p.g.boundingBox); if (p.m) _cuB.applyMatrix4(p.m); _cuB.getCenter(_cuC); _cuB.getSize(_cuS);
+        var k = null, i;
+        for (i = 0; cfg.to && i < cfg.to.length; i++) if (cutInBox(_cuC, cfg.to[i])) { k = cfg.to[i][6]; break; }
+        if (!k && !(cfg.keep && cfg.keep.some(function (b) { return cutInBox(_cuC, b); })) && (hi || _cuB.min.y >= kn - 1e-3 || (_cuS.y >= 1.4 && Math.min(_cuS.x, _cuS.z) <= 0.25))) {
+          var near = [];
+          cfg.walls.forEach(function (w) { var d = Math.abs(_cuC[w[1]] - w[2]); if (d < (hi ? w[3] : 0.32)) near.push([w[0], d]); });
+          if (near.length === 2) k = hi || (near[0][1] < 0.15 && near[1][1] < 0.15) ? 'corner' : near[0][1] <= near[1][1] ? near[0][0] : near[1][0];
+          else if (near.length === 1) k = near[0][0];
+        }
+        if (k && hi && Math.max(_cuS.x, _cuS.z) > 3) k = 'either';   /* 방을 가로지르는 긴 목재 (서까래 · 도리 · 통나무): 한쪽 벽만 잘려도 머리 위를 가로질러 가린다 → 0° 근처에서만 */
+        (k ? (out[k] || (out[k] = [])) : rest).push(p);
+      });
+      parts.length = 0; rest.forEach(function (p) { parts.push(p); });
+      return out;
+    }
+    /* 판자 벽 한 면 (새 벽 · 예전 벽과 같은 짜임): ax 'x' = x = at 평면 (z 로 a0..a1) · 'z' = z = at 평면 (x 로) · inn = 방 안쪽 부호 · holes [[s0, s1, y0, y1]] · rows 줄 · y 0..h */
+    function cutBoards(pp, ax, at, inn, a0, a1, h, rows, holes, flip) {
+      var rh = h / rows, X = ax === 'x';
+      function bx(s0, s1, y0, y1, th, off, c) { var L = s1 - s0, m = (s0 + s1) / 2, y = (y0 + y1) / 2; pp.push({ g: X ? box(th, y1 - y0, L) : box(L, y1 - y0, th), m: X ? M(at + off, y, m) : M(m, y, at + off), c: c }); }
+      for (var i = 0; i < rows; i++) {
+        var y0 = i * rh, y1 = y0 + rh, c = (i + (flip ? 1 : 0)) % 2 ? MAT.wallA : MAT.wallB;
+        var hs = (holes || []).filter(function (q) { return q[2] < y1 - 1e-6 && q[3] > y0 + 1e-6; });
+        spans(a0, a1, hs).forEach(function (s) { bx(s[0], s[1], y0, y1, 0.12, 0, c); });
+        hs.forEach(function (q) { if (q[3] < y1 - 1e-6) bx(q[0], q[1], Math.max(q[3], y0), y1, 0.12, 0, c); });
+        if (i) spans(a0, a1, (holes || []).filter(function (q) { return q[2] < y0 && q[3] > y0; })).forEach(function (s) { bx(s[0], s[1], y0 - 0.0225, y0 + 0.0225, 0.02, inn * 0.065, MAT.wallSeam); });
+      }
+    }
+    function cutStuds(pp, ax, at, inn, list, h) { list.forEach(function (a) { pp.push({ g: box(0.14, h, 0.14), m: ax === 'x' ? M(at + inn * 0.09, h / 2, a) : M(a, h / 2, at + inn * 0.09), c: MAT.stud }); }); }
+    function cutMesh(parts, cast, recv) { var m = new T.Mesh(keep(mergeParts(parts)), lambert); m.castShadow = !!cast; m.receiveShadow = !!recv; return m; }
+    /* 한 방을 묶는다: D = { lo, hi (cutSplit 결과), lo0 (왼 x · 뒤 z 판 가운데), xR (오른 판), zF (앞 판), knee, shade (차폐 메시), hiRecv, newWalls(pp, key) → 새 벽 parts, lowExtra(key) → 띠에 더할 parts,
+       bulbs: { mesh, em, parts, at: [[x, z], …] } (벽 등 갓 · 전구를 벽마다 나눈다 — 발광 재질은 원래 것을 같이 써서 ApplyLight 가 그대로 맞춘다), dyn → CUT_DYN } */
+    function cutRoom(place, g, D) {
+      var lo0 = D.lo0, kn = D.knee || KNEE, x0 = lo0, x1 = D.xR, z0 = lo0, z1 = D.zF, xm = (x0 + x1) / 2, zm = (z0 + z1) / 2;
+      var bulbBy = { left: [], back: [] };
+      if (D.bulbs) {
+        D.bulbs.parts.forEach(function (p) {
+          if (!p.g.boundingBox) p.g.computeBoundingBox(); _cuB.copy(p.g.boundingBox).applyMatrix4(p.m); _cuB.getCenter(_cuC);
+          bulbBy[Math.abs(_cuC.x - lo0) < Math.abs(_cuC.z - lo0) ? 'left' : 'back'].push(p);
+        });
+        D.bulbs.mesh.visible = false;   /* 합친 갓 · 전구 (+ 자식 발광) 대신 벽마다 하나씩 — 같은 재질 */
+      }
+      [['left', -1, 0, x0, zm], ['back', 0, -1, xm, z0]].forEach(function (w) {
+        var k = w[0], G = new T.Group(); G.name = place + '-cut-' + k; g.add(G);
+        if (D.lo[k] && D.lo[k].length) { var m = cutMesh(D.lo[k], true, true); G.add(m); var tw = new T.Mesh(m.geometry, shade.material); tw.castShadow = true; tw.receiveShadow = false; tw.frustumCulled = false; tw.renderOrder = -10; D.shade.add(tw); }
+        if (D.hi && D.hi[k] && D.hi[k].length) G.add(cutMesh(D.hi[k], false, D.hiRecv));
+        if (bulbBy[k].length) { var bm = new T.Mesh(keep(mergeParts(bulbBy[k])), basicV), be = new T.Mesh(bm.geometry, D.bulbs.em.material); be.layers.set(1); be.castShadow = false; bm.add(be); G.add(bm); }
+        var lp = [{ g: k === 'left' ? box(0.17, 0.05, z1 - z0 + 0.05) : box(x1 - x0 + 0.05, 0.05, 0.17), m: k === 'left' ? M(x0, kn + 0.025, zm) : M(xm, kn + 0.025, z0), c: W[1] }].concat(D.lowExtra ? D.lowExtra(k) : []);   /* 띠 위 테 (문틀 · 모서리 기둥과 같은 짙은 나무) */
+        var low = cutMesh(lp, false, true); g.add(low);
+        cutAdd(place, G, low, w[1], w[2], w[3], w[4]).key = k;
+      });
+      if (D.lo.corner.length || (D.hi && D.hi.corner.length)) {
+        var C2 = new T.Group(); C2.name = place + '-cut-corner'; g.add(C2);
+        if (D.lo.corner.length) { var cm = cutMesh(D.lo.corner, true, true); C2.add(cm); var ct = new T.Mesh(cm.geometry, shade.material); ct.castShadow = true; ct.frustumCulled = false; ct.renderOrder = -10; D.shade.add(ct); }
+        if (D.hi && D.hi.corner.length) C2.add(cutMesh(D.hi.corner, false, D.hiRecv));
+        cutAdd(place, C2, null, -1, -1, x0, z0, Math.SQRT1_2).key = 'corner';
+      }
+      if (D.hi && D.hi.either && D.hi.either.length) {
+        var E2 = cutMesh(D.hi.either, false, D.hiRecv); E2.name = place + '-cut-either'; g.add(E2);
+        cutAdd(place, E2, null, -1, -1, x0, z0, -Math.SQRT1_2).key = 'either';   /* 문턱 −0.707 = 왼벽이나 뒷벽 하나라도 잘리면 */
+      }
+      (D.extra || []).forEach(function (x) {   /* 바닥에 선 큰 것 (다락 계단): 그 모서리 쪽에서 볼 때만 자르고 아래 칸만 남긴다 */
+        var ps = D.lo[x.key] || []; if (!ps.length) return;
+        var lowP = ps.filter(function (p) { if (!p.g.boundingBox) p.g.computeBoundingBox(); _cuB.copy(p.g.boundingBox).applyMatrix4(p.m); return _cuB.max.y <= x.lowMax; });
+        var F = cutMesh(ps, true, true), Lw = lowP.length ? cutMesh(lowP, true, true) : null; F.name = place + '-cut-' + x.key; g.add(F); if (Lw) g.add(Lw);
+        cutAdd(place, F, Lw, x.nx, x.nz, x.cx, x.cz, x.th).key = x.key;
+      });
+      var sk = new T.Mesh(keep(mergeParts([{ g: box(0.05, D.skirt + 0.6, z1 - z0 + 0.6), m: M(x0 - 0.2, (D.skirt - 0.6) / 2, zm), c: '#000000' }, { g: box(x1 - x0 + 0.6, D.skirt + 0.6, 0.05), m: M(xm, (D.skirt - 0.6) / 2, z0 - 0.2), c: '#000000' }].concat(D.shadeExtra || []))), shade.material);
+      sk.castShadow = true; sk.receiveShadow = false; sk.frustumCulled = false; sk.renderOrder = -10; D.shade.add(sk);   /* 띠 바깥 치마 (그림자만): 잘린 벽의 무릎 띠 바깥면이 해를 정면으로 받아 하얗게 뜨지 않게 — 창 아래(창턱보다 낮게)라 창 빛 조각은 그대로. 벽에서 0.14 m 띄운다 (그림자 normalBias 가 받는 점을 치마 안으로 밀어 다시 밝아졌다) */
+      [['right', 1, 0, x1, zm], ['front', 0, 1, xm, z1]].forEach(function (w) {   /* 새 벽: 그림자는 차폐가 이미 맡는다 (던지지 않음 → 어느 각에서도 빛이 예전 그대로) */
+        var pp = []; D.newWalls(pp, w[0]); var m = cutMesh(pp, false, true); m.name = place + '-wall-' + w[0]; g.add(m);
+        cutAdd(place, m, null, w[1], w[2], w[3], w[4]).key = w[0];
+      });
+      if (D.dyn) CUT_DYN[place] = D.dyn;   /* 맞추기는 다음 프레임의 stepYaw 가 (그리기 전에) */
+    }
     /* ── 다락방 정적 기하 (룩 패스 2: 밀도·구성) ──
        room   = 그림자 던짐·받음 (바닥·벽·받침·배경 잡동사니) → 드로우콜 1
        roomHi = 머리 위 목재(서까래·도리·끈·도르래·거미줄). castShadow 끔 → 들보 그림자가 바닥에 긴 띠로 깔리던 패스 1 의 "어두운 띠" 제거 → 드로우콜 1 */
@@ -860,14 +1300,18 @@ var SCENE3D = (function () {
     rafter(-2.3, -2.8, RF + 0.3); rafter(-1.75, -2.8, RF + 0.3); rafter(-1.2, -2.8, RF + 0.3); rafter(-0.65, -2.8, -0.6); rafter(-0.1, -2.8, -1.3);
     hiParts.push({ g: box(0.26, 0.26, R_SPAN + 0.6), m: M(-2.1, 3.31, R_MID), c: W[1] }); propCount++;
     hiParts.push({ g: box(0.26, 0.26, R_SPAN + 0.6), m: M(-1.6, 3.36, R_MID), c: W[1] }); propCount++;
-    /* 11-10 위층 가는 계단 (뒷벽 오른쪽 구석, 문 오른쪽): 가파른 다락 계단 — 디딤판 7 · 옆판 2 · 난간. 발치(DOOR_ANCHORS.atticStair)에서 +x 로 밀면 올라간다 */
+    /* 11-10 위층 가는 계단 · 11-18 왼벽 앞쪽 구석으로 (위 STAIR): 가파른 다락 계단 — 디딤판 7 · 옆판 2 · 난간. 발치(DOOR_ANCHORS.atticStair)에서 −x (왼벽 쪽) 로 밀면 올라간다 */
     (function () {
       var n = 7, run = (STAIR.x1 - STAIR.x0) / n, rise = STAIR.top / n, zc = (STAIR.z0 + STAIR.z1) / 2, zw = STAIR.z1 - STAIR.z0;
-      for (var k = 0; k < n; k++) parts.push({ g: box(run + 0.05, 0.05, zw - 0.1), m: M(STAIR.x0 + run * (k + 0.5), rise * (k + 1) - 0.03, zc), c: k % 2 ? W[3] : W[4] });
-      [STAIR.z0 + 0.04, STAIR.z1 - 0.04].forEach(function (z) { seg(parts, [STAIR.x0 - 0.06, 0, z], [STAIR.x1 + 0.02, STAIR.top, z], 0.07, W[1]); });
-      seg(parts, [STAIR.x0 - 0.02, 0.85, STAIR.z1 - 0.04], [STAIR.x1 + 0.02, STAIR.top + 0.85, STAIR.z1 - 0.04], 0.035, W[2]);   /* 난간 */
-      [0, 0.5, 1].forEach(function (t) { var x = STAIR.x0 + (STAIR.x1 - STAIR.x0) * t, y = STAIR.top * t; parts.push({ g: box(0.05, 0.85, 0.05), m: M(x, y + 0.43, STAIR.z1 - 0.04), c: W[1] }); });
+      for (var k = 0; k < n; k++) parts.push({ g: box(run + 0.05, 0.05, zw - 0.1), m: M(STAIR.x1 - run * (k + 0.5), rise * (k + 1) - 0.03, zc), c: k % 2 ? W[3] : W[4] });
+      [STAIR.z0 + 0.04, STAIR.z1 - 0.04].forEach(function (z) { seg(parts, [STAIR.x1 + 0.06, 0, z], [STAIR.x0 - 0.02, STAIR.top, z], 0.07, W[1]); });
+      seg(parts, [STAIR.x1 + 0.02, 0.85, STAIR.z0 + 0.04], [STAIR.x0 - 0.02, STAIR.top + 0.85, STAIR.z0 + 0.04], 0.035, W[2]);   /* 난간 (방 쪽 −z 옆 — 11-18: 앞벽 쪽 +z 는 벽이다. 예전 자리 (z1) 의 발치 초롱은 앞벽이 그려지는 각에서 앞벽 샛기둥 속에 묻혔다, 검증) */
+      [0, 0.5, 1].forEach(function (t) { var x = STAIR.x1 - (STAIR.x1 - STAIR.x0) * t, y = STAIR.top * t; parts.push({ g: box(0.05, 0.85, 0.05), m: M(x, y + 0.43, STAIR.z0 + 0.04), c: W[1] }); });
       propCount += 2;
+      /* 11-15 계단 표시: 디딤판마다 앞(+x, 오르기 시작하는 쪽) 모서리 위에 옅은 띠 (디딤판보다 4 mm 크게 — 면이 겹쳐 깜빡이지 않게) · 발치 기둥(x1, z0 — 방 쪽) 꼭대기에 초롱 */
+      var ed = [];
+      for (k = 0; k < n; k++) ed.push([STAIR.x1 - run * k + 0.027 - 0.025, rise * (k + 1) - 0.03, zc, 0.054, 0.056, zw - 0.092]);
+      ATTIC_CUE = stairCue(atticG, ed, [STAIR.x1, 0.86, STAIR.z0 + 0.04], KNEE + 0.12);   /* 아래 두 칸 띠는 계단 자르기 (lowMax KNEE + 0.12) 와 같이 남는다 */
     })();
     /* 창: 턱·틀·살 */
     parts.push({ g: box(0.5, 0.08, WIN.z1 - WIN.z0 + 0.5), m: M(-R + 0.22, WIN.y0, (WIN.z0 + WIN.z1) / 2), c: W[2] });                                 /* 창턱 */
@@ -956,6 +1400,9 @@ var SCENE3D = (function () {
       parts.push({ g: new T.SphereGeometry(0.11, 6, 5), m: M(px, 0.86, pz, 0, 0, 0, 1, 0.7, 1), c: PAL.moss[2] });
       propCount++;
     })();
+    var CUT_WA = [['left', 'x', -R, 1.0], ['back', 'z', -R, 1.4]];   /* 11-15 돌려 보기 (위 '벽 자르기'): 계단은 남기고 · 왼벽 선반 위 책 · 병은 왼벽으로 · 계단 뒤 샛기둥은 그 벽으로 (11-18: 계단이 왼벽 앞쪽 구석으로 → 왼벽 샛기둥 z RF − 0.25) */
+    /* 계단은 따로 ('stair'): 왼쪽 앞 모서리 쪽(270° 근처 — 11-18 계단을 옮기기 전엔 오른쪽 뒤 · 90°)에서 볼 때만 잘라 아래 두 칸만 — 2.5 m 계단이 카메라 바로 앞에서 방을 가렸다. 위층 단추(atticStair)는 그대로 눌린다 */
+    var CUT_A = cutSplit(parts, { walls: CUT_WA, to: [[-R - 0.1, -R + 0.5, 1.5, 2.6, -2.44, -1.3, 'left'], [-R - 0.05, -R + 0.15, 1.4, 1.6, RF - 0.3, RF - 0.2, 'left'], [STAIR.x0 - 0.15, STAIR.x1 + 0.1, -1, 4, STAIR.z0, STAIR.z1 + 0.15, 'stair']] }), CUT_AH = cutSplit(hiParts, { walls: CUT_WA }, true);
     var room = new T.Mesh(keep(mergeParts(parts)), lambert); room.receiveShadow = true; room.castShadow = true; atticG.add(room);
     var roomHi = new T.Mesh(keep(mergeParts(hiParts)), lambert); roomHi.castShadow = false; roomHi.receiveShadow = false; atticG.add(roomHi);
     var doorDark = new T.Mesh(keep(new T.PlaneGeometry(DOOR.x1 - DOOR.x0, DOOR.h)), keep(new T.MeshBasicMaterial({ color: C(PAL.ink) })));
@@ -1002,6 +1449,24 @@ var SCENE3D = (function () {
        z 1.4: 1.0 이면 상자 자리(집에 있는 날 문어가 머무는 곳)의 문어를 약 21% 가렸다 → 1.4 에서 약 4%. 더 앞(1.7~)은 320×568 에서 문 발치가 잘리고 가운데 자리 문어를 가린다.
        덧그림이라 다른 소품은 그대로이고, 그림자를 안 던진다 (해가 −x 에서 오므로 그림자는 문 너머 허공으로 — 던지지 않으면 문 자리 밖 픽셀은 붙이기 전과 같다) */
     var ATTIC_DOOR = makeDoor(Object.assign({ name: 'atticPlay', parent: atticG, x: RF - 0.12, z: 1.4, w: 0.72, h: 1.68, cast: false, seam: true }, DOOR_PAINT));
+    var CUT_AW = { L: null, B: null };
+    cutRoom('attic', atticG, { lo: CUT_A, hi: CUT_AH, lo0: -R, xR: RF, zF: RF, shade: shade, hiRecv: false, skirt: 0.85,
+      extra: [{ key: 'stair', nx: -1, nz: 1, th: Math.SQRT1_2, cx: (STAIR.x0 + STAIR.x1) / 2, cz: (STAIR.z0 + STAIR.z1) / 2, lowMax: KNEE + 0.12 }],   /* 11-15 돌려 보기: 다락 벽 넷 (오른벽엔 놀이방 문 자리 구멍 — 문은 오늘처럼 혼자 선 문틀로 늘 보인다) */
+      lowExtra: function (k) { return k === 'back' ? [{ g: box(DOOR.x1 - DOOR.x0, KNEE, 0.12), m: M((DOOR.x0 + DOOR.x1) / 2, KNEE / 2, -R), c: MAT.wallB }] : []; },   /* 뒷벽 띠: 바깥 문 자리도 메운다 (잘린 문 너머 허공이 안 보이게) */
+      newWalls: function (pp, k) {
+        var dz = ATTIC_DOOR.g.position.z;
+        if (k === 'right') { cutBoards(pp, 'x', RF, -1, -R, RF, 3.0, 10, [[dz - 0.48, dz + 0.48, 0, 1.8]]); cutStuds(pp, 'x', RF, -1, [-1.3, 0.1, 2.7], 3.0); }
+        else { cutBoards(pp, 'z', RF, -1, -R, RF, 3.0, 10, [], true); cutStuds(pp, 'z', RF, -1, [-1.5, 0.3, 2.1], 3.0); }
+      },
+      dyn: function () {   /* 벽에 붙은 움직이는 것들 (매 프레임): 창 쪽 = 왼벽 · 보드 · 선반 · 바깥 문 = 뒷벽 · 기념품은 선반(뒷벽)이나 창턱(왼벽) */
+        var L = CUT_AW.L || (CUT_AW.L = cutOf('attic', 'left')), B = CUT_AW.B || (CUT_AW.B = cutOf('attic', 'back')), sh = st.items.indexOf('shelf') >= 0;
+        var out = [[glass, L], [stars, L], [RAIN[0].obj, L], [RAIN[1].obj, L], [drops, L], [snow, L], [props.moss, L], [props.curtain, L], [doorDark, B], [props.board, B], [props.shelf, B]];
+        for (var i = 0; i < posterMeshes.length; i++) out.push([posterMeshes[i], B]);
+        for (i = 0; i < souvMeshes.length; i++) out.push([souvMeshes[i], sh ? B : L]);
+        if (salG.parent === atticG) out.push([salG, B]);
+        if (ATTIC_CUE) { var SC = CUT_AW.S || (CUT_AW.S = cutOf('attic', 'stair')); out.push([ATTIC_CUE.edge, SC], [ATTIC_CUE.lan, SC]); }   /* 11-15 합침: 계단이 아래 두 칸만 남게 잘리면 (90° 근처) 계단 표시 (디딤판 띠 · 기둥 초롱) 도 같이 — 공중에 뜨지 않게 */
+        return out;
+      } });
     function doorsApplyLight() {   /* 둥근 창: 낮엔 유리, 노을·밤엔 건너편 방의 따뜻한 불빛 (밤에 어두운 문짝이 '불 켜진 방으로 가는 문' 으로 읽히게) — 발광은 창 안에만 (블룸 2px 는 문짝 안) */
       var em = light.em == null ? 1 : light.em, nk = clamp((em - 0.25) / 0.75, 0, 1);
       [ATTIC_DOOR, PLAY_DOOR].forEach(function (D) {
@@ -1036,7 +1501,7 @@ var SCENE3D = (function () {
     function lampK(n) { return n > 0 ? 0.4 + 0.6 * n / 8 : FIRST_LIGHT.ember * nightK(); }   /* 등불 계수: 0칸 = 밤에만 작은 불씨(첫 불, 노을→밤 전환 동안 0→ember) · 1칸 0.475 → 8칸 1 (칸당 0.075, 예전 곡선 그대로) */
     function glowOpacity() { var n = st.lantern; return (light.glow || 0.7) * (n > 0 ? 0.43 + 0.57 * n / 8 : 0.43 * lampK(0) / 0.475); }   /* 8칸에서 시각대의 glow (낮 0.4 · 밤 0.7) · 0칸 불씨는 1칸 글로우의 계수 비례 */
     function applyLamp() {
-      var n = st.lantern, lit = n > 0, ember = !lit && nightK() >= 0.5, on = lit || ember, k = on ? lampK(n) : 0;   /* 0칸: 낮·새벽·노을 = 예전처럼 꺼짐(회색 유리) · 밤 = 불씨 (노을→밤 전환 중간부터, 세기는 nightK 를 따라 오른다). lit = 칸이 찬 등불(먼지·유리 밝은 칸) */
+      var n = st.lantern, lit = n > 0, ember = !lit && nightK() > 1e-3, on = lit || ember, k = on ? lampK(n) : 0;   /* 0칸: 낮·새벽·노을 = 예전처럼 꺼짐(회색 유리) · 밤 = 불씨 (11-15: 19-21시 8칸 섞기 첫 칸부터 — 예전 nightK ≥ 0.5 문턱이면 20:15 까지 꺼져 있었다. 세기는 lampK 가 nightK 를 따라 올린다). lit = 칸이 찬 등불(먼지·유리 밝은 칸) */
       lamp.intensity = (light.lamp || 1.2) * k; lamp.distance = light.lampD || 6;
       recolor(lampGlassGeo, 1, lit ? PAL.amber[2] : ember ? PAL.amber[1] : PAL.slate[1]); recolor(lampGlassGeo, 2, lit ? PAL.amber[5] : ember ? PAL.amber[4] : PAL.slate[2]);   /* 불씨: 유리·심지 띠가 한 칸씩 어둡다 */
       lampEm.visible = on; lampEm.material.color.copy(C(EM.lamp)).multiplyScalar((light.em || 1) * k);
@@ -1189,86 +1654,493 @@ var SCENE3D = (function () {
       var m = new T.Mesh(keep(mergeParts(L)), lambert); m.castShadow = true; m.receiveShadow = true; m.position.set(SOFA.x0 + 0.40, 0, SOFA.z); atticG.add(m); propCount++;
       return m;
     })();
-    var FURN = { sofa: { m: sofaM, w: 0.42, d: 0.68, name: '소파', rot: 0, sc: 1 }, crate: { get m() { return props.crate; }, w: 0.52, d: 0.44, name: '상자', rot: 0, sc: 1 }, blanket: { get m() { return props.blanket; }, w: 0.70, d: 0.50, flat: true, name: '담요', rot: 0, sc: 1 } };
+    var FURN = { sofa: { m: sofaM, w: 0.42, d: 0.68, h: 0.66, name: '소파', rot: 0, sc: 1 }, crate: { get m() { return props.crate; }, w: 0.52, d: 0.44, h: 1.2, name: '상자', rot: 0, sc: 1 }, blanket: { get m() { return props.blanket; }, w: 0.70, d: 0.50, h: 0.15, flat: true, name: '담요', rot: 0, sc: 1 } };   /* h = 위 끝 높이 (상자는 양초 불꽃까지) — 고른 가구의 화면 상자 (단추 줄 자리) */
     Object.keys(FURN).forEach(function (id) { var f = FURN[id]; Object.defineProperty(f, 'hw', { get: function () { var a = f.rot * DEG; return (Math.abs(Math.cos(a)) * f.w + Math.abs(Math.sin(a)) * f.d) * f.sc; } }); Object.defineProperty(f, 'hd', { get: function () { var a = f.rot * DEG; return (Math.abs(Math.sin(a)) * f.w + Math.abs(Math.cos(a)) * f.d) * f.sc; } }); });   /* 발자국 반폭 = 돌린 네모를 감싸는 상자 (rot 은 도 · 자유 각도) × 크기 배율 */   /* 상자 · 담요는 아래에서 만들어진다 → 읽을 때 찾는다 */
-    var FU = { drag: null, spotK: null }, _fray = new T.Raycaster(), _fndc = new T.Vector2(), _fpl = new T.Plane(new T.Vector3(0, 1, 0), 0), _fpt = new T.Vector3();
+    var FU = { spotK: null, selK: null }, _fray = new T.Raycaster(), _fndc = new T.Vector2(), _fpl = new T.Plane(new T.Vector3(0, 1, 0), 0), _fpt = new T.Vector3();
+    function furnRay(cx, cy) { var r = canvas.getBoundingClientRect(); if (!r.width || !r.height) return false; _fndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1); _fray.setFromCamera(_fndc, camera); return true; }
     function furnFloor(cx, cy) {   /* 클라이언트 px → 다락 바닥(0.2 m 위 평면) 좌표 */
-      var r = canvas.getBoundingClientRect(); if (!r.width || !r.height) return null;
-      _fndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1); _fray.setFromCamera(_fndc, camera); _fpl.constant = -(atticG.position.y + 0.2);
+      if (!furnRay(cx, cy)) return null; _fpl.constant = -(atticG.position.y + 0.2);
       return _fray.ray.intersectPlane(_fpl, _fpt) ? _fpt.sub(atticG.position) : null;
     }
-    function furnAt(cx, cy) { var p = furnFloor(cx, cy), hit = null; if (!p) return null; ['sofa', 'crate', 'blanket'].forEach(function (id) { var f = FURN[id]; if (!hit && f.m.visible && Math.abs(p.x - f.m.position.x) <= f.hw + 0.1 && Math.abs(p.z - f.m.position.z) <= f.hd + 0.1) hit = id; }); return hit; }
+    var _stairTreads = null, _stv = new T.Vector3();
+    function stairRayDist(cx, cy, n) {   /* 톡 광선이 다락 계단 (디딤판 일곱 칸 — 칸마다 그 아래 옆판 두께까지 싼 상자) 에 닿는 거리 · 안 닿으면 Infinity · n = 아래에서 몇 칸까지 볼지 (계단이 잘려 아래 두 칸만 그려질 때 2) */
+      if (!furnRay(cx, cy)) return Infinity;
+      if (!_stairTreads) { _stairTreads = []; for (var k = 0, NT = 7, run = (STAIR.x1 - STAIR.x0) / NT, rise = STAIR.top / NT; k < NT; k++) _stairTreads.push(new T.Box3(new T.Vector3(STAIR.x1 - run * (k + 1) - 0.03, Math.max(0, rise * (k + 1) - 0.42), STAIR.z0), new T.Vector3(STAIR.x1 - run * k + 0.03, rise * (k + 1) + 0.03, STAIR.z1))); }
+      var best = Infinity;
+      for (var i = 0, m = Math.min(_stairTreads.length, n || _stairTreads.length); i < m; i++) if (_fray.ray.intersectBox(_stairTreads[i], _stv)) { var d = _fray.ray.origin.distanceTo(_stv); if (d < best) best = d; }
+      return best;
+    }
+    function furnRayDist(cx, cy) {   /* 톡 광선이 가구 몸 (메시) 에 닿는 거리 · 바닥 발자국만 걸리면 Infinity */
+      if (!furnRay(cx, cy)) return Infinity;
+      var ms = []; ['sofa', 'crate', 'blanket'].forEach(function (id) { var m = FURN[id].m; if (m.visible) ms.push(m); }); if (props.crate.visible && candleG.visible) ms.push(candleG);
+      var hs = _fray.intersectObjects(ms, true); return hs.length ? hs[0].distance : Infinity;
+    }
+    function furnAt(cx, cy) {   /* 11-15: 가구 몸(메시)을 먼저 — 키 큰 소파 등받이 · 상자 위 양초를 눌러도 그 가구. 없으면 바닥 발자국 (+0.1) — 담요는 맨 나중 (깔개라 다른 가구 밑에 있을 수 있다) */
+      if (!furnRay(cx, cy)) return null;
+      var ms = [], ids = [];
+      ['sofa', 'crate', 'blanket'].forEach(function (id) { var m = FURN[id].m; if (m.visible) { ms.push(m); ids.push(id); } });
+      if (props.crate.visible && candleG.visible) { ms.push(candleG); ids.push('crate'); }
+      var hs = _fray.intersectObjects(ms, true);
+      for (var i = 0; i < hs.length; i++) { var o = hs[i].object; while (o && ms.indexOf(o) < 0) o = o.parent; if (o) return ids[ms.indexOf(o)]; }
+      var p = furnFloor(cx, cy), hit = null; if (!p) return null;
+      ['sofa', 'crate', 'blanket'].forEach(function (id) { var f = FURN[id]; if (!hit && f.m.visible && Math.abs(p.x - f.m.position.x) <= f.hw + 0.1 && Math.abs(p.z - f.m.position.z) <= f.hd + 0.1) hit = id; });
+      return hit;
+    }
     function furnLim(f) { return [-R + 0.16 + f.hw, RF - 0.1 - f.hw, -R + 0.16 + f.hd, RF - 0.1 - f.hd]; }
-    var FURN_KEEP = [[RF - 1.2, RF + 1, 0.7, 2.7], [1.3, 2.6, -R - 1, -1.6]];   /* 놀이방 문 앞 · 바깥 문 앞은 비워 둔다 */
-    var SAL_KEEP = [-R, -0.75, -R, -0.6];   /* 미용실 코너 바닥 [x0, x1, z0, z1]: 문어 자리 (−1.75, −1.1) 둘레 0.42 · 대야 (−1.1, −1.55) r 0.30 · 거울 앞 (docs/SALON.md §2.1) — 가구를 여기 놓으면 '바꾸기' 연출이 가구 속에서 돈다 */
-    function furnOk(id, x, z) {
+    var FURN_KEEP = [[RF - 1.2, RF + 1, 0.7, 2.7], [1.3, 2.6, -R - 1, -1.6], [-R - 1, STAIR.x1 + 0.6, STAIR.z0 - 0.05, RF + 1]];   /* 놀이방 문 앞 · 바깥 문 앞 · 위층 계단 (11-18: 왼벽 앞쪽 구석 — 발치 0.6 m 까지 = 내 캐릭터가 설 자리, 소파 기본 자리 z ≤ 2.68 은 안 걸린다) 은 비워 둔다.
+       11-18 검증 뒤: 발치에서 방으로 나가는 길 (z ≥ 2.03) 까지 비우는 넷째 구역을 넣었다가 뺐다 — 옛 배치의 살짝 돌린 소파 (15° · 기본 자리 근처) 가 6 cm 걸려 방 건너편으로 옮겨졌다 (CI 스모크 Z-6).
+       저장된 배치를 건드리지 않는 쪽이 먼저다. 소파와 상자로 발치를 일부러 둘러싸면 내려온 캐릭터가 좁은 칸에 서게 되지만 문 · 계단 톡과 가구 모드로 나올 수 있다 */
+    var OCT_PAD = 0.42, BED_DZ = 0.1;   /* 11-15: 문어 몸 반폭 (머리 r 0.42 — 다리는 그 안) · 담요 가운데에서 잠자리까지 (−z) */
+    function furnBoxes(skip, pad) {   /* 단단한 가구 (소파 · 상자) 발자국 [x0, x1, z0, z1] + pad — 문어 자리 · 문어 길이 피한다 */
+      var out = [];
+      ['sofa', 'crate'].forEach(function (id) { var f = FURN[id]; if (id === skip || !f.m.visible) return; var x = f.m.position.x, z = f.m.position.z; out.push([x - f.hw - pad, x + f.hw + pad, z - f.hd - pad, z + f.hd + pad]); });
+      return out;
+    }
+    function inBox(x, z, b) { return x > b[0] && x < b[1] && z > b[2] && z < b[3]; }
+    function boxHitsCircle(x, z, hw, hd, px, pz, r) { var dx = Math.max(Math.abs(px - x) - hw, 0), dz = Math.max(Math.abs(pz - z) - hd, 0); return dx * dx + dz * dz < r * r; }
+    function bedSpot(x, z) { var f = FURN.blanket; return [x == null ? f.m.position.x : x, (z == null ? f.m.position.z : z) - BED_DZ * f.sc]; }
+    function furnOk(id, x, z) {   /* (x, z) 에 이 가구를 (지금 각도 · 크기로) 놓을 수 있나 — 벽 안 · 문 앞 · 계단 · 다른 가구 · 문어 몸 · 문어 잠자리 */
       var f = FURN[id], l = furnLim(f), i, o;
       if (x < l[0] - 1e-6 || x > l[1] + 1e-6 || z < l[2] - 1e-6 || z > l[3] + 1e-6) return false;
       for (i = 0; i < FURN_KEEP.length; i++) { o = FURN_KEEP[i]; if (x + f.hw > o[0] && x - f.hw < o[1] && z + f.hd > o[2] && z - f.hd < o[3]) return false; }
       /* 11-11: 미용실 코너는 위층으로 이사했다 — 다락의 SAL_KEEP 금지 구역은 더 쓰지 않는다 (가구 배치는 다락에만 있고, 위층 살림은 못 옮긴다) */
-      if (f.flat) return true;   /* 담요는 깔개라 어디든 (가구 밑 · 발밑) */
+      if (f.flat) {   /* 담요는 깔개라 어디든 (가구 밑 · 발밑) — 11-15: 단 잠자리(문어가 눕는 자리)가 소파 · 상자 밑으로 들어가면 안 된다 */
+        var bs = bedSpot(x, z), bb = furnBoxes(null, OCT_PAD);
+        for (i = 0; i < bb.length; i++) if (inBox(bs[0], bs[1], bb[i])) return false;
+        return true;
+      }
       for (var k in FURN) { o = FURN[k]; if (k === id || o.flat || !o.m.visible) continue; if (Math.abs(x - o.m.position.x) < f.hw + o.hw && Math.abs(z - o.m.position.z) < f.hd + o.hd) return false; }
-      if (octG.visible && octG.parent === atticG && Math.abs(x - oct.pos.x) < f.hw + 0.5 && Math.abs(z - oct.pos.z) < f.hd + 0.5) return false;
-      if (PL.place === 'attic' && Math.abs(x - PL.pos.x) < f.hw + PL_RAD * 0.6 && Math.abs(z - PL.pos.z) < f.hd + PL_RAD * 0.6) return false;
+      var b0 = bedSpot(); if (props.blanket.visible && boxHitsCircle(x, z, f.hw, f.hd, b0[0], b0[1], OCT_PAD)) return false;   /* 문어 잠자리 */
+      if (octHere() && !(id === 'crate' && oct.anchor === 'crate') && boxHitsCircle(x, z, f.hw, f.hd, oct.pos.x, oct.pos.z, OCT_PAD + 0.08)) return false;   /* 문어 몸 + 틈 (상자 옆에 있으면 문어가 상자를 따라간다) */
       return true;
     }
-    function furnApply(id) {   /* 딸린 것들: 상자 → 양초 · 양초 빛 · 문어의 '상자 옆' 자리, 담요 → 문어의 잠자리 */
-      var f = FURN[id], x = f.m.position.x, z = f.m.position.z, lm = [-(R - 0.5), RF - 0.5];
-      if (id === 'crate') { candleG.position.set(x + 0.05, 0.72 + (f.m.position.y || 0), z - 0.05); candleLight.position.set(candleG.position.x, 1.15, candleG.position.z); ANCHORS.crate = [clamp(x - 0.75, lm[0], lm[1]), 0, clamp(z - 0.25, lm[0], lm[1])]; }
-      else if (id === 'blanket') ANCHORS.blanket = [x, 0, z - 0.1];
-      lampDirty = true;
+    function octHere() { return octG.parent === atticG && st.octState !== 'away' && PLACE.cur === 'attic'; }   /* 문어가 다락 바닥에 있다 (나가 있지 않다) */
+    /* 11-15 문어 자리 (주인: "줄인 가구를 문어가 뚫고 섬"): 다락 앵커는 기본 자리(ANCHORS0)에서 — 상자 옆 · 담요 잠자리는 그 가구를 따라 — 소파 · 상자 발자국(+ 문어 몸)에 들어가면 가장 가까운 빈 자리로.
+       가구는 절대 옮기지 않는다 (저장된 배치가 이미 자리를 덮어도 자리만 비켜 간다) */
+    function spotFree(x, z, bl) { var lm = R - 0.4; if (x < -lm || x > RF - 0.4 || z < -lm || z > RF - 0.4) return false; for (var i = 0; i < bl.length; i++) if (inBox(x, z, bl[i])) return false; return true; }
+    function nearFree(x, z, bl) {
+      if (spotFree(x, z, bl)) return [x, z];
+      for (var r = 0.25; r < 4; r += 0.25) for (var i = 0; i < 16; i++) { var a = i * Math.PI / 8, px = x + Math.sin(a) * r, pz = z + Math.cos(a) * r; if (spotFree(px, pz, bl)) return [px, pz]; }
+      return [x, z];
     }
-    /* 배치 모드 (주인 11-10 참고 화면: "사물은 고정된 상태에서 캐릭터 움직여서 놓아지게 · 사이즈 조절 · 회전"): 가구를 꾹 누르면(또는 앱이 furnCarry(id)) 그 가구가 살짝 떠서 **내 캐릭터 앞에 붙는다**.
-       스틱 · 방향키로 캐릭터를 움직이면 가구가 앞에서 따라오고(0.25 m 칸, 놓을 수 없는 칸으로는 안 간다 = 늘 놓을 수 있는 자리), 돌리기 90° · 크기 0.8~1.3 을 고른 뒤 놓기(확인) 또는 취소(처음 자리로) */
+    /* [7-W] 다섯째 바퀴: 옮기지 못하는 바닥 것 (문어 길 · 문어 자리가 같이 쓴다) [x0, x1, z0, z1, 키, 넘지 못함] — 뒷벽에 기댄 두루마리 지도 · 먼 모서리 상자 더미 셋 · 창 아래 화분 · 위층 계단 (옆판 발까지) */
+    var NAV_STATIC = [[1.235, 1.385, -2.395, -1.935, 1.05, false], [-2.5, -2.02, -2.5, -1.54, 0.93, false], [-2.45, -1.9, 1.23, 1.62, 0.94, false], [STAIR.x0, STAIR.x1 + 0.13, STAIR.z0, STAIR.z1, 0, true]];
+    function staticBoxes(pad) { return NAV_STATIC.map(function (b) { return [b[0] - pad, b[1] + pad, b[2] - pad, b[3] + pad]; }); }
+    function navWarm() {   /* [7-W] 가구가 바뀌면 한가할 때 칸 지도를 미리 짓는다 (첫 걸음이 짓는 값을 치르지 않게 — 느린 폰에서 30 ~ 70 ms) */
+      if (NAV.warm) return; var f = function () { NAV.warm = 0; try { navNow(); } catch (e) { /* 다음 걸음이 다시 짓는다 */ } };
+      NAV.warm = typeof requestIdleCallback === 'function' ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 300);
+    }
+    function octSpots() {
+      var bl = furnBoxes(null, OCT_PAD).concat(staticBoxes(OCT_PAD)), c = FURN.crate, p;   /* 자리도 길과 같은 장애물을 비킨다 (예전엔 소파 · 상자만 — 드문 배치에서 자리가 화분 · 상자 더미 곁에 놓여 걸음이 그 위로 폴짝하며 끝났다) */
+      ['door', 'window', 'board', 'center'].forEach(function (k) { var a = ANCHORS0[k]; p = nearFree(a[0], a[2], bl); ANCHORS[k] = [p[0], 0, p[1]]; });
+      p = nearFree(c.m.position.x - c.hw - 0.23, c.m.position.z - 0.25 * c.sc, bl); ANCHORS.crate = [p[0], 0, p[1]];   /* 상자 옆 (−x 쪽, 기본 배치에서 예전 자리 그대로) */
+      var b = bedSpot(); p = nearFree(b[0], b[1], bl); ANCHORS.blanket = [p[0], 0, p[1]];
+      navWarm();
+    }
+    /* 문어 길 (11-15): 다락에서 걷는 곧은 길이 소파 · 상자(+ 문어 몸)를 지나가면 그 둘레 모서리를 도는 가장 짧은 꺾인 길 (모서리 그래프 · 다익스트라). 막혀 있으면 곧은 길 그대로 */
+    function segHits(ax, az, bx, bz, b) {   /* 선분이 상자 안쪽을 지나나 (모서리 · 변을 스치는 건 괜찮다) */
+      var e = 1e-4, x0 = b[0] + e, x1 = b[1] - e, z0 = b[2] + e, z1 = b[3] - e, t0 = 0, t1 = 1, dx = bx - ax, dz = bz - az, p = [-dx, dx, -dz, dz], q = [ax - x0, x1 - ax, az - z0, z1 - az];
+      for (var i = 0; i < 4; i++) { if (Math.abs(p[i]) < 1e-12) { if (q[i] < 0) return false; } else { var t = q[i] / p[i]; if (p[i] < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; } } }
+      return t1 - t0 > 1e-6;
+    }
+    /* [7-W] 다섯째 바퀴 — 문어 길 찾기 (주인 11-24 결정: '길 찾기 + 막히면 폴짝'). 예전 길 (모서리 그래프) 은 출발 · 도착 자리가 가구 둘레 (+ 몸 0.42 m) 안이면
+       그 가구를 아예 빼고 잰 탓에 (상자 옆 자리 · 가구 사이 틈) 곧은 길이 가구를 뚫고 지나갔다.
+       → 바닥을 0.1 m 칸으로 나눠 칸마다 '가장 가까운 가구 · 계단까지의 틈' 을 재 두고 (navBuild — 가구 배치 열쇠가 바뀌면 다시), A* 로 간다 (navPlan):
+         · 틈 ≥ 0.42 m (몸 반지름 OCT_PAD) 은 그냥 · 0.2 ~ 0.42 m 는 비싸게 (가구에 붙어 가지 않되, 상자 옆 자리 · 좁은 틈에서 출발 · 도착은 된다) · 0.2 m 아래 = 막힘
+         · 길이 없으면 가장 낮은 가구부터 하나씩 '넘어도 됨' 으로 다시 → 그 가구 위 칸들이 폴짝 한 번 (높이 = 가구 키 + 0.12 m)
+         · 칸 길은 당겨서 줄이고 (곧은 마디가 끝점에서 멀어질수록 틈이 늘어야 — 좁은 자리는 마디 끝으로 남는다) 꺾인 곳은 2차 곡선으로 둥글린다 (틈을 줄이지 않는 데까지)
+       걸음 빠르기 · 의식 박자 · 소리는 그대로 — 길만 바뀐다 (길이 길어지면 그만큼 더 걷는다). 다락 · 위층 (문어가 미용실에 올라가 있을 때) */
+    var NAV = { key: '', nav: null, builds: 0, last: null, hopNow: false, hopSq: 0, decal: false, warm: 0 }, NAV_CELL = 0.1, NAV_RMIN = 0.2, NAV_HOP_TOP = 0.12;   /* hopNow = 이 프레임에 가구 위로 폴짝 중 (접지 그림자를 줄인다) · hopSq = 그 폴짝의 몸 눌림 (+ 웅크림 · 내려앉음 / − 늘어남) */
+    function rectDist(x, z, b) { var dx = Math.max(b[0] - x, 0, x - b[1]), dz = Math.max(b[2] - z, 0, z - b[3]); return Math.sqrt(dx * dx + dz * dz); }   /* (Math.hypot 은 칸 지도 짓기에서 다섯 배 느렸다) */
+    function navBuild(spec) {
+      var c = spec.cell, nx = Math.max(1, Math.round((spec.x1 - spec.x0) / c) + 1), nz = Math.max(1, Math.round((spec.z1 - spec.z0) / c) + 1), n = nx * nz;
+      var clr = new Float32Array(n), soft = new Float32Array(n), hard = new Uint8Array(n), i, j, k;
+      for (j = 0; j < nz; j++) for (i = 0; i < nx; i++) {
+        var x = spec.x0 + i * c, z = spec.z0 + j * c, d = Infinity, sh = 0, hd = false;
+        for (k = 0; k < spec.rects.length; k++) {
+          var r = spec.rects[k], e = rectDist(x, z, r.b);
+          if (e < d) d = e;
+          if (e < spec.rMin) { if (r.hard) hd = true; else sh = Math.max(sh, r.h || 0); }
+        }
+        var id = j * nx + i; clr[id] = d; soft[id] = sh; hard[id] = hd ? 1 : 0;
+      }
+      return { spec: spec, nx: nx, nz: nz, c: c, clr: clr, soft: soft, hard: hard };
+    }
+    function navClear(nav, x, z) {   /* 한 점의 틈 (벽 밖이면 −1) */
+      var s = nav.spec; if (x < s.x0 - 1e-6 || x > s.x1 + 1e-6 || z < s.z0 - 1e-6 || z > s.z1 + 1e-6) return -1;
+      var d = Infinity; for (var k = 0; k < s.rects.length; k++) { var e = rectDist(x, z, s.rects[k].b); if (e < d) d = e; } return d;
+    }
+    function navCellOf(nav, x, z) { var s = nav.spec, i = Math.round((x - s.x0) / nav.c), j = Math.round((z - s.z0) / nav.c); i = Math.max(0, Math.min(nav.nx - 1, i)); j = Math.max(0, Math.min(nav.nz - 1, j)); return j * nav.nx + i; }
+    function navXZ(nav, id) { var s = nav.spec, i = id % nav.nx, j = (id - i) / nav.nx; return [s.x0 + i * nav.c, s.z0 + j * nav.c]; }
+    /* 칸 비용: 틈이 rIn 넘으면 1 · rMin ~ rIn 이면 1 ~ 9 (가구에 붙어 가지 않게) · rMin 아래 = 막힘 (hop 이면 무른 가구는 지나되 비싸게) */
+    function cellCost(nav, id, hop) {   /* hop = 넘어도 되는 가장 높은 가구 키 (0 = 안 넘는다) */
+      if (nav.hard[id]) return -1;
+      var s = nav.spec, d = nav.clr[id];
+      if (d >= s.rIn) return 1;
+      if (d >= s.rMin) return 1 + 8 * (s.rIn - d) / (s.rIn - s.rMin);
+      if (!hop || !(nav.soft[id] > 0) || nav.soft[id] > hop + 1e-6) return -1;
+      return 12;   /* 가구 위 칸은 비싸게 — 넘는 거리를 짧게 */
+    }
+    function heapPush(h, f, id) { h.push([f, id]); var i = h.length - 1; while (i > 0) { var p = (i - 1) >> 1; if (h[p][0] <= h[i][0]) break; var t = h[p]; h[p] = h[i]; h[i] = t; i = p; } }
+    function heapPop(h) { var top = h[0], last = h.pop(); if (h.length) { h[0] = last; var i = 0; for (;;) { var l = 2 * i + 1, r = l + 1, m = i; if (l < h.length && h[l][0] < h[m][0]) m = l; if (r < h.length && h[r][0] < h[m][0]) m = r; if (m === i) break; var t = h[m]; h[m] = h[i]; h[i] = t; i = m; } } return top; }
+    function navAStar(nav, sId, gId, hop) {
+      var n = nav.nx * nav.nz, g = new Float32Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), done = new Uint8Array(n), H = [], nx = nav.nx;
+      var gx = gId % nx, gz = (gId - gx) / nx;
+      function hh(id) { var x = id % nx, z = (id - x) / nx, dx = Math.abs(x - gx), dz = Math.abs(z - gz); return (Math.max(dx, dz) + 0.41421356 * Math.min(dx, dz)); }
+      g[sId] = 0; heapPush(H, hh(sId), sId);
+      var D = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.41421356], [1, -1, 1.41421356], [-1, 1, 1.41421356], [-1, -1, 1.41421356]];
+      while (H.length) {
+        var u = heapPop(H)[1]; if (done[u]) continue; done[u] = 1;
+        if (u === gId) break;
+        var ux = u % nx, uz = (u - ux) / nx;
+        for (var k = 0; k < 8; k++) {
+          var vx = ux + D[k][0], vz = uz + D[k][1]; if (vx < 0 || vz < 0 || vx >= nx || vz >= nav.nz) continue;
+          var v = vz * nx + vx; if (done[v]) continue;
+          var cv = v === gId ? 1 : cellCost(nav, v, hop); if (cv < 0) continue;   /* 도착 칸은 늘 들어간다 (자리는 앵커가 정한다) */
+          if (k >= 4) { var a = uz * nx + vx, b = vz * nx + ux; if (cellCost(nav, a, hop) < 0 || cellCost(nav, b, hop) < 0) continue; }   /* 모서리 자르기 없음 */
+          var cu = u === sId ? 1 : Math.max(1, cellCost(nav, u, hop)), nd = g[u] + D[k][2] * (cu + cv) / 2;
+          if (nd < g[v]) { g[v] = nd; prev[v] = u; heapPush(H, nd + hh(v), v); }
+        }
+      }
+      if (!(g[gId] < Infinity)) return null;
+      var out = [gId]; for (var p = prev[gId]; p >= 0; p = prev[p]) out.unshift(p);
+      return out;
+    }
+    /* 곧은 마디 검사: 마디 위 점마다 틈 ≥ 문턱. 문턱 = min(rIn, 끝점의 틈 + 끝점에서의 거리) — 좁은 자리 (상자 옆 · 가구 사이) 에서 출발 · 도착해도
+       거기서 멀어지는 만큼은 틈이 늘어야 한다 (가구 옆을 스치며 미끄러지지 않는다). walls = 벽 안이어야 하나 */
+    function navSegOk(nav, a, b, walls, ea, eb) {   /* ea · eb = 그 끝이 길의 진짜 출발 · 도착인가 (그때만 '멀어지는 만큼 틈이 늘어야' — 가운데 점끼리는 '두 끝보다 더 붙지만 않으면': 가구 곁 좁은 띠를 따라갈 때 칸마다 꺾이지 않게) */
+      var s = nav.spec, L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(L / 0.04)), ca = rectsClear(s, a[0], a[1]), cb = rectsClear(s, b[0], b[1]);
+      for (var i = 0; i <= n; i++) {
+        var u = i / n, x = a[0] + (b[0] - a[0]) * u, z = a[1] + (b[1] - a[1]) * u, d = rectsClear(s, x, z), th = Math.min(s.rIn, ea === false ? ca : ca + u * L, eb === false ? cb : cb + (1 - u) * L) - 0.005;   /* 가운데 점 쪽은 그 점의 틈이 바닥 · 진짜 끝 쪽은 멀어지는 만큼 */
+        if (d < th) return false;
+        if (walls && (x < s.x0 - 1e-6 || x > s.x1 + 1e-6 || z < s.z0 - 1e-6 || z > s.z1 + 1e-6) && i > 0 && i < n) return false;
+      }
+      return true;
+    }
+    function rectsClear(s, x, z) { var d = Infinity; for (var k = 0; k < s.rects.length; k++) { var e = rectDist(x, z, s.rects[k].b); if (e < d) d = e; } return d; }
+    /* 칸 길 → 줄인 점 (당기기): 지금 점에서 곧게 갈 수 있는 가장 먼 칸까지 (navSegOk — 좁은 틈 자리는 마디 끝으로 남는다) */
+    function navPull(nav, P, e0, e1) {   /* e0 · e1 = P 의 첫 · 끝 점이 길의 진짜 출발 · 도착인가 (폴짝이 내린 자리 · 뛸 자리는 아니다) */
+      var out = [P[0]], a = 0, last = P.length - 1;
+      while (a < last) {
+        var best = a + 1;
+        for (var b = last; b > a + 1; b--) if (navSegOk(nav, P[a], P[b], true, a === 0 && e0 !== false, b === last && e1 !== false)) { best = b; break; }
+        out.push(P[best]); a = best;
+      }
+      return out;
+    }
+    /* 모서리 둥글리기: 꺾인 점마다 2차 베지어 (반지름 ≤ 0.35 m · 옆 마디의 절반) — 곡선 위 점의 틈이 그 꺾인 점의 문턱보다 좁아지면 반지름을 줄인다 */
+    function navRound(nav, P) {
+      var s = nav.spec, out = [P[0]];
+      for (var i = 1; i < P.length - 1; i++) {
+        var A = P[i - 1], B = P[i], C = P[i + 1], la = Math.hypot(A[0] - B[0], A[1] - B[1]), lc = Math.hypot(C[0] - B[0], C[1] - B[1]);
+        var th = Math.min(s.rIn, rectsClear(s, B[0], B[1])) - 0.005, r = Math.min(0.35, la / 2, lc / 2), done = false;
+        for (var tries = 0; tries < 4 && r > 0.04 && !done; tries++, r *= 0.5) {
+          var p1 = [B[0] + (A[0] - B[0]) / la * r, B[1] + (A[1] - B[1]) / la * r], p2 = [B[0] + (C[0] - B[0]) / lc * r, B[1] + (C[1] - B[1]) / lc * r], pts = [], ok = true;
+          var yo = Math.atan2(C[0] - B[0], C[1] - B[1]);   /* 곡선 위 마디는 몸을 나가는 곧은 마디 쪽으로 한 번만 돌린다 (점마다 돌리면 걸음 돌기가 매번 새로 시작돼 몸이 길보다 늦게 돌았다) */
+      for (var k = 0; k <= 6 && ok; k++) { var u = k / 6, w0 = (1 - u) * (1 - u), w1 = 2 * u * (1 - u), w2 = u * u, x = w0 * p1[0] + w1 * B[0] + w2 * p2[0], z = w0 * p1[1] + w1 * B[1] + w2 * p2[1]; if (navClear(nav, x, z) < th) ok = false; else pts.push(k ? [x, z, yo] : [x, z]); }   /* navClear: 벽 밖이면 −1 → 곡선이 벽을 넘지 않는다 */
+          if (ok) { pts.forEach(function (q) { out.push(q); }); done = true; }
+        }
+        if (!done) out.push(B);
+      }
+      out.push(P[P.length - 1]);
+      return out;
+    }
+    function navPlan(nav, from, to) {
+      var s = nav.spec;
+      /* 곧은 길이 가구 · 계단 둘레를 안 지나면 곧장 (벽 밖 끝점 — 문간 — 이어도: 벽은 안 본다) */
+      if (navSegOk(nav, from, to, false)) return { pts: [to.slice()], hops: [], ok: true, mode: 'direct' };
+      function dock(id) {   /* 칸이 넘지 못하는 것 (계단) 바로 곁이라 막혀 있으면 가장 가까운 걸을 수 있는 칸에 댄다 (0.3 m 안) — 그 칸까지는 곧장 (계단에서 멀어지는 쪽) */
+        if (!nav.hard[id]) return id;
+        var nx = nav.nx, ci = id % nx, cj = (id - ci) / nx, best = id, bd = Infinity;
+        for (var dj = -3; dj <= 3; dj++) for (var di = -3; di <= 3; di++) { var i = ci + di, j2 = cj + dj; if (i < 0 || j2 < 0 || i >= nx || j2 >= nav.nz) continue; var c = j2 * nx + i, d = di * di + dj * dj; if (d < bd && cellCost(nav, c, 0) >= 0) { bd = d; best = c; } }
+        return best;
+      }
+      var s0 = navCellOf(nav, from[0], from[1]), g0 = navCellOf(nav, to[0], to[1]), sId = dock(s0), gId = dock(g0);
+      var cells = navAStar(nav, sId, gId, 0), mode = 'walk', hopLim = 0;
+      if (!cells) {   /* 막혔다: 가장 낮은 가구부터 하나씩 넘어도 되게 (주인 11-24: '막히면 가장 낮은 가구 위로 폴짝') */
+        var hs = s.rects.filter(function (r) { return !r.hard && r.h > 0; }).map(function (r) { return r.h; }).sort(function (a, b) { return a - b; }).filter(function (h, i, A) { return !i || h > A[i - 1] + 1e-6; });   /* 같은 키는 한 번만 */
+        for (var q0 = 0; q0 < hs.length && !cells; q0++) { cells = navAStar(nav, sId, gId, hs[q0]); mode = 'hop'; hopLim = hs[q0]; }
+      }
+      if (!cells) return { pts: [to.slice()], hops: [], ok: false, mode: 'none' };
+      var P = cells.map(function (id) { return navXZ(nav, id); });
+      if (sId !== s0) P.unshift(from.slice()); else P[0] = from.slice();   /* 댄 칸은 남긴다 (그 칸까지 곧장 · 거기서부터 길) */
+      if (gId !== g0) P.push(to.slice()); else P[P.length - 1] = to.slice();
+      /* 폴짝 구간 (무른 가구 칸이 이어진 곳) 을 떼어 두고, 걷는 구간만 당기고 둥글린다. 폴짝 = 뛰는 자리 (그 앞 마지막 빈 칸) 에서 솟아 칸 길을 따라 가구 위로 건너
+         내리는 자리 (다음 빈 칸) 에 앉는다 — 건너는 길도 당기되 넘지 않을 가구 (그보다 높은 것 · 계단) 의 rMin 안으로는 안 들어간다. 높이 = 그 길 아래 가구 가운데 가장 높은 것 */
+      var runs = [], cur = [P[0]], glides = [], i2;
+      function hopOk(A, B) {   /* 넘지 않을 것 (그보다 높은 가구 · 계단 · 높은 소품) 곁을 날아갈 때도 몸 반지름 (rIn) 만큼 — 뛰는 · 내리는 자리가 이미 더 가까우면 거기서 멀어지는 만큼 (navSegOk 와 같은 규칙) */
+        var L = Math.hypot(B[0] - A[0], B[1] - A[1]), n = Math.max(1, Math.ceil(L / 0.04)), k, rr;
+        function tall(x, z) { var d = Infinity; for (k = 0; k < s.rects.length; k++) { rr = s.rects[k]; if (rr.hard || rr.h > hopLim + 1e-6) d = Math.min(d, rectDist(x, z, rr.b)); } return d; }
+        var ca = tall(A[0], A[1]), cb = tall(B[0], B[1]);
+        for (var q = 0; q <= n; q++) {
+          var u = q / n, x = A[0] + (B[0] - A[0]) * u, z = A[1] + (B[1] - A[1]) * u;
+          if (tall(x, z) < Math.max(s.rMin, Math.min(s.rIn, ca + u * L, cb + (1 - u) * L)) - 0.005) return false;
+          if (q > 0 && q < n && (x < s.x0 - 1e-6 || x > s.x1 + 1e-6 || z < s.z0 - 1e-6 || z > s.z1 + 1e-6)) return false;
+        }
+        return true;
+      }
+      for (i2 = 1; i2 < P.length; i2++) {
+        var inSoft = mode === 'hop' && navClear(nav, P[i2][0], P[i2][1]) < s.rMin && i2 < P.length - 1;
+        if (inSoft) {
+          var j = i2; while (j < P.length - 1 && navClear(nav, P[j][0], P[j][1]) < s.rMin) j++;
+          /* 뛸 자리 · 내릴 자리는 몸 반지름 (rIn) 만큼 트인 칸으로 (0.3 m 안에 있으면) — 제자리에서 솟고 내려앉는 동안 머리가 넘는 가구 옆구리에 묻히지 않게 */
+          var tk = i2 - 1, ld = j, back = 0, fwd = 0;
+          for (var q2 = i2 - 1; q2 > 0 && cur.length > 1; q2--) { back += Math.hypot(P[q2][0] - P[q2 - 1][0], P[q2][1] - P[q2 - 1][1]); if (back > 0.3) break; if (rectsClear(s, P[q2 - 1][0], P[q2 - 1][1]) >= s.rIn - 1e-6 && cur.length - (i2 - 1 - (q2 - 1)) >= 1) { tk = q2 - 1; break; } }
+          if (navClear(nav, P[j][0], P[j][1]) < s.rIn) for (var q3 = j; q3 < P.length - 1; q3++) { fwd += Math.hypot(P[q3 + 1][0] - P[q3][0], P[q3 + 1][1] - P[q3][1]); if (fwd > 0.3) break; if (navClear(nav, P[q3 + 1][0], P[q3 + 1][1]) >= s.rIn - 1e-6) { ld = q3 + 1; break; } if (navClear(nav, P[q3 + 1][0], P[q3 + 1][1]) < s.rMin) break; }
+          if (tk < i2 - 1) cur.length -= (i2 - 1 - tk);   /* 걷는 구간은 새 뛸 자리에서 끝난다 */
+          j = ld;
+          var G0 = P.slice(tk, j + 1), G = [G0[0]], ga = 0;
+          while (ga < G0.length - 1) { var gb = ga + 1; for (var gc = G0.length - 1; gc > ga + 1; gc--) if (hopOk(G0[ga], G0[gc])) { gb = gc; break; } G.push(G0[gb]); ga = gb; }
+          var hm = 0;
+          for (var gi = 1; gi < G.length; gi++) { var A1 = G[gi - 1], B1 = G[gi], L1 = Math.hypot(B1[0] - A1[0], B1[1] - A1[1]), n1 = Math.max(1, Math.ceil(L1 / 0.04)); for (var q1 = 0; q1 <= n1; q1++) { var u1 = q1 / n1, x1 = A1[0] + (B1[0] - A1[0]) * u1, z1 = A1[1] + (B1[1] - A1[1]) * u1; s.rects.forEach(function (rr) { if (!rr.hard && rectDist(x1, z1, rr.b) < s.rMin) hm = Math.max(hm, rr.h); }); } }
+          if (hm <= 0) { for (gi = 1; gi < G.length; gi++) cur.push(G[gi]); i2 = j; continue; }   /* 그 밑에 가구가 없다 (칸 가운데로는 좁아 보였을 뿐인 틈) → 폴짝 아니라 걷기 */
+          runs.push(cur); glides.push({ pts: G.slice(1), h: hm }); cur = [P[j]]; i2 = j;
+        } else cur.push(P[i2]);
+      }
+      runs.push(cur);
+      var pts = [], hopOut = [];
+      for (var r = 0; r < runs.length; r++) {
+        var run = runs[r].length > 1 ? navRound(nav, navPull(nav, runs[r], r === 0, r === runs.length - 1)) : runs[r];
+        for (var m = 1; m < run.length; m++) pts.push(run[m]);   /* 첫 점 = from 이거나 앞 폴짝이 내린 자리 (이미 넣었다) */
+        if (r < glides.length) { var i0 = pts.length; glides[r].pts.forEach(function (q) { pts.push(q); }); hopOut.push({ i0: i0, i1: pts.length - 1, h: glides[r].h }); }   /* 마디 i0 ~ i1 이 폴짝 한 번 (마디 k = pts[k − 1] (k = 0 이면 from) → pts[k]) */
+      }
+      if (!pts.length) pts.push(to.slice());
+      return { pts: pts, hops: hopOut, ok: true, mode: mode === 'hop' && !hopOut.length ? 'walk' : mode };
+    }
+    function navSpecNow() {   /* 지금 문어가 선 바닥의 칸 지도 재료 (다락 · 위층) — 아니면 null (바깥 · 놀이방은 길 찾기 없이 곧장) */
+      var rects = [], lim, key;
+      function add(x0, x1, z0, z1, h, hard) { rects.push({ b: [x0, x1, z0, z1], h: h, hard: !!hard }); }
+      if (octUp() && LROOM) {   /* 위층 (문어 좌표 = LSALW 안 → 방 좌표 − LSAL) */
+        var m = LOFT_R - 0.35, ox = LSAL.dx, oz = LSAL.dz, LH = [1.15, 0.5, 1.4, 0.45, 1.3, 0.5];   /* LROOM.boxes 차례의 키 (m): 재봉 책상 (실패까지) · 걸상 · 옷감 선반 · 물들이는 대야 · 마네킹 · 궤짝 */
+        LROOM.boxes.forEach(function (q, i) { if (i < LROOM.boxes.length - 1) add(q[0] - q[2] - ox, q[0] + q[2] - ox, q[1] - q[3] - oz, q[1] + q[3] - oz, LH[i] || 1.0); });
+        add(HATCH.x0 - ox, HATCH.x1 - ox, HATCH.z0 - oz, HATCH.z1 - oz, 0, true);   /* 계단 구멍 (넘지 못함 — 내 캐릭터 상자보다 넓은 진짜 구멍) */
+        if (salG.visible) add(SALC.x - SALC.sw / 2, SALC.x + SALC.sw / 2, SALC.sz - 0.06, SALC.sz + 0.06, 1.2, true);   /* 미용실 병 선반 (뒷벽) */
+        if (salG.visible && salE.visible) add(SALC.tx - 0.3, SALC.tx + 0.3, SALC.tz - 0.3, SALC.tz + 0.3, 0.45);   /* '바꾸기' 중 대야 */
+        lim = [-m - ox, m - ox, -m - oz, m - oz]; key = 'loft';
+      } else if (octG.parent === atticG && PLACE.cur === 'attic') {
+        ['sofa', 'crate'].forEach(function (id) { var f = FURN[id]; if (!f.m.visible) return; var x = f.m.position.x, z = f.m.position.z; add(x - f.hw, x + f.hw, z - f.hd, z + f.hd, (id === 'sofa' ? 0.82 : f.h) * f.sc); });   /* 키: 소파 등받이 쿠션 0.82 · 상자 더미는 양초 불꽃까지 1.2 */
+        NAV_STATIC.forEach(function (b) { add(b[0], b[1], b[2], b[3], b[4], b[5]); });   /* 옮기지 못하는 바닥 것 · 계단 (문어 자리와 같은 목록) */
+        lim = [-R + 0.35, RF - 0.35, -R + 0.35, RF - 0.35]; key = 'attic';
+      } else return null;
+      key += '|' + lim.map(function (v) { return v.toFixed(3); }).join(',') + '|' + rects.map(function (r) { return r.b.map(function (v) { return v.toFixed(3); }).join(',') + ':' + r.h.toFixed(2) + (r.hard ? 'H' : ''); }).join(';');
+      return { x0: lim[0], x1: lim[1], z0: lim[2], z1: lim[3], cell: NAV_CELL, rIn: OCT_PAD, rMin: NAV_RMIN, rects: rects, key: key };
+    }
+    function navNow() { var sp = navSpecNow(); if (!sp) return null; if (NAV.key !== sp.key || !NAV.nav) { NAV.nav = navBuild(sp); NAV.key = sp.key; NAV.builds++; } return NAV.nav; }   /* 가구를 옮기면 (가구 모드 · 저장된 배치 · 취소) 열쇠가 바뀌어 다음 길에서 다시 짓는다 */
+    /* 문어 길: { pts: [Vector3 …] (from 다음 점들, 마지막 = to), len: [마디 길이], grp: [마디마다 폴짝 묶음 번호 (−1 = 걷기)], groups: [{ i0, i1, len, h (몸이 뜰 높이 m) }], mode } */
+    function octPlan(from, to) {
+      var nav = navNow(), r = nav ? navPlan(nav, [from.x, from.z], [to.x, to.z]) : { pts: [[to.x, to.z]], hops: [], mode: 'none' };
+      var plan = { pts: [], len: [], grp: [], groups: [], yaw: [], mode: r.mode }, a = from;
+      var midY = Math.min(from.y, to.y);   /* 가운데 점은 낮은 쪽 높이 — 담요 (0.12) 로 가는 길은 마지막 마디에서만 올라선다 (예전엔 길 내내 떠서 걸었다) */
+      r.pts.forEach(function (q, i) { var p = i === r.pts.length - 1 ? to.clone() : new T.Vector3(q[0], midY, q[1]); plan.pts.push(p); plan.len.push(Math.hypot(p.x - a.x, p.z - a.z)); plan.grp.push(-1); plan.yaw.push(q.length > 2 ? q[2] : null); a = p; });
+      r.hops.forEach(function (h, g) { var L = 0; for (var i = h.i0; i <= h.i1; i++) { plan.grp[i] = g; L += plan.len[i]; } plan.groups.push({ i0: h.i0, i1: h.i1, len: L, h: h.h + NAV_HOP_TOP }); });
+      NAV.last = { from: [from.x, from.z], to: [to.x, to.z], mode: r.mode, pts: r.pts.length, hops: r.hops.map(function (h) { return +h.h.toFixed(2); }) };
+      return plan;
+    }
+    function octRoute(from, to) { return octPlan(from, to).pts; }   /* (예전 이름 — 점만) */
+    function planHopT(len) { return 0.68 + 0.22 * len; }   /* 폴짝 한 번 (s): 1.4 m 를 건너면 0.99 s (웅크림 0.12 + 공중 0.75 + 내려앉음 0.1) */
+    var HOP_UP = 0.28, HOP_CR = 0.12, HOP_LD = 0.1;   /* 폴짝: 처음 12 % 는 바닥에서 웅크리고 · 끝 10 % 는 내려앉아 눌렸다 편다. 그 사이 (공중) 의 처음 28 % 는 제자리에서 솟고 · 가운데는 가구 위 높이로 건너고 · 끝 28 % 는 내리는 자리에서 내려앉는다 — 오르내리는 동안 가구 옆구리를 스치지 않게 */
+    function hopProfile(u) {   /* u (0~1) → [건넌 비율 (0~1), 높이 비율 (0~1), 몸 눌림 (+ 눌림 0~1 · − 늘어남)] */
+      if (u < HOP_CR) return [0, 0, Math.sin(u / HOP_CR * Math.PI / 2)];   /* 웅크림: 뛰기 직전에 가장 눌린다 */
+      if (u > 1 - HOP_LD) return [1, 0, Math.cos((u - 1 + HOP_LD) / HOP_LD * Math.PI / 2)];   /* 내려앉음: 닿는 순간 가장 눌렸다가 편다 */
+      var v = (u - HOP_CR) / (1 - HOP_CR - HOP_LD), x = v < HOP_UP ? 0 : v > 1 - HOP_UP ? 1 : (v - HOP_UP) / (1 - 2 * HOP_UP), y = v < HOP_UP ? Math.sin(v / HOP_UP * Math.PI / 2) : v > 1 - HOP_UP ? Math.sin((1 - v) / HOP_UP * Math.PI / 2) : 1 + 0.08 * Math.sin(x * Math.PI);
+      return [x * x * (3 - 2 * x), y, v < HOP_UP ? -Math.sin(v / HOP_UP * Math.PI) : v > 1 - HOP_UP ? -Math.sin((1 - v) / HOP_UP * Math.PI) : 0];   /* 솟고 내리는 동안은 위아래로 늘어난다 */
+    }
+    function planSegT(plan, i, speed) { var g = plan.grp[i]; return g >= 0 ? planHopT(plan.groups[g].len) : plan.len[i] / Math.max(speed, 1e-3); }   /* 걷는 마디 하나 · 폴짝 묶음 하나 (첫 마디에서) 가 걸리는 시간 */
+    function planDur(plan, speed) { var t = 0; for (var i = 0; i < plan.pts.length; i++) { t += planSegT(plan, i, speed); if (plan.grp[i] >= 0) i = plan.groups[plan.grp[i]].i1; } return t; }
+    function planAt(plan, from, t, speed, out) {   /* 길 위 t 초 자리 → out · 가는 쪽으로 몸을 돌린다 → 폴짝 높이 (oct.hop 단위, 걷기면 0) */
+      var a = from, n = plan.pts.length;
+      for (var i = 0; i < n; i++) {
+        var g = plan.grp[i], d = planSegT(plan, i, speed), last = g >= 0 ? plan.groups[g].i1 === n - 1 : i === n - 1;
+        if (t <= d || last) {
+          var u = d > 1e-9 ? clamp(t / d, 0, 1) : 1;
+          if (g < 0) { var p = plan.pts[i]; if (plan.yaw[i] != null) oct.wantYaw = plan.yaw[i]; else if (plan.len[i] > 1e-3) oct.wantYaw = Math.atan2(p.x - a.x, p.z - a.z); out.lerpVectors(a, p, u); NAV.hopSq = 0; return 0; }
+          var G = plan.groups[g], hp = hopProfile(u), s0 = hp[0] * G.len, b = a;   /* 폴짝: 묶음의 꺾인 길을 건넌 비율만큼 */
+          NAV.hopSq = hp[2];
+          for (var k = G.i0; k <= G.i1; k++) {
+            var q = plan.pts[k], l = plan.len[k];
+            if (s0 <= l || k === G.i1) { out.lerpVectors(b, q, l > 1e-9 ? clamp(s0 / l, 0, 1) : 1); if (l > 1e-3) oct.wantYaw = Math.atan2(q.x - b.x, q.z - b.z); break; }
+            s0 -= l; b = q;
+          }
+          return hp[1] * G.h / OCT_R;
+        }
+        t -= d; if (g >= 0) { i = plan.groups[g].i1; a = plan.pts[i]; } else a = plan.pts[i];
+      }
+      out.copy(plan.pts[n - 1]); return 0;
+    }
+    function planLand(plan, from, t, speed) {   /* t 초에 폴짝 중이면 끊겼을 때 내려앉을 자리 (Vector3 — 아직 반을 못 건넜으면 뛴 자리, 넘었으면 내리는 자리: 둘 다 빈 바닥) · 걷는 중이면 null */
+      var a = from;
+      for (var i = 0; i < plan.pts.length; i++) {
+        var d = planSegT(plan, i, speed), g = plan.grp[i];
+        if (t <= d) { if (g < 0) return null; var G = plan.groups[g]; return hopProfile(d > 1e-9 ? clamp(t / d, 0, 1) : 1)[0] < 0.5 ? a : plan.pts[G.i1]; }
+        t -= d; if (g >= 0) i = plan.groups[g].i1; a = plan.pts[i];
+      }
+      return null;
+    }
+    function furnApply(id) {   /* 딸린 것들: 상자 → 양초 (상자 행렬 그대로: 자리 · 돌림 · 크기 — 불꽃 · 빛 · 발광 쌍둥이 · 글로우 다 양초 그룹 안) · 양초 빛, 문어 자리들 */
+      var f = FURN[id];
+      if (id === 'crate') {
+        var m = f.m; m.updateMatrix(); candleG.position.copy(CANDLE_AT).applyMatrix4(m.matrix); candleG.rotation.set(0, f.rot * DEG, 0); candleG.scale.setScalar(f.sc);
+        candleLight.position.set(candleG.position.x, candleG.position.y + 0.43 * f.sc, candleG.position.z);
+      }
+      octSpots(); lampDirty = true;
+    }
+    /* ── 가구 모드 (11-15 주인: "아예 가구 모드로 들어가서 문어나 캐릭터 없애고 가구만 딱딱 바꿀 수 있게" · 돌리기 90° · 작게/크게 0.1 (0.7~1.5) · 다락의 셋만) ──
+       망치 단추 → 모드: 문어 · 내 캐릭터 · 스틱 · 방 단추가 숨고 (문어 상태는 그대로 — 그리지만 않는다), 카메라는 기본 각도 · 1× · 가운데.
+       가구 톡 = 고르기 (호박색 테) · 한 손가락으로 끌면 손가락 밑 바닥을 따라 0.25 m 칸에 딱딱 (벽엔 딱 붙는다) · 못 놓는 곳이면 흰 테 (굵게) → 떼면 끌기 전 자리로 · 놓을 수 있는 곳이면 보이는 그 자리 그대로 (튐 없음).
+       돌리기 · 작게 · 크게: 겹치면 안 바뀐다 (false). 취소 = 모드를 연 때 그대로 · 저장하기 = on.furnSave(layout) 뒤 닫기. 의식(출발 · 귀가)이 시작되면 저장하고 닫는다 */
+    var CANDLE_AT = new T.Vector3(0.05, 0.72, -0.05);   /* 상자 안 양초 자리 (상자 원점 = 바닥 가운데 · 뚜껑 0.72) */
+    var FM = { on: false, sel: null, open: null, drag: null };
+    var GRID = 0.25;
+    function snapG(v) { return Math.round(v / GRID) * GRID; }
     function furnPose(id) { var f = FURN[id]; f.m.rotation.y = f.rot * DEG; f.m.scale.setScalar(f.sc); }
     function furnItems() { return Object.keys(FURN).filter(function (k) { return FURN[k].m.visible; }).map(function (k) { return { id: k, name: FURN[k].name }; }); }
-    function furnState() { var c = FU.carry; return c ? { id: c.id, name: FURN[c.id].name, rot: FURN[c.id].rot, scale: FURN[c.id].sc, items: furnItems() } : null; }
-    /* 발밑 표시 (참고 화면의 노란 자리 표시): 들고 있는 가구가 놓일 자리에 얇은 호박색 네모 — 배치 모드에서만 보인다 */
-    var furnMark = new T.Mesh(keep(new T.PlaneGeometry(1, 1)), keep(new T.MeshBasicMaterial({ color: C('#ffd866').getHex(), transparent: false, depthWrite: false })));
-    furnMark.rotation.x = -Math.PI / 2; furnMark.visible = false; furnMark.renderOrder = 1; atticG.add(furnMark);
-    function furnCarry(id) {   /* → 배치 모드 시작 (이미 다른 것을 들고 있으면 그건 놓고 바꾼다) */
-      var f = FURN[id]; if (!f || !f.m.visible || PLACE.vis !== 'attic' || PLACE.room || PL.place !== 'attic' || !playerInputAllowed()) return false;
-      if (FU.carry) { if (FU.carry.id === id) return true; furnConfirm(); }
-      if (PL.sit && !PL.hop) plStand();
-      FU.carry = { id: id, x: f.m.position.x, z: f.m.position.z, rot: f.rot, sc: f.sc, tx: f.m.position.x, tz: f.m.position.z, t: 0 };
-      furnApply(id); dither.still = 0; emit('furnEdit', furnState()); return true;
+    function furnSnap() { var o = {}; Object.keys(FURN).forEach(function (id) { var f = FURN[id]; o[id] = [f.m.position.x, f.m.position.z, f.rot, f.sc]; }); return o; }
+    function furnRestore(o) { Object.keys(o).forEach(function (id) { var f = FURN[id], v = o[id]; f.m.position.x = v[0]; f.m.position.z = v[1]; f.rot = v[2]; f.sc = v[3]; furnPose(id); furnApply(id); }); }
+    function furnState() {
+      if (!FM.on) return null;
+      var s = FM.sel && FURN[FM.sel], c = FM.drag;
+      return { id: FM.sel, name: s ? s.name : '', rot: s ? s.rot : 0, scale: s ? s.sc : 1, items: furnItems(), dragging: !!c, bad: !!(c && !c.ok) };
     }
-    function furnEnd(keep) {
-      var c = FU.carry; if (!c) return null; var f = FURN[c.id];
-      if (!keep) { f.rot = c.rot; f.sc = c.sc; f.m.position.x = c.x; f.m.position.z = c.z; }
-      else { f.m.position.x = c.tx; f.m.position.z = c.tz; FU.bounce = { id: c.id, t: 0 }; }   /* 놓을 땐 표시 자리에 딱 + 통 하고 내려앉는다 */
-      furnPose(c.id); f.m.position.y = 0; FU.carry = null; furnMark.visible = false; furnApply(c.id); dither.still = 0; emit('furnEdit', null);
-      return { id: c.id, x: +f.m.position.x.toFixed(3), z: +f.m.position.z.toFixed(3), rot: f.rot, scale: f.sc };
+    function furnEmit() { FU.selK = null; dither.still = 0; emit('furnEdit', furnState()); }
+    /* 테 (고른 가구 · 끄는 가구): 바닥에 납작한 네 변 — 가구에 가려지지 않게 깊이 검사 없이 맨 위에. 호박색 = 고름 · 종이흰 굵게 = 못 놓음 · 막힘 */
+    var selMat = keep(new T.MeshBasicMaterial({ color: C(PAL.amber[3]).getHex(), depthTest: false, depthWrite: false })), selG = new T.Group(), SEL_T = 0.12;
+    for (var si = 0; si < 4; si++) { var sm = new T.Mesh(keep(new T.PlaneGeometry(1, 1)), selMat); sm.rotation.x = -Math.PI / 2; sm.renderOrder = 6; selG.add(sm); }
+    selG.visible = false; atticG.add(selG);
+    /* 11-15 (검증): 숨은 문어가 쓰는 자리 (지금 선 자리 · 담요 잠자리) 를 바닥에 옅은 동그라미로 — 거기가 왜 빨간지 보이게 */
+    var spotMat = keep(new T.MeshBasicMaterial({ color: C(PAL.dusk[1]).getHex(), depthWrite: false })), spotMarks = [0, 1].map(function () { var m = new T.Mesh(keep(new T.RingGeometry(OCT_PAD - 0.1, OCT_PAD, 20)), spotMat); m.rotation.x = -Math.PI / 2; m.renderOrder = 2; m.visible = false; atticG.add(m); return m; });
+    function stepSpotMarks() {
+      var on = FM.on, b = on && props.blanket.visible ? bedSpot() : null, oc = on && octHere() && oct.anchor !== 'crate' ? oct.pos : null;
+      spotMarks[0].visible = !!b; if (b) spotMarks[0].position.set(b[0], 0.16, b[1]);
+      spotMarks[1].visible = !!oc && !(b && Math.hypot(oc.x - b[0], oc.z - b[1]) < 0.2); if (spotMarks[1].visible) spotMarks[1].position.set(oc.x, 0.02, oc.z);
     }
-    function furnConfirm() { var r = furnEnd(true); if (r) emit('furnMove', r); return r; }
-    function furnCancel() { furnEnd(false); }
-    function furnSetRot(deg) { var c = FU.carry; if (!c || !isFinite(+deg)) return; var f = FURN[c.id]; f.rot = ((Math.round(+deg) % 360) + 360) % 360; furnPose(c.id); furnApply(c.id); dither.still = 0; }   /* 슬라이더: 0~359° 자유 */
-    function furnSetScale(v) { var c = FU.carry; if (!c || !isFinite(+v)) return; var f = FURN[c.id]; f.sc = clamp(+v, 0.7, 1.5); furnPose(c.id); furnApply(c.id); dither.still = 0; }   /* 슬라이더: 0.7~1.5 */
-    function furnRotate() { var c = FU.carry; if (c) { furnSetRot(FURN[c.id].rot + 90); emit('furnEdit', furnState()); } }
-    function furnScale(dir) { var c = FU.carry; if (c) { furnSetScale(Math.round((FURN[c.id].sc + (dir > 0 ? 0.1 : -0.1)) * 10) / 10); emit('furnEdit', furnState()); } }
-    function stepCarry(dt) {   /* 들고 있는 가구: 캐릭터 앞 자리를 표시(놓을 수 있는 곳만)가 따라가고, 가구는 그 위에 떠서 부드럽게 쫓아간다 (둥실 + 살짝 기울기) */
-      var b = FU.bounce;
-      if (b) { b.t += dt; var bf = FURN[b.id], bk = Math.min(1, b.t / 0.28), sq = 1 - 0.12 * Math.sin(Math.PI * bk) * (1 - bk); bf.m.scale.set(bf.sc * (2 - sq), bf.sc * sq, bf.sc * (2 - sq)); if (bk >= 1) { furnPose(b.id); FU.bounce = null; } dither.still = 0; }
-      var c = FU.carry; if (!c) return;
-      if (PLACE.vis !== 'attic' || PL.place !== 'attic') { furnCancel(); return; }
-      var f = FURN[c.id], l = furnLim(f), d = 0.5 + Math.max(f.hw, f.hd), fx = Math.sin(PL.yaw), fz = Math.cos(PL.yaw);
-      var x = clamp(snapPos(PL.pos.x + fx * d), l[0], l[1]), z = clamp(snapPos(PL.pos.z + fz * d), l[2], l[3]);
-      if (furnOk(c.id, x, z)) { c.tx = x; c.tz = z; }
-      else if (!furnOk(c.id, c.tx, c.tz)) { c.tx = clamp(c.tx, l[0], l[1]); c.tz = clamp(c.tz, l[2], l[3]); }   /* 돌리거나 키워서 벽에 걸리면 안쪽으로 */
-      c.t += dt;
-      var k = st.reduced ? 1 : 1 - Math.exp(-dt * 10), mx = c.tx - f.m.position.x, mz = c.tz - f.m.position.z;
-      f.m.position.x += mx * k; f.m.position.z += mz * k; f.m.position.y = st.reduced ? 0.1 : 0.14 + 0.03 * Math.sin(c.t * 4);
-      f.m.rotation.set(st.reduced ? 0 : clamp(mz * 0.5, -0.12, 0.12), f.rot * DEG, st.reduced ? 0 : clamp(-mx * 0.5, -0.12, 0.12));   /* 끌려오는 쪽으로 살짝 기운다 */
-      furnMark.visible = true; furnMark.position.set(c.tx, f.flat ? 0.14 : 0.012, c.tz); furnMark.scale.set(f.hw * 2 + 0.08, f.hd * 2 + 0.08, 1);
-      furnApply(c.id); dither.still = 0;
+    function stepSel() {
+      var id = FM.on && (FM.drag ? FM.drag.id : FM.sel), f = id && FURN[id];
+      if (!f || !f.m.visible) { selG.visible = false; return; }
+      var no = FM.nope ? performance.now() - FM.nope : 1e9, nope = st.reduced ? no < 300 : no < 450 && Math.floor(no / 150) % 2 === 0;   /* 11-15 (UI 점검): 돌리기 · 크기가 막히면 고른 가구 테가 깜빡 (150 ms 씩 · 동작 줄이기면 300 ms 그대로) — 단추만 흔들리면 방을 보던 눈엔 안 보였다 */
+      var warn = (FM.drag && !FM.drag.ok) || nope;   /* 11-15 (검증 U-2): 못 놓음 · 막힘 = 종이흰 테 1.5배 — 빨강 (rose) 은 나무 바닥 · 소파와 같은 색이라 아침 · 노을엔 테가 사라져 보였다 */
+      var x = f.m.position.x, z = f.m.position.z, hw = f.hw + 0.06, hd = f.hd + 0.06, y = f.flat ? 0.16 : 0.02, t = warn ? SEL_T * 1.5 : SEL_T, ch = selG.children;
+      ch[0].position.set(x, y, z - hd); ch[0].scale.set(hw * 2 + t, t, 1); ch[1].position.set(x, y, z + hd); ch[1].scale.set(hw * 2 + t, t, 1);
+      ch[2].position.set(x - hw, y, z); ch[2].scale.set(t, hd * 2 + t, 1); ch[3].position.set(x + hw, y, z); ch[3].scale.set(t, hd * 2 + t, 1);
+      selMat.color.set(C(warn ? PAL.white : PAL.amber[3])); selG.visible = true;
     }
-    function furnHoldStart() {   /* 꾹 0.48 s → 그 가구로 배치 모드 */
-      if (!press || press.moved || press.multi || press.pet || GEST.mode !== 'press' || PLACE.vis !== 'attic' || PLACE.room || panLocked() || PLAY) return;
-      if (press.obj && press.obj.userData.kind === 'oct') return;
-      var id = furnAt(press.x, press.y); if (!id) return;
-      if (furnCarry(id)) { GEST.mode = 'done'; press.moved = true; }   /* 이 누름은 여기서 끝 (떼도 톡으로 안 친다) */
+    function furnSelRect() { return FM.sel ? furnRectOf(FM.sel) : null; }   /* 고른 가구의 화면 상자 (CSS px, 장면 기준 — 발자국 네 모서리 × 바닥 · 위 끝) */
+    function furnRectOf(id) {
+      var f = FURN[id]; if (!f || !f.m) return null;
+      scene.updateMatrixWorld(); camera.updateMatrixWorld();
+      var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, x = f.m.position.x, z = f.m.position.z;
+      for (var i = 0; i < 8; i++) {
+        _fpt.set(x + (i & 1 ? f.hw : -f.hw), (i & 4 ? f.h * f.sc : 0), z + (i & 2 ? f.hd : -f.hd)).add(atticG.position).project(camera);
+        var sx = S.offX + (_fpt.x * 0.5 + 0.5) * S.cw, sy = S.offY + (1 - (_fpt.y * 0.5 + 0.5)) * S.ch;
+        x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy);
+      }
+      return { l: Math.round(x0), r: Math.round(x1), t: Math.round(y0), b: Math.round(y1) };
     }
-    function furnDragMove() {} function furnDrop() { GEST.hold = false; }   /* (옛 끌기 방식의 자리 — 배치 모드로 바꿨다) */
+    function stepFurnSel() {   /* 고른 가구의 화면 자리가 바뀔 때만 on.furnSel({ id, l, r, t, b, rot, scale } | null) — 앱이 단추 줄을 그 밑(모자라면 위)에 붙인다 */
+      var r = FM.on && FM.sel && !FM.drag && PLACE.vis === 'attic' ? furnSelRect() : null, f = r && FURN[FM.sel];
+      var k = r ? [FM.sel, r.l, r.r, r.t, r.b, f.rot, f.sc].join(',') : '';
+      if (k !== FU.selK) { FU.selK = k; emit('furnSel', r ? { id: FM.sel, l: r.l, r: r.r, t: r.t, b: r.b, rot: f.rot, scale: f.sc } : null); }
+    }
+    function furnHide() {   /* 모드 동안 매 프레임: 문어 · 내 캐릭터 · 접지 그림자를 그리지 않는다 (상태는 그대로 — 다른 코드가 다시 켜도 여기서 끈다) */
+      if (!FM.on) return;
+      octG.visible = false; octDecal.visible = false; plG.visible = false;
+    }
+    function furnModeCan() { return ready && PLACE.vis === 'attic' && !PLACE.room && PL.place === 'attic' && !PLACE.trans && !DQ.active && !DQ.pending && !INTRO.on && !(CER && CER.active) && !PLAY && plG.parent === atticG; }
+    function furnFit(ins) {   /* 다락 바닥 전체가 장면에 들어오게: 1× 에서 바닥 네 모서리를 재고, 모자라면 정수 아트px/m (N) 로 줄여(1× 아래 — 이 모드만) 위 줄과 가구 줄 사이 가운데에 */
+      ins = ins || {}; var top = +ins.top || 132, bot = +ins.bottom || 96, side = 12;
+      ZT = null; st.zoomF = 1; applyZoom(); panReset(); placeCamera();
+      function ext() {
+        scene.updateMatrixWorld(); camera.updateMatrixWorld(); var e = [1e9, -1e9, 1e9, -1e9];
+        [[-R, -R], [RF, -R], [-R, RF], [RF, RF]].forEach(function (c) { _fpt.set(c[0], 0, c[1]).add(atticG.position).project(camera); var x = S.offX + (_fpt.x * 0.5 + 0.5) * S.cw, y = S.offY + (1 - (_fpt.y * 0.5 + 0.5)) * S.ch; e[0] = Math.min(e[0], x); e[1] = Math.max(e[1], x); e[2] = Math.min(e[2], y); e[3] = Math.max(e[3], y); });
+        return e;
+      }
+      var e = ext(), aw = S.W - side * 2, ah = Math.max(80, S.H - top - bot), k = Math.min(1, aw / (e[1] - e[0]), ah / (e[3] - e[2]));
+      if (k < 1) { var b = baseN(); st.zoomF = Math.max(1, Math.floor(b * k)) / b; applyZoom(); e = ext(); }
+      var q = 1 / (S.p * S.N); PAN.x += ((e[0] + e[1]) / 2 - S.W / 2) * q; PAN.y -= ((e[2] + e[3]) / 2 - (top + (S.H - top - bot) / 2)) * q; roundPan(); placeCamera();
+    }
+    function furnMode(on, ins) {   /* → 지금 모드인가. on = 열기 (ins = { top, bottom }: 위 줄 · 가구 줄이 덮는 장면 높이 CSS px) · false = 닫기 (닫기는 저장 없이 그대로 — 앱은 furnSave · furnCancel 을 쓴다) */
+      if (on && !FM.on) {
+        if (!furnModeCan()) return false;
+        if (PL.sit && !PL.hop) plStand();
+        if (oct.walking && oct.walking.finish && !(CER && CER.active)) oct.walking.finish();   /* 11-15 (검증): 걷던 문어는 도착시켜 둔다 — 옛 길 · 옛 목적지로 옮긴 가구 속에 서지 않게 (문어 몸 자리는 이 자리로 지킨다) */
+        FM.on = true; FM.sel = null; FM.drag = null; FM.open = furnSnap();
+        if (typeof setYaw === 'function') setYaw(0, true); else yawDrag = 0;   /* 기본 각도 — 11-15 합침: 바로 (이징이면 270° 에서 들어올 때 방이 한 바퀴 빙 돌았다) */
+        furnFit(ins); touchMode();
+        furnHide(); FU.spotK = null; furnEmit();   /* 스틱은 playerInputAllowed 가 (FM.on) 숨긴다 */
+      } else if (!on && FM.on) furnClose();
+      return FM.on;
+    }
+    function furnClose() {
+      FM.on = false; FM.sel = null; FM.drag = null; FM.open = null; selG.visible = false;
+      ZT = null; if (st.zoomF < 1) setZoom(1); panReset(); placeCamera(); touchMode();   /* 모드의 맞춤 구도 (1× 아래) → 평소 1× 가운데 */
+      var away = st.octState === 'away'; octG.visible = !away && FADE.d > 0; octDecal.visible = !away && FADE.d >= 0.5; plG.visible = true;
+      if (octHere() && !(CER && CER.active)) {   /* (걷던 걸음은 모드를 열 때 끝냈다) */
+        if (oct.walking && oct.walking.finish) oct.walking.finish();   /* 상자 옆 · 담요에 있던 문어는 그 가구를 따라 (자던 문어는 담요의 새 자리에) · 다른 자리면 가구에 덮이지 않게 */
+        if (oct.anchor === 'blanket' || oct.anchor === 'crate') jumpTo(oct.anchor);
+        else { var bl = furnBoxes(null, OCT_PAD).concat(staticBoxes(OCT_PAD)), p = nearFree(oct.pos.x, oct.pos.z, bl); if (p[0] !== oct.pos.x || p[1] !== oct.pos.z) { oct.pos.set(p[0], oct.pos.y, p[1]); snapScreen(octG.position.copy(oct.pos)); } }
+      }
+      if (PL.place === 'attic') {   /* 내 캐릭터가 가구 속에 남았으면 가장 가까운 빈 자리로 */
+        var bx = plBoxes(), ci = plCircles();
+        if (plPen(PL.pos.x, PL.pos.z, bx, ci) > 0) { var lm = plLim(); for (var r = 0.25, got = false; r < 4 && !got; r += 0.25) for (var i = 0; i < 16 && !got; i++) { var a = i * Math.PI / 8, px = PL.pos.x + Math.sin(a) * r, pz = PL.pos.z + Math.cos(a) * r; if (px > lm[0] && px < lm[1] && pz > lm[0] && pz < lm[1] && plPen(px, pz, bx, ci) <= 0) { PL.pos.set(px, 0, pz); got = true; } } }
+      }
+      rebuildDecals(); FU.spotK = null; dither.still = 0; emit('furnSel', null); FU.selK = ''; emit('furnEdit', null);
+    }
+    function furnSave() {   /* 저장하기: 지금 배치를 앱에 (on.furnSave) 넘기고 닫는다 → 그 배치 */
+      if (!FM.on) return null;
+      if (FM.drag) furnDragEnd(false);
+      var out = layoutNow(), was = FM.open; furnClose(); emit('furnSave', { layout: out, from: was }); return out;
+    }
+    function furnCancel() { if (!FM.on) return; FM.drag = null; if (FM.open) furnRestore(FM.open); furnClose(); }   /* 취소: 모드를 연 때 그대로 */
+    function furnSelect(id) { if (!FM.on || (id && (!FURN[id] || !FURN[id].m.visible))) return false; FM.sel = id || null; furnEmit(); return true; }
+    function furnTry(id, rot, sc, slide) {   /* 각도 · 크기를 바꿔 본다: 벽에 걸리면 안쪽으로 밀고, 그래도 겹치면 (slide = 돌리기는 가까운 빈 칸을 찾아 보고) 되돌리고 false */
+      var f = FURN[id], r0 = f.rot, s0 = f.sc, x0 = f.m.position.x, z0 = f.m.position.z;
+      f.rot = rot; f.sc = sc; var l = furnLim(f), x = clamp(x0, l[0], l[1]), z = clamp(z0, l[2], l[3]);
+      if (!furnOk(id, x, z) && !slide) { f.rot = r0; f.sc = s0; return furnNope(); }   /* 작게 · 크게: 겹치면 안 바뀐다 (지시문) */
+      if (!furnOk(id, x, z)) {   /* 11-15 (검증): 그 자리에서 안 되면 0.75 m 안의 가장 가까운 놓을 수 있는 칸으로 (소파를 담요 옆에서 돌리면 늘 막혔다) — 없으면 안 바뀐다 */
+        var best = null, bd = 1e9;
+        for (var dx = -3; dx <= 3; dx++) for (var dz = -3; dz <= 3; dz++) { var px = clamp(snapG(x + dx * GRID), l[0], l[1]), pz = clamp(snapG(z + dz * GRID), l[2], l[3]), d = Math.hypot(px - x0, pz - z0); if (d <= 0.75 + 1e-6 && d < bd && furnOk(id, px, pz)) { bd = d; best = [px, pz]; } }
+        if (!best) { f.rot = r0; f.sc = s0; return furnNope(); }
+        x = best[0]; z = best[1];
+      }
+      f.m.position.x = x; f.m.position.z = z; furnPose(id); furnApply(id); if (id === 'crate') rebuildDecals(); furnEmit(); return true;
+    }
+    function furnNope() { FM.nope = performance.now(); dither.still = 0; return false; }   /* 11-15 (UI 점검): 막힘 → 방 안 흰 테 깜빡 (stepSel) · 그리고 false. 진동은 없다 (주인 05시: 가구는 집기 · 놓기에만) */
+    function furnRotate() { var id = FM.on && FM.sel; if (!id || FM.drag) return false; return furnTry(id, (FURN[id].rot + 90) % 360, FURN[id].sc, true); }   /* 90° 씩 (옛 15° 각도는 그 위에서 돈다) */
+    function furnScale(dir) {
+      var id = FM.on && FM.sel; if (!id || FM.drag) return false;
+      var f = FURN[id], s = clamp(Math.round((f.sc + (dir > 0 ? 0.1 : -0.1)) * 100) / 100, 0.7, 1.5);
+      return s !== f.sc ? furnTry(id, f.rot, s) : furnNope();   /* 끝 칸 (키보드 + · −) 도 방 안에서 보이게 */
+    }
+    function furnNudge(sx, sy) {   /* 방향키: 화면의 그 방향에 가장 가까운 바닥 축으로 한 칸 (0.25 m) — 못 놓는 곳이면 안 간다 */
+      var id = FM.on && FM.sel; if (!id || FM.drag) return false;
+      var f = FURN[id], l = furnLim(f), ax = [[1, 0], [0, 1]].map(function (d) { var v = _fpt.set(d[0], 0, d[1]); return { d: d, a: v.dot(_r), b: v.dot(_u) }; });
+      var vi = Math.abs(ax[0].b) / Math.hypot(ax[0].a, ax[0].b) >= Math.abs(ax[1].b) / Math.hypot(ax[1].a, ax[1].b) ? 0 : 1, o = sy ? ax[vi] : ax[1 - vi];   /* 위아래 = 화면에서 더 세로인 바닥 축 · 좌우 = 다른 축 (대각 구도에서 두 키가 한 축으로 몰리지 않게) */
+      var sg = sy ? (o.b * -sy > 0 ? 1 : -1) : (o.a * sx > 0 ? 1 : -1), best = [o.d[0] * sg, o.d[1] * sg];
+      var x = clamp(snapG(f.m.position.x + best[0] * GRID), l[0], l[1]), z = clamp(snapG(f.m.position.z + best[1] * GRID), l[2], l[3]);
+      if ((x === f.m.position.x && z === f.m.position.z) || !furnOk(id, x, z)) return false;
+      f.m.position.x = x; f.m.position.z = z; furnApply(id); if (id === 'crate') rebuildDecals(); furnEmit(); return true;
+    }
+    /* 손가락 끌기: 누른 바닥 점과 가구 가운데의 차이를 지키며 칸에 딱딱 · 벽에 딱 */
+    function furnDragStart(id, cx, cy) {
+      var f = FURN[id], p = furnFloor(cx, cy); if (!p) return false;
+      FM.drag = { id: id, x0: f.m.position.x, z0: f.m.position.z, ox: f.m.position.x - p.x, oz: f.m.position.z - p.z, ok: true };
+      FM.sel = id; furnEmit(); buzz('pick'); return true;
+    }
+    function furnDragMove(cx, cy) {
+      var c = FM.drag; if (!c) return; var f = FURN[c.id], p = furnFloor(cx, cy); if (!p) return;
+      var l = furnLim(f), x = clamp(snapG(p.x + c.ox), l[0], l[1]), z = clamp(snapG(p.z + c.oz), l[2], l[3]);
+      if (x === f.m.position.x && z === f.m.position.z) return;
+      f.m.position.x = x; f.m.position.z = z; var ok = furnOk(c.id, x, z);
+      if (c.id === 'crate') furnApply('crate');   /* 양초는 끄는 동안에도 상자 위 (문어 자리는 놓을 때) */
+      if (ok !== c.ok) { c.ok = ok; emit('furnEdit', furnState()); }
+      dither.still = 0;
+    }
+    function furnDragEnd(keepIt) {   /* keepIt = 손을 정상으로 뗐다. 못 놓는 곳이었거나 취소(두 번째 손가락 · 창 닫힘)면 끌기 전 자리로 */
+      var c = FM.drag; if (!c) return; var f = FURN[c.id];
+      if (!keepIt || !c.ok) { f.m.position.x = c.x0; f.m.position.z = c.z0; }
+      else buzz('drop');
+      FM.drag = null; furnApply(c.id); if (c.id === 'crate') rebuildDecals(); furnEmit();
+    }
+    function buzz(n) { try { if (typeof HAPTICS !== 'undefined') HAPTICS.buzz(n); } catch (e) { /* 진동 없음 */ } }   /* 11-15 5차 진동 (기본 켬 · 설정에서 끄기): 가구 집기 · 놓기 (주인이 고른 두 때만 — 못 놓는 곳은 흰 테로만) */
     function setLayout(o) {   /* { sofa: [x, z, rot?, scale?], … } — 범위 밖 · 모르는 것은 무시 */
       if (!o || typeof o !== 'object') return;
       Object.keys(FURN).forEach(function (id) {
@@ -1276,12 +2148,25 @@ var SCENE3D = (function () {
         f.rot = isFinite(+v[2]) ? ((Math.round(+v[2]) % 360) + 360) % 360 : 0; f.sc = isFinite(+v[3]) && +v[3] > 0 ? clamp(+v[3], 0.7, 1.5) : 1; furnPose(id);
         var l = furnLim(f); f.m.position.x = clamp(+v[0], l[0], l[1]); f.m.position.z = clamp(+v[1], l[2], l[3]); furnApply(id);
       });
-      dither.still = 0;
+      Object.keys(FURN).forEach(furnOffStair);   /* 11-18: 계단이 왼벽 앞쪽 구석으로 옮겨 왔다 — 예전에 그 자리에 놓아 둔 가구는 화면에서만 가장 가까운 빈 칸으로 비켜 세운다 (저장값은 건드리지 않는다 · 가구 모드에서 저장하면 그때 새 자리가 적힌다) */
+      octSpots(); rebuildDecals(); dither.still = 0;   /* 11-15: 저장된 배치가 문어 자리를 덮으면 자리만 비켜 간다 (가구 값은 그대로 — 다시 칸에 맞추지 않는다) · 상자 접지 그림자도 새 자리에 */
+    }
+    function furnOffStair(id) {   /* 11-18: 이 가구가 계단 금지 구역(FURN_KEEP 셋째)에 걸려 있으면 놓을 수 있는 가장 가까운 칸으로 */
+      var f = FURN[id], x0 = f.m.position.x, z0 = f.m.position.z;
+      function hits(K) { return x0 + f.hw > K[0] && x0 - f.hw < K[1] && z0 + f.hd > K[2] && z0 - f.hd < K[3]; }
+      if (!hits(FURN_KEEP[2])) return false;
+      var l = furnLim(f), best = null, bd = 1e9, gx, gz, d;
+      function tryAt(x, z) { if (x < l[0] - 1e-6 || x > l[1] + 1e-6 || z < l[2] - 1e-6 || z > l[3] + 1e-6 || !furnOk(id, x, z)) return; d = Math.hypot(x - x0, z - z0); if (d < bd - 1e-9) { bd = d; best = [x, z]; } }
+      for (gz = Math.ceil(l[2] / GRID) * GRID; gz <= l[3] + 1e-6; gz += GRID) tryAt(x0, gz);   /* 벽에 붙여 둔 자리 (격자 밖 x · z) 는 그 줄 그대로 먼저 — 격자만 보면 벽에서 떴다 (검증 11-18) */
+      for (gx = Math.ceil(l[0] / GRID) * GRID; gx <= l[1] + 1e-6; gx += GRID) tryAt(gx, z0);
+      for (gx = Math.ceil(l[0] / GRID) * GRID; gx <= l[1] + 1e-6; gx += GRID) for (gz = Math.ceil(l[2] / GRID) * GRID; gz <= l[3] + 1e-6; gz += GRID) tryAt(gx, gz);
+      if (!best) return false;
+      f.m.position.x = best[0]; f.m.position.z = best[1]; furnApply(id); return true;
     }
     function layoutNow() { var out = {}; Object.keys(FURN).forEach(function (id) { var f = FURN[id]; out[id] = [+f.m.position.x.toFixed(3), +f.m.position.z.toFixed(3), f.rot, f.sc]; }); return out; }
     function sofaAx() { var a = FURN.sofa.rot * DEG; return [Math.cos(a), -Math.sin(a)]; }   /* 소파가 보는 쪽 (앉는 쪽) 단위 벡터 [x, z] */
     function stepSofaSpot() {   /* 소파 위 노란 점 자리 (CSS px, 장면 기준) — 바뀔 때만 on.sofaSpot({ x, y } | null) */
-      var f = FURN.sofa, show = PLACE.vis === 'attic' && !PLACE.room && PL.place === 'attic' && !PL.sit && !PL.hop && !FU.carry && playerInputAllowed(), x = 0, y = 0;
+      var f = FURN.sofa, show = PLACE.vis === 'attic' && !PLACE.room && PL.place === 'attic' && !PL.sit && !PL.hop && !FM.on && playerInputAllowed(), x = 0, y = 0;
       if (show) {
         var sa = sofaAx(); _fpt.set(f.m.position.x + sa[0] * 0.10 * f.sc, 0.66 * f.sc, f.m.position.z + sa[1] * 0.10 * f.sc).add(atticG.position).project(camera);
         x = Math.round(S.offX + (_fpt.x * 0.5 + 0.5) * S.cw); y = Math.round(S.offY + (1 - (_fpt.y * 0.5 + 0.5)) * S.ch);
@@ -1323,7 +2208,7 @@ var SCENE3D = (function () {
     function rebuildDecals() {   /* 바닥 접촉 데칼 한 메시 (소품 + '바꾸기' 동안의 대야 — 대야가 드로우콜을 더 쓰지 않게 여기에 합친다) */
       if (propDecals) { atticG.remove(propDecals); propDecals.geometry.dispose(); propDecals = null; }
       var dp = [];
-      Object.keys(props).forEach(function (k) { var m = props[k]; if (m.visible && m.userData.decalR) dp.push({ g: new T.PlaneGeometry(m.userData.decalR * 2, m.userData.decalR * 2), m: M(m.position.x, 0.012, m.position.z, -Math.PI / 2, 0, 0), c: '#ffffff' }); });
+      Object.keys(props).forEach(function (k) { var m = props[k]; if (m.visible && m.userData.decalR) dp.push({ g: new T.PlaneGeometry(m.userData.decalR * 2 * m.scale.x, m.userData.decalR * 2 * m.scale.x), m: M(m.position.x, 0.012, m.position.z, -Math.PI / 2, 0, 0), c: '#ffffff' }); });
       if (SAL && salG.visible && salE.visible) dp.push({ g: new T.PlaneGeometry(0.84, 0.84), m: M(SALC.tx, 0.012, SALC.tz, -Math.PI / 2, 0, 0), c: '#ffffff' });
       if (dp.length) { propDecals = new T.Mesh(mergeParts(dp), decalMat); propDecals.renderOrder = 1; atticG.add(propDecals); }
     }
@@ -1862,7 +2747,7 @@ var SCENE3D = (function () {
       sleepy: { lid: 0.21, pupil: 1, pz: 0.10, dy: -0.05, pose: [1.02, 0.96, 0] }
     };
     var OPEN_EYES = { idle: 1, pet: 1, curious: 1, calm: 1, sleepy: 1 };                              /* 깜빡임이 끼어드는 표정 */
-    var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' };   /* 상태 → 기본 표정 (나머지는 idle). app.js 가 나중에 setExpression 으로 덮어쓴다 (DESIGN §15.2) */
+    var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep' };   /* 11-15 (주인 C6 b): anticipate 는 idle (예전 calm) */   /* 상태 → 기본 표정 (나머지는 idle). app.js 가 나중에 setExpression 으로 덮어쓴다 (DESIGN §15.2) */
     var face = { expr: 'idle', applied: '', t: 0, hopsLeft: 0, dy: 0 };
     function applyFace(name) {
       var f = FACES[name] || FACES.idle;
@@ -1902,7 +2787,7 @@ var SCENE3D = (function () {
       uDither: { value: 0 }, uOutline: { value: hasDepthTex ? 1 : 0 }, uHasNormal: { value: 1 }, uVig: { value: 0 }, uSky: { value: 0 }, uStars: { value: 0 }, uSkyOk: { value: new T.Vector3(0, 0, 0) }, uBayer: post.uniforms.uBayer, uKeepAlpha: { value: 1 }, uFade: { value: 0 }, uFadeOk: { value: new T.Vector3(0, 0, 0) } } }));
     var pBuf = new Uint8Array(PORT.N * PORT.N * 4);
     function portraitBg(o) { var b = o && o.bg; if (!b || b === 'transparent') return null; if (b === 'navy') return '#172038'; return /^#[0-9a-f]{6}$/i.test(b) ? b : null; }   /* 기본 투명 · 'navy' = Apollo 남색 · '#rrggbb' */
-    function renderPortrait(expr, bgHex, colorHex) {   /* colorHex = 그 몸색으로 찍기 (장면 몸색·팔레트는 찍은 뒤 그대로 되돌린다 — 첫 실행 창 미리 보기 · 지난 날 초상) */
+    function renderPortrait(expr, bgHex, colorHex, pw) {   /* colorHex = 그 몸색으로 찍기 (장면 몸색·팔레트는 찍은 뒤 그대로 되돌린다 — 첫 실행 창 미리 보기 · 지난 날 초상) · pw = 11-15 걷는 옆모습 (walkPortrait) */
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       var base = colorHex || st.color, other = base.toLowerCase() !== String(st.color).toLowerCase(), OCp = other ? octDerived(base) : OC;
       if (other) { octLook(OCp); uploadPalette(buildPalette(base, st.palette, salExtra())); }
@@ -1914,15 +2799,15 @@ var SCENE3D = (function () {
       var hex = expr === 'sleep' ? hueHex(base, 12) : base;   /* sleep = 색 순환 한 자락. pet 은 몸색 그대로 (11-14 주인 O2 c — 예전 홍조 끝값) */
       if (hex !== sv.hex) octColor(hex);
       PORT.last = { expr: expr, hex: hex, base: base, arcs: arcs.visible, smile: smile.visible, blush: blush.visible, eyes: pupils[0].visible };   /* 시험용 (11-14 O2 c): 이 초상에 칠한 몸색 · 보인 얼굴 부품 — 밝기 어림 대신 색 그대로 견준다 */
-      octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]);   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = 0; bodyG.rotation.set(0, 0, pose[2]);
-      var salClean = !!(SAL.active || SAL.lookAt || SAL.offer >= 0);   /* 미용실이 눈·몸을 쥐고 있을 때만 (병을 내밀었거나 연출 중) 초상을 정지 자세로 씻는다 — 그 밖엔 예전 그대로 찍는다 */
-      arms.forEach(function (m) { m.rotation.y = -m.userData.a; m.rotation.z = 0.05; if (salClean) m.scale.x = 1; });   /* 걸음 중이어도 초상은 정지 자세 (다리 기본 0.05 · 미용실 기쁨 폴짝 꼭대기의 다리 ×1.3 도 풀고) */
+      octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]); if (pw && pw.sq) bodyG.scale.set(pw.sq[0], pw.sq[1], pw.sq[0]);   /* 11-18 pw.sq = 눌림·늘임 (달리기 문어 굽기 — 점프 · 착지 · 엎드림). 되돌리기는 위 sv 그대로 */   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = pw ? pw.by : 0; if (pw) bodyG.rotation.set(0, pw.yaw, pw.roll); else bodyG.rotation.set(0, 0, pose[2]);
+      var salClean = !!(SAL.active || SAL.lookAt || SAL.offer >= 0) || TB.oct !== 'none';   /* 11-18: 식탁 자세(접은 다리 · 뻗은 다리 · 요리 보는 눈)도 초상에 안 샌다 */   /* 미용실이 눈·몸을 쥐고 있을 때만 (병을 내밀었거나 연출 중) 초상을 정지 자세로 씻는다 — 그 밖엔 예전 그대로 찍는다 */
+      if (!pw) arms.forEach(function (m) { m.rotation.y = -m.userData.a; m.rotation.z = 0.05; if (salClean) m.scale.x = 1; });   /* 걸음 중이어도 초상은 정지 자세 (다리 기본 0.05 · 미용실 기쁨 폴짝 꼭대기의 다리 ×1.3 도 풀고) */
       if (salClean) pupils.forEach(function (p, k) { p.position.x = EYE[k][0]; p.position.y = EYE[k][1] + (FACES[expr].dy || 0); });   /* 눈은 앞을 본다 (미용실 병을 따라가던 동공이 초상에 새지 않게) */
       octG.updateMatrixWorld(true);
-      var ty = (HEAD_Y - PORT.down) * pose[1];
+      var ty = pw ? pw.ty : (HEAD_Y - PORT.down) * pose[1], tilt = pw ? pw.tilt : PORT.tilt;
       _pt.set(0, ty, 0); octG.localToWorld(_pt);
-      _pp.set(0, ty + PORT.dist * Math.sin(PORT.tilt), PORT.dist * Math.cos(PORT.tilt)); octG.localToWorld(_pp);
-      var hw = PORT.hw * OCT_R; pCam.left = -hw; pCam.right = hw; pCam.top = hw; pCam.bottom = -hw; pCam.updateProjectionMatrix();
+      _pp.set(0, ty + PORT.dist * Math.sin(tilt), PORT.dist * Math.cos(tilt)); octG.localToWorld(_pp);
+      var hw = (pw ? pw.hw : PORT.hw) * OCT_R; pCam.left = -hw; pCam.right = hw; pCam.top = hw; pCam.bottom = -hw; pCam.updateProjectionMatrix();
       pCam.position.copy(_pp); pCam.up.set(0, 1, 0); pCam.lookAt(_pt); pCam.updateMatrixWorld();
       scene.background = bgHex ? C(bgHex) : null;
       renderer.setClearColor(bgHex ? C(bgHex) : 0x000000, bgHex ? 1 : 0);
@@ -1947,6 +2832,25 @@ var SCENE3D = (function () {
       if (t0) PORT.ms = +(performance.now() - t0).toFixed(2); PORT.n++;
       return cv;
     }
+    /* 11-15 개발용 (tools/make-loading-oct.js → assets/ui/loading_oct.png): 걷는 옆모습 한 칸. 걸음 위상 ph 의 다리(내딛는 쪽 들림 · 앞뒤 쓸기) · 굴림 · 걸음 중간 +1px 를
+       stepOct 의 걷기 공식 그대로 놓고 초상 길(전용 조명 · 레이어 2 · 같은 후처리)로 몸 전체를 찍는다. 다리 자세는 찍은 뒤 되돌린다 (장면은 다음 프레임에 제 자세로) */
+    function walkPortrait(ph, o) {
+      o = o || {}; ph = +ph || 0;
+      var n = Math.floor(ph), u = ph - n, swingPos = (n & 1) === 0, sr = Math.sin(Math.PI * u), hw = o.hw || 1.3;
+      var sv = arms.map(function (m) { return [m.rotation.y, m.rotation.z, m.scale.x]; });
+      arms.forEach(function (arm) {
+        var ca = Math.cos(arm.userData.a), sw = (ca > 0) === swingPos, lift = sw ? GAIT.armLift * sr : 0, fwd = o.still ? 0 : sw ? 2 * u - 1 : 1 - 2 * u;   /* still = 서 있는 자세 (앱 아이콘) */
+        if (o.still) lift = 0;
+        arm.scale.x = 1; arm.rotation.z = 0.05 + lift; arm.rotation.y = -arm.userData.a + fwd * GAIT.armFwd * (ca > 0 ? 1 : -1);
+      });
+      if (o.still) sr = 0;
+      var roll = o.roll ? ((n & 1) ? -1 : 1) * GAIT.roll * (sr > 0.6 ? 1 : 0) : 0, by = sr > 0.5 ? 2 * hw / PORT.N : 0;   /* 굴림은 앞에서 볼 때 몸짓 — 옆모습에선 고개 끄덕임처럼 보여 기본은 뺀다 */
+      var cv;
+      try { cv = renderPortrait('idle', portraitBg(o), portraitColor(o), { yaw: (o.yaw == null ? 90 : +o.yaw) * DEG, roll: roll, by: by, hw: hw, ty: o.ty == null ? 0.62 : +o.ty, tilt: (o.tilt == null ? 10 : +o.tilt) * DEG, sq: sqOf(o.sq) }); }
+      finally { arms.forEach(function (m, i) { m.rotation.y = sv[i][0]; m.rotation.z = sv[i][1]; m.scale.x = sv[i][2]; }); }
+      return cv;
+    }
+    function sqOf(q) { return (q && q.length === 2 && isFinite(q[0]) && isFinite(q[1]) && q[0] > 0 && q[1] > 0) ? [+q[0], +q[1]] : null; }   /* 11-18 o.sq = [sx, sy] (없거나 이상하면 null → 예전 그대로) */
     function portraitColor(o) { var c = o && o.color; return /^#[0-9a-f]{6}$/i.test(c || '') ? String(c).toLowerCase() : null; }   /* o.color = 그 몸색으로 찍기 (장면 색은 그대로) */
     function portraitKey(expr, o) { return expr + '|' + (portraitColor(o) || String(st.color).toLowerCase()) + '|' + PAL.source + '|' + (portraitBg(o) || 't'); }   /* 몸색이 캐시 키에 든다 */
     function portrait(expr, o) { /* → 64×64 캔버스 (CSS 로 키운다). 기본은 캐시의 복사본(로그 행마다 하나씩 붙일 수 있게), o.shared = 캐시 캔버스 그대로 · o.fresh = 캐시 없이 지금 찍기 (시험용) */
@@ -1963,29 +2867,34 @@ var SCENE3D = (function () {
     function anchorPos(name) { var p = ANCHORS[name] || ANCHORS.center; return new T.Vector3(p[0], name === 'blanket' && st.items.indexOf('blanket') >= 0 ? 0.12 : 0, p[2]); }
     function camYaw() { return YAW + yawDelta(); }
     /* 문어 위치: oct.pos 가 논리 위치(보간·앵커), octG.position 은 매 프레임 그걸 카메라 우/상 축 픽셀 격자에 스냅한 값 (룩 패스 5: 걷는 동안 반 픽셀 금지). 스냅을 매 프레임 논리값에서 새로 하므로 요가 바뀌어도 누적 표류 없음 */
-    function jumpTo(anchor) { if (oct.walking) { oct.walking.cancel(); oct.walking = null; } oct.hop = 0; if (FADE.d < 1) { setOctFade(1); if (st.octState === 'away') octG.visible = octDecal.visible = false; } oct.anchor = anchor; oct.pos.copy(anchorPos(anchor)); snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = camYaw(); gaitReset(); }   /* 11-12: 도착 폴짝 도중에 옮겨도 몸이 뜬 채 남지 않게 (oct.hop 0) */
+    function jumpTo(anchor) { if (TB.oct !== 'none') { tableHold('anchor', anchor); return; } if (oct.walking) { oct.walking.cancel(); oct.walking = null; } oct.hop = 0; if (FADE.d < 1) { setOctFade(1); if (st.octState === 'away') octG.visible = octDecal.visible = false; } oct.anchor = anchor; oct.pos.copy(anchorPos(anchor)); snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = camYaw(); gaitReset(); }   /* 11-12: 도착 폴짝 도중에 옮겨도 몸이 뜬 채 남지 않게 (oct.hop 0) */
     function moveTo(anchor) {
+      if (TB.oct !== 'none') return tableHold('anchor', anchor, function () { if (on.anchorReached) on.anchorReached(anchor); }, anchor);   /* 11-18 식탁에 있는 동안: 붙잡았다 내려놓은 뒤 */
       if (octUp() && anchor !== 'salon') return Promise.resolve(anchor);   /* 위층에선 다락 자리로 걷지 않는다 (11-12 검증: 염색통 · 재봉대 안에 섰다) */
       oct.anchor = anchor;
       return walkPoint(anchorPos(anchor), function () { if (on.anchorReached) on.anchorReached(anchor); }, anchor);
     }
     function walkPoint(to, done, val) {   /* 점까지 뒤뚱 걸음 (moveTo 와 놀이 kit.walkTo 공용) → Promise(val). done = 도착 콜백 */
+      if (TB.oct !== 'none' && !TB.own) return tableHold('to', to, done, val);   /* 11-18 식탁에 있는 동안 남의 걷기는 붙잡는다 */
+      if (oct.walking) { oct.walking.cancel(); oct.walking = null; oct.hop = 0; }   /* [7-W] 앞 걸음을 먼저 끊는다 — 폴짝 중이었으면 내려앉은 자리에서 새 길을 잰다 (공중의 옛 자리로 되돌아가지 않게) */
       var from = oct.pos.clone();
       plAvoidOct(to); plClearPath(from, to);   /* 목표 자리에 내 캐릭터가 서 있으면 미리 비켜선다 (아래 '내 캐릭터 · 움직이기') · 위층에선 길 위에 서 있어도 */
-      if (oct.walking) { oct.walking.cancel(); oct.walking = null; }
       var d = to.clone().sub(from), dist = d.length();
       if (st.reduced || ctxLost() || dist < 0.05) { oct.pos.copy(to); snapScreen(octG.position.copy(to)); oct.wantYaw = camYaw(); done(); return Promise.resolve(val); }   /* 컨텍스트를 잃으면 프레임이 안 돌아 걸음이 안 끝난다 → 바로 도착 */
-      oct.wantYaw = Math.atan2(d.x, d.z);
-      var dur = dist / 1.2 * st.speed, hopDur = 0.3 * st.speed, hold = anticHold(), k = 0, cancelled = false;   /* hold = 서 있다 출발할 때 120 ms 예비 동작 (뒤뚱 걸음) */
+      var plan = octPlan(from, to);   /* [7-W] 다섯째 바퀴: 칸 지도 길 (가구를 돌아서 · 막히면 가장 낮은 가구 위로 폴짝) */
+      d.set(plan.pts[0].x - from.x, 0, plan.pts[0].z - from.z); if (d.x * d.x + d.z * d.z > 1e-8) oct.wantYaw = Math.atan2(d.x, d.z);
+      var endHop = plan.groups.length && plan.groups[plan.groups.length - 1].i1 === plan.pts.length - 1;   /* 폴짝으로 끝나는 길이면 도착 통통은 건너뛴다 (두 번 연달아 뛰지 않게) */
+      var pdur = planDur(plan, 1.2), dur = pdur * st.speed, hopDur = endHop ? 0 : 0.3 * st.speed, hold = anticHold(), k = 0, cancelled = false;   /* hold = 서 있다 출발할 때 120 ms 예비 동작 (뒤뚱 걸음) */
       return new Promise(function (resolve) {
-        var w = oct.walking = { gait: true, cancel: function () { cancelled = true; w.gait = false; },
+        var land = null;   /* [7-W] 폴짝 중이면 내리는 자리 — 걷기가 끊기면 (새 걸음 · 의식 · 순간 이동) 가구 위 공중에 남지 않고 거기 내려앉는다 */
+        var w = oct.walking = { gait: true, eta: function () { return Math.max(0, hold + dur + hopDur - k); }, cancel: function () { cancelled = true; w.gait = false; NAV.hopNow = false; if (land && oct.hop > 1e-3) { oct.pos.copy(land); oct.hop = 0; } },
           finish: function () { if (cancelled) return; cancelled = true; w.gait = false; oct.pos.copy(to); oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(val); },   /* 컨텍스트 잃음: 남은 걸음을 건너뛰고 도착 */
           step: function (dt) {
           if (cancelled) return;
           k += dt;
           if (k < hold) return;
           var kw = k - hold;
-          if (kw < dur) { oct.pos.lerpVectors(from, to, kw / dur); return; }
+          if (kw < dur) { var tp = kw / dur * pdur; oct.hop = planAt(plan, from, tp, 1.2, oct.pos); land = planLand(plan, from, tp, 1.2); w.gait = !land; NAV.hopNow = !!land; return; }   /* 시작 때의 빠르기 배율로 정한 길이에 맞춘다 (도중에 배율이 바뀌어도 뒤로 튀지 않게) */
           w.gait = false;
           var hk = (kw - dur) / hopDur;
           if (hk < 1) { oct.pos.copy(to); oct.hop = Math.sin(hk * Math.PI) * 0.4; return; }
@@ -2012,9 +2921,11 @@ var SCENE3D = (function () {
        방: 다락 ↔ 놀이방을 문으로 오간다 (문어는 놀이방에 안 간다). 쉬는 자리 PL_REST · 문 앞은 DOOR_ANCHORS. 바깥엔 안 나간다 — 바깥이 보이는 동안은 다락 그룹과 같이 숨는다.
        흐름: 문 톡 → playerWalkTo(문 앞 앵커: 1.8 m/s, 서 있다 출발하면 120 ms 예비 눌림) → 도착해 문을 보고 섬 → (goRoom) 문 열림 → 가로 전환 가운데 프레임에 plEnter(건너편 문 앞, 방 안쪽을 보고)
        → 문 닫힘 → 쉬는 자리로 걷는다. 모션 감소 = 걷기 없이 바로. 탭 숨음 · 컨텍스트 잃음 · 준비 전 = 바로 (Promise 가 걸려 있지 않게, walkPoint 와 같다). */
-    var PL_H = 1.22, PL_HEAD_R = 0.35, PL_HEAD_Y = 0.87, PL_HR = 0.38, PL_HC = [0, 0.90, -0.03], PL_SPEED = 1.8, PL_RUN = 2.2, PL_STRIDE = 0.40, PL_RUN_STRIDE = 0.55, PL_TURN = 24, PL_ANTIC = 0.12, PL_LEG = 0.45, PL_ARM = 0.4, PL_SWAY = 0.045;   /* 짧뚱한 몸 = 종종걸음(한 걸음 0.4 m) + 디딤 프레임 좌우 뒤뚱 0.045 rad(머리 꼭대기 ≈ 1 px) */
-    var PL_REST = { attic: [1.65, 0, -0.1], play: [0.15, 0, 0.45] };   /* 쉬는 자리: 다락 오른쪽 — 가운데 문어와 상자 사이, 화면에서 문어(가운데 앵커)·문짝(x−z 0.62~1.34)과 안 겹친다 (x−z 1.75) · 문 앞까지 1.5 m · 놀이방 빈 바닥 가운데 (문까지 1.7 m) */
-    var PL_FACE = { atticPlayDoor: Math.PI / 2, playAtticDoor: -Math.PI / 2, atticStair: Math.PI / 2, loftStair: Math.PI / 2 };   /* 문 앞에 서서 보는 쪽 (다락 문은 +x 벽 · 놀이방 문은 −x 벽) — 들어올 땐 반대(방 안쪽) */
+    var PL_H = 1.22, PL_HEAD_R = 0.35, PL_HEAD_Y = 0.87, PL_HR = 0.38, PL_HC = [0, 0.90, -0.03], PL_SPEED = 1.8, PL_RUN = 2.2, PL_STRIDE = 0.40, PL_RUN_STRIDE = 0.55, PL_TURN = 24, PL_ANTIC = 0.12, PL_LEG = 0.45, PL_ARM = 0.4, PL_SWAY = 0.045, PL_DASH = 3.74, PL_DASH_STRIDE = 0.85, PL_DASH_HOLD = 0.6, PL_DASH_AUTO = 4;   /* 11-21 뛰기: 반 넘게 민 채 0.6 s = 3.74 m/s (걷기 2.2 의 1.7 배) · 보폭 0.85 · 혼자 걷기는 길이 4 m 넘으면 뛴다 */
+    /* ↑ 걷기 상수:   /* 짧뚱한 몸 = 종종걸음(한 걸음 0.4 m) + 디딤 프레임 좌우 뒤뚱 0.045 rad(머리 꼭대기 ≈ 1 px) */
+    var PL_REST = { attic: [1.72, 0, 0.82], play: [0.15, 0, 0.45], yard: [1.95, 0, 0.55] };   /* 11-22 (검토): 다락 쉬는 자리 (1.65, −0.1) 는 앞의 놀이방 문짝 뒤라 첫 화면에서 머리만 보였다 → (1.72, 0.82): 360 · 412 폭 모두 문짝 · 상자에 안 가리고 문어도 안 가리며 온몸이 보인다   /* 11-15 마당: 계단 앞 길가 (밭 첫 줄 바로 위) */   /* 쉬는 자리: 다락 오른쪽 — 가운데 문어와 상자 사이, 화면에서 문어(가운데 앵커)·문짝(x−z 0.62~1.34)과 안 겹친다 (x−z 1.75) · 문 앞까지 1.5 m · 놀이방 빈 바닥 가운데 (문까지 1.7 m) */
+    var PL_CLEAR = { atticPlayDoor: [2.15, 1.6], atticYard: [0.95, -0.55] };   /* 11-22 (검토): 다락의 놀이방 문 앞 (2.95, 1.92) 은 앞의 문짝에, 마당 문 앞 (1.9, −1.95) 은 상자에 몸이 가린다 → 들어온 뒤 한 걸음 비켜설 자리 (360 · 412 폭에서 온몸이 보인다). 쉬는 자리까지 혼자 걸어가지는 않는다 (주인 11-10) */
+    var PL_FACE = { atticPlayDoor: Math.PI / 2, playAtticDoor: -Math.PI / 2, atticStair: -Math.PI / 2, loftStair: Math.PI / 2, atticYard: Math.PI, yardAttic: -Math.PI / 2 };   /* 11-15: 다락 뒷벽 문간은 −z · 마당 현관 계단은 −x */   /* 문 앞에 서서 보는 쪽 (다락 문은 +x 벽 · 놀이방 문은 −x 벽) — 들어올 땐 반대(방 안쪽) */
     var PLC = (function () {
       var skin = '#ffd096';   /* ≈ mixHex(amber[4], dusk[3], .5) — 필 빛에서 #e7d5b3 로 앉아 흰자 #ebede9 와 한 칸 갈린다 (v0 의 paper·dusk 섞음은 앞면이 흰자와 같은 칸이었다) */
       return { skin: skin, white: PAL.white, pupil: '#1b1b1b', lid: '#c09473', smileArc: '#4d2b32', red: '#c04040', orange: '#e89030', straw: '#dcb878',
@@ -2052,7 +2963,7 @@ var SCENE3D = (function () {
     function plEyePatch(s) { return plPatch(s * PL_EYE.x, PL_EYE.sv, PL_EYE.cw, PL_EYE.ch, PL_EYE.lift, [s * PL_EYE.x, PL_EYE.y, PL_EYE.z]); }   /* 눈 곡면 조각 (s = −1 왼눈 · +1 오른눈): 두 눈이 같은 uv 라 반짝 점이 둘 다 왼쪽 위 */
     /* 코 · 입 · 볼 (11-09 주인 "동물의 숲 같은 기존 게임들 얼굴 느낌 참고"): 눈과 같은 곡면 조각 + 같은 아틀라스 · 같은 재질(메시 · 드로우콜 · 프로그램 그대로). 조각 크기 = 고른 그림의 1× 줄 크기(가로×세로 px), 자리 = 화면 px(얼굴 한가운데가 픽셀 경계 0):
        코 · 입은 가운데(가로 짝수 px 여야 가장자리가 픽셀 경계에 앉는다) · top = 윗변의 화면 세로 px(발바닥 기준, 눈은 15~19) · 볼은 안쪽 변이 ±inner px(그림마다 FA 의 넷째 · 다섯째 값이 이 기본을 덮는다). lift 는 눈(0.003)보다 낮아 겹쳐도 눈이 앞 */
-    var PL_FEAT = { lift: 0.0015, nose: { tag: 3, top: 16 }, mouth: { tag: 4, top: 14 }, cheek: { tag: 5, top: 14, inner: 3 } }, PL_FEAT_CATS = ['nose', 'mouth', 'cheek'];
+    var PL_FEAT = { lift: 0.0015, nose: { tag: 3, top: 16 }, mouth: { tag: 4, top: 14 }, cheek: { tag: 5, top: 14, inner: 3 }, brow: { tag: 6, top: 21, inner: 2 } }, PL_FEAT_CATS = ['nose', 'mouth', 'cheek', 'brow'];   /* 11-21 눈썹: 눈 (15~18 줄) 위 살결 한 줄 띄고 20 줄 · 눈과 같은 폭 4 px · 볼처럼 좌우 한 쌍 (오른쪽은 뒤집는다) */
     function FA(a, b, c, top, inner) { var r = [a, b, c]; if (top != null) r.top = top; if (inner != null) r.inner = inner; return r; }
     function plArtSize(rows) { return [rows[0].replace(/ /g, '').length, rows.length]; }
     function plFacePatches(cfg) {
@@ -2073,12 +2984,12 @@ var SCENE3D = (function () {
       var ec = plPart('eyeColor', look.eyeColor), iris = ec.hex, dark = look.eyes === 'dot' ? mixHex(iris, FIXED.ink, 0.5) : PLC.smileArc;
       return { '.': PLC.skin, I: iris, H: ec.hi || iris, '*': ec.sh || ec.hi || iris, P: PLC.pupil, D: dark, S: mixHex(iris, FIXED.ink, 0.45), K: mixHex(iris, FIXED.ink, 0.7), L: closed ? plBrowHex(look.hairColor) : PLC.lid };
     }
-    function plFaceCell(cat, l) { return cat === 'nose' ? [48, l * 16] : cat === 'cheek' ? [56, l * 16] : [l * 16, 48]; }   /* 코 · 볼 = 넷째 칸 줄(x 48 · 56, LOD 줄마다 8×16 씩) · 입 = 맨 아랫줄(y 48, LOD 마다 16×16) */
+    function plFaceCell(cat, l) { return cat === 'nose' ? [48, l * 16] : cat === 'cheek' ? [56, l * 16] : cat === 'brow' ? [48, 48 + l * 4] : [l * 16, 48]; }   /* 11-21 눈썹 = 입 줄 오른쪽 빈 칸 (x 48 · y 48 · 52 · 56) */   /* 코 · 볼 = 넷째 칸 줄(x 48 · 56, LOD 줄마다 8×16 씩) · 입 = 맨 아랫줄(y 48, LOD 마다 16×16) */
     function plSkin(look) {   /* 피부색과 거기서 나오는 얼굴 선 색 (코 · 꺼풀 · 옅은 입꼬리 · 주근깨)을 고른 색으로 — 부품 · 얼굴 그림을 만들기 직전마다 */
       var sk = (plPart('skin', look && look.skin) || plPart('skin', 'peach')).hex;
       PLC.skin = sk; PLC.nose = PLC.lid = PLC.mouthLo = mixHex(sk, '#6a3a2a', 0.34); PLC.noseTri = mixHex(sk, '#e0703a', 0.5); PLC.freckle = mixHex(sk, '#7a4a30', 0.45); PLC.mouth = mixHex(sk, '#5a2420', 0.72);
     }
-    function plFacePal(look) { return { N: look.nose === 'tri' ? PLC.noseTri : PLC.nose, M: PLC.mouth, m: PLC.mouthLo, T: PLC.tongue, F: PLC.freckle }; }   /* 코 · 입 · 볼 도트 기호 → hex */
+    function plFacePal(look) { var bw = plBrowHex(look.hairColor); return { N: look.nose === 'tri' ? PLC.noseTri : PLC.nose, M: PLC.mouth, m: PLC.mouthLo, T: PLC.tongue, F: PLC.freckle, B: bw, b: mixHex(PLC.skin, bw, 0.82) }; }   /* 코 · 입 · 볼 도트 기호 → hex */
     function plDrawEyes(look) {
       plSkin(look);
       var x = plEyeCv.getContext('2d'), art = PL_PARTS.eyes[look.eyes] || PL_PARTS.eyes.round;
@@ -2091,7 +3002,8 @@ var SCENE3D = (function () {
       PL_ATLAS.lod.forEach(function (sz, l) {
         [art[l], art[l], PL_PARTS.eyes.closed[l]].forEach(function (rows, col) {
           var pal = plEyePal(look, col === 2), ox = col * PL_ATLAS.pitch, oy = l * PL_ATLAS.pitch;
-          for (var r = 0; r < sz[1]; r++) { var row = (rows[r] || '').replace(/ /g, ''); for (var cI = 0; cI < sz[0]; cI++) { var ch = row[cI] || '.'; if (ch === '.') continue; x.fillStyle = pal[ch] || pal['.']; x.fillRect(ox + cI, oy + r, 1, 1); } }
+          for (var r = 0; r < sz[1]; r++) { var row = (rows[r] || '').replace(/ /g, ''); if (col === 1 && art.mir) row = row.split('').reverse().join('');   /* 11-21: 눈꼬리가 있는 눈은 오른눈을 뒤집어 그린다 */
+            for (var cI = 0; cI < sz[0]; cI++) { var ch = row[cI] || '.'; if (ch === '.') continue; x.fillStyle = pal[ch] || pal['.']; x.fillRect(ox + cI, oy + r, 1, 1); } }
         });
       });
       plEyeTex.needsUpdate = true;
@@ -2154,7 +3066,7 @@ var SCENE3D = (function () {
         short: function (L, cfg, hex) { L.push({ g: Sph(PL_HR, 18, 15, 142, 256, 0, 1.95), m: HM(), c: hex }); PL_PARTS.hair._fringe(L, hex); PL_PARTS.hair._pole(L, hex);
           [[205, 2.12], [235, 2.2], [270, 2.26], [305, 2.2], [335, 2.12]].forEach(function (t) { plLock(L, plHP(t[0], 1.62, PL_HR - 0.03), plHP(t[0], t[1], PL_HR + 0.03), 0.085, 0.03, hex); });   /* 목덜미로 삐죽 내려오는 끝 다섯 (뒤가 민머리 공이던 것) */
           [-1, 1].forEach(function (s) { plLock(L, [s * 0.31, 0.98, 0.14], [s * 0.33, 0.80, 0.16], 0.075, 0.035, hex); });   /* 귀 앞 짧은 구레나룻 가닥 */
-          if (cfg.acc !== 'beret' && cfg.acc !== 'strawhat') plLock(L, [0.0, 1.265, -0.02], [0.07, 1.36, 0.02], 0.04, 0.018, hex); },   /* 정수리 삐침 한 가닥 — 모자(베레모 · 밀짚모자)를 쓰면 뺀다 (모자를 뚫고 나왔다, 주인 11-10) */   /* 짧은머리: 귀(0.76)까지 한 장(앞 104° 비움 — 70° 창은 옆머리 끝 ±0.217 이 새 눈 ±0.259 를 덮었다, 11-09) + 같은 앞머리 세 가닥, 옆머리 없음. theta 칸 0.13 (15/1.95) = 가닥 칸의 두 배라 이음 고리가 맞는다 */
+          if (!plHat(cfg)) plLock(L, [0.0, 1.265, -0.02], [0.07, 1.36, 0.02], 0.04, 0.018, hex); },   /* 정수리 삐침 한 가닥 — 모자(베레모 · 밀짚모자)를 쓰면 뺀다 (모자를 뚫고 나왔다, 주인 11-10) */   /* 짧은머리: 귀(0.76)까지 한 장(앞 104° 비움 — 70° 창은 옆머리 끝 ±0.217 이 새 눈 ±0.259 를 덮었다, 11-09) + 같은 앞머리 세 가닥, 옆머리 없음. theta 칸 0.13 (15/1.95) = 가닥 칸의 두 배라 이음 고리가 맞는다 */
         long: function (L, cfg, hex) {
           PL_PARTS.hair._cap(L, hex);
           L.push({ g: Sph(PL_HR, 18, 6, 142, 256, 1.30, 0.90), m: HM(), c: hex }, { g: Cyl(0.31, 0.23, 0.40, 16), m: M(0, 0.48, -0.20, 0, 0, 0, 1, 1, 0.42), c: hex });   /* 긴생머리: 옆+뒷머리(0.676) + 뒷머리 커튼 = 아래로 좁아지는 닫힌 납작 원기둥 y 0.28~0.68, 폭 0.62 → 0.46(어깨 0.48 안 — 위아래 같은 폭 0.68 은 뒤에서 몸보다 넓은 판자로 읽혔다, 리뷰 11-08) */
@@ -2289,28 +3201,48 @@ var SCENE3D = (function () {
     function plHeadParts(cfg) {
       var hair = plPart('hairColor', cfg.hairColor).hex;
       var L = [{ g: Sph(PL_HEAD_R, 18, 13), m: M(0, PL_HEAD_Y, 0, 0, 0, 0, 1, 0.98, 0.94), c: PLC.skin }];   /* 살결 머리 구 (얼굴 앞면 z 0.329). 눈 · 코 · 입 · 볼은 이 구 위의 텍스처 조각(plEyeParts) — 눈썹 없음 */
-      PL_BANG = cfg.bangs; PL_PARTS.hair[cfg.hair](L, cfg, hair); PL_PARTS.acc[cfg.acc](L, cfg);
-      return L;
+      PL_BANG = cfg.bangs; PL_PARTS.hair[cfg.hair](L, cfg, hair); var a0 = L.length; PL_PARTS.acc[cfg.acc](L, cfg);
+      return plDyeList(L, a0, ACC_MAIN[cfg.acc], plDyeOf('acc', cfg), true);   /* 11-18: 머리 장식도 물들인다 (장식 조각만 — 머리칼 · 살결은 그대로) */
     }
     function plEyeParts(cfg) { return [-1, 1].map(function (s) { return { g: plEyePatch(s), c: '#ffffff', tag: s < 0 ? 1 : 2 }; }).concat(plFacePatches(cfg)); }   /* 눈 = 곡면 조각 2장 (정점색 흰색 → 텍스처색이 알베도), tag 1 왼눈 · 2 오른눈 (plEyeUV 의 아틀라스 칸). 스타일·색은 지오메트리가 아니라 아틀라스 그림 */
     /* 옷 물들이기 (11-10 주인: "염료는 직접 기르는 걸로 · 옷 색도 바꿀 수 있게"): PL_DYE 가 있으면 지금 옷의 바탕색(OUTFIT_MAIN 첫째)을 그 색으로, 둘째부터(밑단 · 띠 같은 어두운 짝)는 한 톤 어둡게. 흰 깃 · 단추 · 살결은 그대로 */
-    var PL_DYE = null, OUTFIT_MAIN = { dress: [PAL.navy[3], PAL.navy[2]], knit: [PLC.red, PAL.rose[1]], hoodie: [PAL.slate[3], PAL.slate[2]], overall: ['#4a78b0', '#33568a'], raincoat: [PLC.orange, PAL.amber[1]],
+    /* 11-18 (주인: "염색할 옷을 나중에 고르는 걸로" · "헤어 악세사리나 신발 등도 염색 가능하면"): 색은 물건마다 따로 — PL_DYES = { outfit: { dress: '#hex' }, shoes: { boot: '#hex' }, acc: { ribbon: '#hex' } }.
+       입고 있는 물건에 색이 있으면 그 물건의 바탕색(…_MAIN)을 그 색으로 (옷 · 신발의 둘째 색은 한 톤 어둡게). 다른 옷으로 갈아입으면 그 옷의 색이 따라온다 (예전엔 색 하나가 지금 옷에 덮였다) */
+    var PL_DYES = { outfit: {}, shoes: {}, acc: {} }, OUTFIT_MAIN = { dress: [PAL.navy[3], PAL.navy[2]], knit: [PLC.red, PAL.rose[1]], hoodie: [PAL.slate[3], PAL.slate[2]], overall: ['#4a78b0', '#33568a'], raincoat: [PLC.orange, PAL.amber[1]],
       hanbok: ['#d8425a', '#a82f48'], uniform: [PAL.navy[3]], varsity: ['#b8322e', '#8a2420'], flannel: ['#b4423a', '#5a2a2a'] };
-    function plDye(L, cfg) {
-      if (!PL_DYE) return L;
-      var mains = (OUTFIT_MAIN[cfg.outfit] || []).map(function (c) { return String(c).toLowerCase(); }), dk = mixHex(PL_DYE, FIXED.ink, 0.28);
-      L.forEach(function (p) { var i = mains.indexOf(String(p.c).toLowerCase()); if (i === 0) p.c = PL_DYE; else if (i > 0) p.c = dk; });
+    var SHOES_MAIN = { flat: [PAL.slate[1]], boot: [PAL.navy[1], PAL.navy[3]], sneaker: [PLC.red], loafer: [PAL.rose[0]] },   /* 흰 밑창 · 양말은 그대로 */
+      ACC_MAIN = { ribbon: [PLC.red], beret: [PLC.red, PAL.moss[1]], glasses: [PAL.slate[1]], catears: [PAL.slate[0], PAL.slate[2]], strawhat: [PAL.rose[1]] };   /* 베레모 · 고양이귀는 머리 색에 따라 둘 중 하나 (둘 다 바탕) · 밀짚모자는 띠 · 귀 속은 그대로 */
+    function plDyeOf(cat, cfg) { var m = PL_DYES[cat]; return (m && cfg && m[cfg[cat]]) || null; }
+    function plDyeList(L, from, mains, dye, allMain) {   /* L[from…] 가운데 바탕색 조각만: 첫째 바탕 → 그 색 · 나머지 바탕 → 한 톤 어둡게 (allMain 이면 전부 그 색) */
+      if (!dye || !mains) return L;
+      var ms = mains.map(function (c) { return String(c).toLowerCase(); }), dk = mixHex(dye, FIXED.ink, 0.28);
+      for (var k = from; k < L.length; k++) { var i = ms.indexOf(String(L[k].c).toLowerCase()); if (i === 0 || (allMain && i > 0)) L[k].c = dye; else if (i > 0) L[k].c = dk; }
       return L;
     }
-    function setPlayerDye(hex) { var d = /^#[0-9a-f]{6}$/i.test(hex || '') ? hex.toLowerCase() : null; if (d === PL_DYE) return PL_DYE; PL_DYE = d; setPlayer(PL.look); return PL_DYE; }   /* 11-11: 같은 색이면 다시 짓지 않는다 (앱이 renderAll 마다 부른다) */
+    function plDye(L, cfg) { return plDyeList(L, 0, OUTFIT_MAIN[cfg.outfit], plDyeOf('outfit', cfg)); }
+    function plDyeable(cat, id) { var M0 = cat === 'outfit' ? OUTFIT_MAIN : cat === 'shoes' ? SHOES_MAIN : cat === 'acc' ? ACC_MAIN : null; return !!(M0 && M0[id] && M0[id].length); }
+    function setPlayerDyes(map) {   /* { outfit: { id: '#hex' }, shoes: {…}, acc: {…} } — 모르는 물건 · 틀린 색은 건너뛴다. 같으면 다시 짓지 않는다 (앱이 renderAll 마다 부른다) */
+      var next = { outfit: {}, shoes: {}, acc: {} };
+      Object.keys(next).forEach(function (cat) { var m = map && map[cat]; if (!m || typeof m !== 'object') return; Object.keys(m).forEach(function (id) { if (plDyeable(cat, id) && /^#[0-9a-f]{6}$/i.test(m[id] || '')) next[cat][id] = String(m[id]).toLowerCase(); }); });
+      if (JSON.stringify(next) === JSON.stringify(PL_DYES)) return PL_DYES;
+      PL_DYES = next; setPlayer(PL.look); return PL_DYES;
+    }
+    function setPlayerDye(hex) {   /* 예전 길 (색 하나 = 지금 입은 옷): 지금 옷의 색만 바꾼다 */
+      var d = /^#[0-9a-f]{6}$/i.test(hex || '') ? hex.toLowerCase() : null, o = PL.look && PL.look.outfit, cur = (o && PL_DYES.outfit[o]) || null;
+      if (d === cur || !o) return cur;
+      if (d) PL_DYES.outfit[o] = d; else delete PL_DYES.outfit[o];
+      setPlayer(PL.look); return d;
+    }
     function plTorsoParts(cfg) { var L = []; PL_PARTS.outfit[cfg.outfit].torso(L); return plDye(L, cfg); }
     function plArmParts(cfg) { var L = []; PL_PARTS.outfit[cfg.outfit].arm(L); plDye(L, cfg); L.push({ g: Sph(0.064, 9, 7), m: M(0, -0.225, 0), c: PLC.skin }); return L; }   /* 소매 + 팔 + 동그란 손 (팔 지름 2 px 보다 큰 3.5 px 공) */
     function plLegParts(cfg) {   /* 다리 색 원기둥(신발 위만) + 신발 */
-      var o = PL_PARTS.outfit[cfg.outfit], s = PL_PARTS.shoes[cfg.shoes], r = o.legR || [0.07, 0.068], L = [{ g: Cyl(r[0], r[1], s.len, 8), m: M(0, -s.len / 2, 0), c: o.leg }];
+      var o = PL_PARTS.outfit[cfg.outfit], s = PL_PARTS.shoes[cfg.shoes], r = o.legR || [0.07, 0.068], L = [{ g: Cyl(r[0], r[1], s.len, 8), m: M(0, -s.len / 2, 0), c: o.leg === 'skin' ? PLC.skin : o.leg }];
+      if (o.short) L.push({ g: Cyl(0.082, 0.08, Math.min(0.07, s.len), 8), m: M(0, -Math.min(0.07, s.len) / 2, 0), c: o.short });   /* 11-21 반바지 가랑이 (맨다리 위) */
       if (o.cuff && s.len > 0.15) L.push({ g: Cyl(0.08, 0.08, 0.04, 8), m: M(0, -0.17, 0), c: PAL.paper[2] });   /* 멜빵 바지 접은 단 (단화일 때만 보인다) */
-      plDye(L, cfg); s.parts(L); return L;
+      plDye(L, cfg); var s0 = L.length; s.parts(L); return plDyeList(L, s0, SHOES_MAIN[cfg.shoes], plDyeOf('shoes', cfg));   /* 11-18: 신발도 물들인다 (신발 조각만) */
     }
-    function plGeos(cfg) { plSkin(cfg); return [plHeadParts(cfg), plEyeParts(cfg), plTorsoParts(cfg), plArmParts(cfg), plArmParts(cfg), plLegParts(cfg), plLegParts(cfg)].map(mergeParts); }
+    function plGeos(cfg) { plSkin(cfg); var gs = [plHeadParts(cfg), plEyeParts(cfg), plTorsoParts(cfg), plArmParts(cfg), plArmParts(cfg), plLegParts(cfg), plLegParts(cfg)].map(mergeParts); if (cfg.body === 'b') plBodyB(gs[2]); return gs; }
+    plParts7();   /* 11-21 새 부품 (아래 [7-P] 자리의 함수) 을 첫 모습을 짓기 전에 얹는다 */
     var PL_LOOK0 = normalizePlayer(opts.player), plGeo0 = plGeos(PL_LOOK0);
     function plMesh(g, x, y, cast, mat) { var m = new T.Mesh(keep(g), mat || toonP); m.castShadow = cast !== false; m.receiveShadow = true; if (x != null) m.position.set(x, y, 0); plBody.add(m); return m; }
     var plHead = plMesh(plGeo0[0]), plEyes = plMesh(plGeo0[1], null, 0, false, toonEye), plTorso = plMesh(plGeo0[2]);
@@ -2319,10 +3251,10 @@ var SCENE3D = (function () {
     var plArmL = plMesh(plGeo0[3], -0.24, 0.50), plArmR = plMesh(plGeo0[4], 0.24, 0.50), plLegL = plMesh(plGeo0[5], -0.115, 0.24), plLegR = plMesh(plGeo0[6], 0.115, 0.24);   /* 어깨 ±0.24(소매 바깥 2.4 px 가 몸통 밖) · 엉덩이 ±0.115(두 신발 틈 0.07) */
     var plMeshes = [plHead, plEyes, plTorso, plArmL, plArmR, plLegL, plLegR], plLimbs = [plArmL, plArmR, plLegL, plLegR];
     var plDecal = new T.Mesh(keep(new T.PlaneGeometry(0.95, 0.95)), decalMat); plDecal.rotation.x = -Math.PI / 2; plDecal.position.y = 0.012; plDecal.renderOrder = 1; plG.add(plDecal);   /* 접지 그림자 (문어와 같은 데칼) */
-    var PL = { place: 'attic', pos: new T.Vector3(PL_REST.attic[0], 0, PL_REST.attic[2]), yaw: 0, wantYaw: 0, faceCam: true, walking: null, pending: '', phase: 0, n: 0, last: new T.Vector3(), moving: false, antic: 0, settleT: 9, t: 0, stick: false, held: false, heldStop: false, pushed: false, dir8: null,
+    var PL = { place: 'attic', pos: new T.Vector3(PL_REST.attic[0], 0, PL_REST.attic[2]), yaw: YAW, wantYaw: YAW, faceCam: false, walking: null, pending: '', phase: 0, n: 0, last: new T.Vector3(), moving: false, antic: 0, settleT: 9, t: 0, stick: false, held: false, heldStop: false, pushed: false, dir8: null,
       blinkT: 4 + (hash('plblink') % 1000) / 1000 * 3, blinkLeft: 0, shut: false, lod: 1, walks: 0, look: PL_LOOK0 };   /* shut = 눈 uv 가 지금 '감은 눈' 칸인가 · lod = 눈 아틀라스 줄(0 · 1 · 2, plEyeLod) · look = 정규화된 cfg · stick·held·heldStop·pushed·dir8 = 움직이기 상태(아래 '움직이기') */
     plDrawEyes(PL_LOOK0); plEyeLod(); plEyeUV();   /* 첫 눈 그림 + 지금 N 의 LOD 칸 — prewarm(renderer.compile) 전이라 toonEye 가 처음부터 눈 텍스처로 컴파일된다 */
-    PL.last.copy(PL.pos);
+    PL.last.copy(PL.pos); plShoulders(PL_LOOK0);
     /* ── 움직이기 (주인 11-08 결정: 왼쪽 아래 발자국 손잡이(가상 스틱) + 데스크톱 방향키 · 바닥 톡 없음): 앱이 setPlayerInput({ x, y }) 로 화면 축 벡터(오른쪽 +x · 위 +y · 길이 0..1)를 주면 매 프레임 PL.pos 를 v × 1.2 m/s × dt 만큼 민다.
        화면 → 월드: 카메라 우축 _r 의 수평 성분 = 화면 오른쪽, 그에 수직인 '카메라에서 멀어지는' 수평 방향 = 화면 위 (placeCamera 가 쓰는 _r). 걷는 동안은 plWalkTo 와 같은 걸음 코드(간 거리 위상 · 4프레임 · 8방향 계단 · 디딤 −1 px).
        스틱이 들어오면 가던 길(쉬는 자리 등)은 취소되고 PL.pending 도 지운다. 막는 때 = playerInputAllowed() false: 입장 연출 · 문 작업(DQ.active/pending — 문 앞까지 걷는 동안 포함) · 전환 · 캐릭터가 보이는 방에 없을 때 · 놀이 kit.
@@ -2335,24 +3267,46 @@ var SCENE3D = (function () {
       PL_IN.held = true;
       PL_IN.v = l > 1e-6 ? { x: x, y: y } : null;
     }
+    function playerInputPause() { return !!ready && !INTRO.on && !PLAY && !(FM && FM.on) && (DQ.active || DQ.pending); }   /* 11-18: 입력이 막힌 까닭이 '내가 방을 옮기는 중' (문까지 걷기 · 문 작업 · 전환) 뿐인가 — 앱이 그동안 스틱을 놓지 않고 쥐고 있다가 도착하면 이어 걷게 한다 */
     function playerInputAllowed() {   /* '보이는 때' 규칙: 캐릭터가 지금 그려지는 방(다락·놀이방)에 있고, 연출·문 작업·전환·놀이 kit 이 아니다 */
-      return ready && !INTRO.on && !DQ.active && !DQ.pending && !PLACE.trans && !PLAY && (PLACE.vis === 'attic' || isRoomP(PLACE.vis)) && PL.place === PLACE.vis && plG.parent === groupOf(PLACE.vis) && plG.parent.visible;
+      return ready && !INTRO.on && !DQ.active && !DQ.pending && !PLACE.trans && !PLAY && !(FM && FM.on) && (PLACE.vis === 'attic' || isRoomP(PLACE.vis)) && PL.place === PLACE.vis && plG.parent === groupOf(PLACE.vis) && plG.parent.visible;
     }
-    function plLim() { return PL.place === 'play' ? [-(PLAY_R - PL_MARGIN), PLAY_R - PL_MARGIN] : PL.place === 'loft' ? [-(LOFT_R - PL_MARGIN), LOFT_R - PL_MARGIN] : [-(R - PL_MARGIN), RF - PL_MARGIN]; }   /* 걸을 수 있는 범위 [낮은 쪽, 높은 쪽] (x · z 같은 값 — 다락은 앞쪽이 RF 까지) */
-    function plInRoom(x, z) { var l = plLim(); return x >= l[0] && x <= l[1] && z >= l[0] && z <= l[1]; }
+    function plLim() { return PL.place === 'inside' && ROOM_REG[IN.key] ? [-(Math.max(ROOM_REG[IN.key].half[0], ROOM_REG[IN.key].half[1]) - PL_MARGIN), Math.max(ROOM_REG[IN.key].half[0], ROOM_REG[IN.key].half[1]) - PL_MARGIN] : PL.place === 'play' ? [-(PLAY_R - PL_MARGIN), PLAY_R - PL_MARGIN] : PL.place === 'yard' ? [-(YARD_L - 0.3 - PL_MARGIN), YARD_WIDE ? 60 : YARD_L - 0.3 - PL_MARGIN] : PL.place === 'loft' ? [-(LOFT_R - PL_MARGIN), LOFT_R - PL_MARGIN] : [-(R - PL_MARGIN), RF - PL_MARGIN]; }   /* 걸을 수 있는 범위 [낮은 쪽, 높은 쪽] (x · z 같은 값 — 다락은 앞쪽이 RF 까지) */
+    function plInRoom(x, z) { if (PL.place === 'inside' && ROOM_REG[IN.key]) { var Rh = ROOM_REG[IN.key].half; return Math.abs(x) <= Rh[0] - PL_MARGIN + 1e-6 && Math.abs(z) <= Rh[1] - PL_MARGIN + 1e-6; }   /* 11-22 방 안: 네모 바닥 (가로 · 세로 따로) */
+      var l = plLim(); return x >= l[0] && x <= l[1] && z >= l[0] && z <= l[1]; }
+    /* 11-18 넓은 바깥: 마당 네모 (울타리 안) 이거나 문 밖 띠. 마당 안에서 울타리 쪽으로 밀면 예전처럼 네모 가장자리에 서고, 앞 모서리 (문) 쪽으로만 띠로 나간다. 띠에서는 띠 안에 머문다 (대각 벽을 따라 미끄러진다) */
+    function yardOut(x, z) { var Y = YARD_L - 0.3 - PL_MARGIN; return Math.abs(x) > Y + 1e-6 || Math.abs(z) > Y + 1e-6; }
+    function wideIn(sd, td) { for (var A = WIDE.AREAS, i = 0; i < A.length; i++) if (sd >= A[i][0] && sd <= A[i][1] && td >= A[i][2] && td <= A[i][3]) return true; return false; }
+    function yardClamp(x0, z0, x, z) {
+      var Y = YARD_L - 0.3 - PL_MARGIN; if (Math.abs(x) <= Y && Math.abs(z) <= Y) return [x, z];
+      var k = Math.SQRT1_2, sd = (x + z) * k, td = (x - z) * k;
+      if (!yardOut(x0, z0) && sd < WIDE.S_OUT) return [clamp(x, -Y, Y), clamp(z, -Y, Y)];
+      if (wideIn(sd, td)) return [x, z];
+      /* 11-21 7차: 걷는 곳이 네모 여럿 (길 · 마루 · 광장 · 계단 · 모래 · 부두). 밖으로 나가는 걸음은 지금 서 있는 네모 (들) 의 가장자리로 맞춘다 — 벽을 따라 미끄러지고, 이웃 네모와 겹친 데서 넘어간다 */
+      var s0 = (x0 + z0) * k, t0 = (x0 - z0) * k, A = WIDE.AREAS, bs = 0, bt = 0, bd = 1e9, any = false, e = 1e-6, i, a, cs, ct, d;
+      for (i = 0; i < A.length; i++) { a = A[i]; if (s0 < a[0] - e || s0 > a[1] + e || t0 < a[2] - e || t0 > a[3] + e) continue; any = true; cs = clamp(sd, a[0], a[1]); ct = clamp(td, a[2], a[3]); d = Math.hypot(cs - sd, ct - td); if (d < bd) { bd = d; bs = cs; bt = ct; } }
+      if (!any) for (i = 0; i < A.length; i++) { a = A[i]; cs = clamp(sd, a[0], a[1]); ct = clamp(td, a[2], a[3]); d = Math.hypot(cs - sd, ct - td); if (d < bd) { bd = d; bs = cs; bt = ct; } }   /* 마당 네모에서 문으로 나가는 걸음 · 시험이 옮겨 둔 자리 */
+      return wideXZ(bs, bt);
+    }
     function plBoxes() {   /* 지금 방의 장애물 [x0, x1, z0, z1] (반지름만큼 키운 것) — 소품 위치·치수를 코드에서 읽는다. 담요·깔개는 밟아도 된다 */
       var out = [], r = PL_RAD;
       function bx(cx, cz, hw, hd) { out.push([cx - hw - r, cx + hw + r, cz - hd - r, cz + hd + r]); }
       if (PL.place === 'attic') {
-        var cid = FU.carry && FU.carry.id;   /* 들고 있는 가구는 길을 막지 않는다 */
+        var cid = FM.drag && FM.drag.id;   /* 끄는 중인 가구는 길을 막지 않는다 */
         if (cid !== 'sofa') bx(FURN.sofa.m.position.x, FURN.sofa.m.position.z, FURN.sofa.hw - 0.02, FURN.sofa.hd);   /* 소파 (늘 있다 · 옮긴 자리 · 돌린 방향 그대로) */
         if (props.crate.visible && cid !== 'crate') bx(props.crate.position.x, props.crate.position.z, FURN.crate.hw, FURN.crate.hd);   /* 상자 더미 1.04 × 0.88 (양초는 그 위) */
         if (props.moss.visible) bx(props.moss.position.x, props.moss.position.z, 0.22, 0.22);     /* 창가 화분 */
         if (props.curtain.visible) { bx(props.curtain.position.x, WIN.z0 - 0.3, 0.04, 0.25); bx(props.curtain.position.x, WIN.z1 + 0.3, 0.04, 0.25); }   /* 커튼 천 두 폭 */
-        bx((STAIR.x0 + STAIR.x1) / 2, (STAIR.z0 + STAIR.z1) / 2, (STAIR.x1 - STAIR.x0) / 2, (STAIR.z1 - STAIR.z0) / 2);   /* 위층 계단 (발치에서 +x 로 밀면 올라간다) */   /* 미용실 병 선반 (뒷벽) */
+        bx((STAIR.x0 + STAIR.x1) / 2, (STAIR.z0 + STAIR.z1) / 2, (STAIR.x1 - STAIR.x0) / 2, (STAIR.z1 - STAIR.z0) / 2);   /* 위층 계단 (발치에서 −x 로 밀면 올라간다) */   /* 미용실 병 선반 (뒷벽) */
       } else if (PL.place === 'play' && PROOM) {
         var mb = PROOM.machineBox, cb = PROOM.counterBox;
         out.push([mb.min.x - r, mb.max.x + r, mb.min.z - r, mb.max.z + r], [cb.min.x - r, cb.max.x + r, cb.min.z - r, cb.max.z + r]); var lb = PROOM.legBox; out.push([lb.min.x - r, lb.max.x + r, lb.min.z - r, lb.max.z + r]);   /* ㄱ자 다리 */
+        var bb = PROOM.boothBox; out.push([bb.min.x - r, bb.max.x + r, bb.min.z - r, bb.max.z + r]);   /* 11-18 식탁 자리 */
+      } else if (PL.place === 'inside') { return inCols().boxes;   /* 11-22 방 안 (등록부 — 이미 몸 반지름을 더한 값) */
+      } else if (PL.place === 'yard' && YROOM) {   /* 11-15 마당: 집 · 계단 · 우체통 · 등 · 울타리 토막 · 연 밭 (밭 사이는 돌아서 간다) */
+        YROOM.boxes.forEach(function (q) { out.push([q[0] - r, q[1] + r, q[2] - r, q[3] + r]); });
+        if (YARD_WIDE) wideCols().boxes.forEach(function (q) { out.push([q[0] - r, q[1] + r, q[2] - r, q[3] + r]); });   /* 11-21 7차: 마을 · 해변 (등록부) */
+        plotBoxes.forEach(function (q) { out.push([q.min.x + 0.05 - 0.15, q.max.x - 0.05 + 0.15, q.min.z + 0.05 - 0.15, q.max.z - 0.05 + 0.15]); });   /* 흙 + 0.15 (몸 반지름보다 작게 — 밭 사이 길을 걸을 수 있게, 검증 11-15) */
       } else if (PL.place === 'loft' && LROOM) {
         LROOM.boxes.forEach(function (q) { bx(q[0], q[1], q[2], q[3]); });
         if (salG.visible) bx(SALC.x + LSAL.dx, SALC.sz + LSAL.dz, SALC.sw / 2, 0.06);   /* 미용실 병 선반 (위층 뒷벽) */   /* 오락기 · 부엌 조리대 */
@@ -2363,6 +3317,10 @@ var SCENE3D = (function () {
       var out = [];
       if (PL.place === 'attic') {
         if (octG.parent === atticG && octG.visible && st.octState !== 'away') out.push([oct.pos.x, oct.pos.z, PL_OCT_R]);
+      } else if (PL.place === 'inside') { return inCols().circles;
+      } else if (PL.place === 'yard' && YROOM) {
+        YROOM.circles.forEach(function (c) { out.push([c[0], c[1], c[2] + PL_RAD]); });   /* 나무 줄기 · 덤불 · 돌 */
+        if (YARD_WIDE) wideCols().circles.forEach(function (c) { out.push([c[0], c[1], c[2] + PL_RAD]); });
       } else if (PL.place === 'loft') {
         if (octUp() && octG.visible) out.push([oct.pos.x + LSAL.dx, oct.pos.z + LSAL.dz, PL_OCT_R]);
         if (salG.visible && salE.visible) out.push([SALC.tx + LSAL.dx, SALC.tz + LSAL.dz, 0.30 + PL_RAD]);
@@ -2403,10 +3361,32 @@ var SCENE3D = (function () {
       }
       if (best) plWalkTo(new T.Vector3(best[0], 0, best[1]), null);
     }
-    function plMove(dx, dz) {   /* → 실제로 움직였나. 방 안쪽 범위로 자르고 장애물은 전체 → x 만 → z 만 (미끄러짐). 이미 겹쳐 있으면 더 파고들지 않는 쪽만 */
+    function plMove(dx, dz) {
+      if (PL.place === 'inside') return inMove(dx, dz);   /* 11-22: 걸어 들어가는 방 (네모 바닥 · 등록부의 부딪힘) */
+      return plMove0(dx, dz);
+    }
+    function plMove0(dx, dz) {   /* → 실제로 움직였나. 방 안쪽 범위로 자르고 장애물은 전체 → x 만 → z 만 (미끄러짐). 이미 겹쳐 있으면 더 파고들지 않는 쪽만 */
       var lm = plLim(), boxes = plBoxes(), circ = plCircles();
       var x0 = PL.pos.x, z0 = PL.pos.z, p0 = plPen(x0, z0, boxes, circ) + 1e-6;
       var nx = clamp(x0 + dx, lm[0], lm[1]), nz = clamp(z0 + dz, lm[0], lm[1]);
+      if (YARD_WIDE && PL.place === 'yard') {   /* 넓은 바깥: 세 후보 (전체 → x 만 → z 만) 를 저마다 걷는 곳 안으로 맞춘 뒤 장애물을 본다 */
+        var cands = [[nx, nz], [nx, z0], [x0, nz]];
+        var slid = false;
+        var stick = !!PL_IN.v && !PL.walking;
+        for (var ci = 0; ci < 3; ci++) { var q = yardClamp(x0, z0, cands[ci][0], cands[ci][1]); if (plPen(q[0], q[1], boxes, circ) <= p0 && (!stick || Math.abs(q[0] - x0) + Math.abs(q[1] - z0) > 1e-6)) { PL.pos.set(q[0], PL.pos.y, q[1]); slid = true; break; } }   /* 스틱: 걷는 곳 가장자리에 도로 맞춰져 제자리인 후보는 넘긴다 (둥근 것과 가장자리 사이에 끼어 섰다 — 독립 검증) */
+        if (!slid && stick) {   /* 11-21 7차: 스틱으로 둥근 것 (바위 · 표지판 · 그루터기 · 나무) 에 걸리면 둘레를 따라 돌아간다 — x 만 · z 만으로는 한가운데로 걸어 들 때 멈춰 섰다. 혼자 걷는 길 (plWalkTo) 은 예전 그대로 (막히면 다음 점으로) */
+          var stp = Math.hypot(dx, dz);
+          for (var cj = 0; cj < circ.length && !slid; cj++) {
+            var cc = circ[cj], rx = x0 - cc[0], rz = z0 - cc[1], rd = Math.hypot(rx, rz); if (rd < 1e-6 || Math.hypot(nx - cc[0], nz - cc[1]) >= cc[2]) continue;
+            var tx = -rz / rd, tz = rx / rd, sg = dx * tx + dz * tz < 0 ? -1 : 1, wx = x0 + tx * stp * sg - cc[0], wz = z0 + tz * stp * sg - cc[1], wk = Math.max(1, (cc[2] + 1e-4) / Math.hypot(wx, wz));
+            var q2 = yardClamp(x0, z0, cc[0] + wx * wk, cc[1] + wz * wk);
+            if (plPen(q2[0], q2[1], boxes, circ) <= p0 && Math.abs(q2[0] - x0) + Math.abs(q2[1] - z0) > 1e-6) { PL.pos.set(q2[0], PL.pos.y, q2[1]); slid = true; }
+            else { wx = x0 - tx * stp * sg - cc[0]; wz = z0 - tz * stp * sg - cc[1]; wk = Math.max(1, (cc[2] + 1e-4) / Math.hypot(wx, wz)); q2 = yardClamp(x0, z0, cc[0] + wx * wk, cc[1] + wz * wk);   /* 그쪽이 막혔으면 반대쪽으로 */
+              if (plPen(q2[0], q2[1], boxes, circ) <= p0 && Math.abs(q2[0] - x0) + Math.abs(q2[1] - z0) > 1e-6) { PL.pos.set(q2[0], PL.pos.y, q2[1]); slid = true; } }
+          }
+        }
+        return Math.abs(PL.pos.x - x0) + Math.abs(PL.pos.z - z0) > 1e-9;
+      }
       if (plPen(nx, nz, boxes, circ) <= p0) PL.pos.set(nx, 0, nz);
       else if (plPen(nx, z0, boxes, circ) <= p0) PL.pos.x = nx;
       else if (plPen(x0, nz, boxes, circ) <= p0) PL.pos.z = nz;
@@ -2441,6 +3421,7 @@ var SCENE3D = (function () {
         if (b && b.visible && Math.abs(x - b.position.x) <= 0.7 && Math.abs(z - b.position.z) <= 0.5) return (Math.abs(x - b.position.x) <= 0.55 && Math.abs(z - (b.position.z - 0.25)) <= 0.15 ? 0.155 : 0.12) + 0.01;
         if (Math.abs(x - ATTIC_RUG.x) <= ATTIC_RUG.w / 2 && Math.abs(z - ATTIC_RUG.z) <= ATTIC_RUG.d / 2) return ATTIC_RUG.h + 0.005;
       }
+      if (PL.place === 'yard') return plGroundY(x, z) + 0.011;   /* 11-18: 현관 마루 · 계단 위 자국 */
       return 0.011;
     }
     function plFoot(side) {   /* 디딤 한 번 (왼 −1 · 오른 +1): on.playerStep() + 자국 하나 (16개가 다 차면 가장 오래된 것부터) */
@@ -2463,13 +3444,20 @@ var SCENE3D = (function () {
     function setPlayer(cfg) {   /* 파츠 교체 (앱 설정 시트 '내 모습'): 모르는 범주·id 는 기본값 · 위치·걷기 상태(PL)는 그대로 · 7 메시의 지오메트리만 다시 만들고 옛것은 dispose(keep 목록에서도 교체) → 메시 수·드로우콜 불변. 초상 캐시는 비운다 */
       var look = normalizePlayer(cfg), geos = plGeos(look);
       plMeshes.forEach(function (m, i) { var old = m.geometry, k = disposables.indexOf(old); if (k >= 0) disposables.splice(k, 1); old.dispose(); m.geometry = keep(geos[i]); });
-      PL.look = look; PL.shut = false; PPORT.cache = {}; dither.still = 0;
+      PL.look = look; PL.shut = false; PPORT.cache = {}; dither.still = 0; plShoulders(look);
       plEyeBase(); plDrawEyes(look); plEyeUV();   /* 눈 아틀라스를 새 스타일·색으로 다시 그리고(텍스처 객체는 그대로, needsUpdate) 새 지오메트리의 uv 를 지금 LOD 칸으로 */
       return Object.assign({}, look);
     }
-    function plSnap() { snapScreen(plG.position.copy(PL.pos)); }
+    /* 11-18 (주인: "계단을 사용자가 잘못 집으로 돌아가지 않도록 오르내릴 수 있도록"): 내 캐릭터가 선 자리의 바닥 높이 — 마당 현관 마루(EXT.PL)와 계단 세 칸(0.12 m 씩). 그 밖은 0.
+       PL.pos 는 늘 y 0 평면 그대로 두고 (충돌 · 따라가기 · 자동 걷기가 그 값을 쓴다) 그릴 때만 올린다 */
+    function plGroundY(x, z) {
+      if (YARD_WIDE && PL.place === 'yard' && x + z > 60) return wideGroundY(x, z);   /* 11-21 7차: 계단 아래 모래 · 부두 (갈래 W) */
+      if (PL.place !== 'yard' || Math.abs(z - EXT.HZC) > 0.55 || x >= EXT.HX1 + 1.10 || x < EXT.HX1 - 0.3) return 0;   /* x 아래 한계 (11-18 검증): 집 뒤 (x < −2.65) 를 같은 z 로 걸으면 0.48 m 떠서 그려졌다 — 마루는 집 앞 (HX1) 뿐 */
+      return EXT.PL - 0.12 * (x < EXT.HX1 + 0.38 ? 0 : x < EXT.HX1 + 0.62 ? 1 : x < EXT.HX1 + 0.86 ? 2 : 3);
+    }
+    function plSnap() { var p = plG.position.copy(PL.pos); p.y += plGroundY(PL.pos.x, PL.pos.z) + (PL.lift || 0); snapScreen(p); }   /* lift = playerPlace 로 올라선 단상 높이 (걸으면 0) */
     function plStop() { if (PL.walking) { PL.walking.cancel(); PL.walking = null; } PL.antic = 0; }
-    function plFaceAfter(face) { PL.faceCam = face == null; PL.wantYaw = face == null ? camYaw() : face; }
+    function plFaceAfter(face) { PL.faceCam = false; if (face != null) PL.wantYaw = face; }   /* 11-18 주인: 멈추면 마지막으로 보던 쪽 그대로 (예전엔 카메라 쪽으로 슉 돌았다 — 부자연스러웠다). face 를 준 자리만 그쪽으로 */
     function plSegHits(ax, az, bx, bz, b) {   /* 선분 a→b 가 상자 [x0, x1, z0, z1] 를 지나나 (slab) */
       var t0 = 0, t1 = 1, dx = bx - ax, dz = bz - az;
       function slab(p, d, lo, hi) { if (Math.abs(d) < 1e-9) return p >= lo && p <= hi; var ta = (lo - p) / d, tb = (hi - p) / d; if (ta > tb) { var t = ta; ta = tb; tb = t; } t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); return t0 <= t1; }
@@ -2477,6 +3465,10 @@ var SCENE3D = (function () {
     }
     function plRoute(from, to) {   /* 경유점 (리뷰 11-09: 직선 lerp 는 상자 속을 걸어 지나갔다): 직선이 장애물 상자를 지나면 상자 모서리(둘레 +0.05) 하나 또는 이웃한 둘을 거친다 — 모든 선분이 상자를 안 지나는 길 중 가장 짧은 것. 없으면(출발·도착이 둘레 안 등) 직선 그대로 (plMove 가 미끄러뜨린다) */
       var boxes = plBoxes(), hit = null, i;
+      if (PL.place === 'yard' || PL.place === 'inside') {   /* 11-22: 방 안도 (카페의 둥근 탁자 · 의자 · 진열대를 돌아서 — 검증: 칠판으로 가다 가운데 탁자에 막혀 섰다) */   /* 11-18 (검증): 마당은 둥근 것 (나무 줄기 · 덤불 · 돌) 까지 넣어 처음부터 온 길을 찾는다. 상자 하나만 돌면 다른 상자나 나무에 다시 걸려, 마당 왼쪽 · 집 뒤에서 집 문을 톡하면 문 앞에 못 닿았다 (111 자리 가운데 64) */
+        var ya = plRouteAll(from, to, boxes, plCircles());
+        if (ya) return ya;
+      }
       for (i = 0; i < boxes.length; i++) if (plSegHits(from.x, from.z, to.x, to.z, boxes[i])) { hit = boxes[i]; break; }
       if (!hit) return [to];
       var m = 0.05, cs = [[hit[0] - m, hit[2] - m], [hit[1] + m, hit[2] - m], [hit[1] + m, hit[3] + m], [hit[0] - m, hit[3] + m]];   /* 모서리 4개, 둘레 순서 */
@@ -2492,9 +3484,45 @@ var SCENE3D = (function () {
           var l2 = len(from.x, from.z, c[0], c[1]) + len(c[0], c[1], c2[0], c2[1]) + len(c2[0], c2[1], to.x, to.z); if (l2 < bl) { bl = l2; best = [c, c2]; }
         });
       });
-      return best ? best.map(function (c) { return new T.Vector3(c[0], 0, c[1]); }).concat([to]) : [to];
+      return best ? best.map(function (c) { return new T.Vector3(c[0], 0, c[1]); }).concat([to]) : (plRouteAll(from, to, boxes, []) || [to]);
     }
-    function plWalkTo(to, face) {   /* 점까지 걷기 → Promise<walked:boolean>. face = 도착해 볼 방향(rad, 없으면 카메라 쪽). 모션 감소 · 숨은 탭 · 컨텍스트 잃음 · 준비 전 · 5 cm 미만 = 바로.
+    function plRouteAll(from, to, boxes, circles) {   /* 11-18 (검증): '상자 하나 돌기' 로 길이 안 나올 때 — 상자 여럿이 겹쳐 막는 자리 (마당 왼쪽 · 집 뒤에서 집 문: 집 몸통 · 현관 옆 · 우체통 · 나무).
+                                                       장애물 모서리 (상자는 둘레 +0.05 · 둥근 것은 감싸는 네모의 모서리) 가운데 서로 보이는 것끼리 이어 가장 짧은 길 (다익스트라). 없으면 null → 예전처럼
+                                                       (출발 · 도착이 둘레 안 · 가구로 둘러싸인 칸). 넓은 바깥에선 마당 안에서만 (울타리 밖은 걷는 곳이 띠뿐이라 playerWalkTo 가 울타리 문을 먼저 거친다) */
+      var wide = YARD_WIDE && PL.place === 'yard', m = 0.05, e = 0.01, P = [[from.x, from.z], [to.x, to.z]], i, j, band = false;
+      if (wide && (yardOut(from.x, from.z) || yardOut(to.x, to.z))) {
+        if (!yardOut(from.x, from.z) || !yardOut(to.x, to.z)) return null;   /* 울타리 안 ↔ 밖은 playerWalkTo 가 울타리 문을 먼저 거친다 */
+        /* [7-W] 다섯째 바퀴 (갈래 V 알림: 숲길에서 집 1 문 2 m 앞에서 멈춤): 울타리 밖 띠에서도 장애물을 돌아간다 — 예전엔 곧장 걸어 숲길 소품 (그루터기 · 통나무) 에 막혀 섰다.
+           곧은 길에서 2 m 안의 장애물만 넣고 (마을 · 해변 등록부가 70 개 넘는다), 돌아가는 모서리는 걷는 곳 (WIDE.AREAS) 안이어야 한다 */
+        band = true;
+        var sx = to.x - from.x, sz = to.z - from.z, sl = sx * sx + sz * sz;
+        var segD = function (x, z) { var u = sl > 1e-12 ? clamp(((x - from.x) * sx + (z - from.z) * sz) / sl, 0, 1) : 0; return Math.hypot(from.x + sx * u - x, from.z + sz * u - z); };
+        circles = circles.filter(function (c) { return segD(c[0], c[1]) < c[2] + 2; });
+        boxes = boxes.filter(function (b) { return segD((b[0] + b[1]) / 2, (b[2] + b[3]) / 2) < Math.hypot(b[1] - b[0], b[3] - b[2]) / 2 + 2; });
+      }
+      function inBand(x, z) { return wideIn((x + z) * Math.SQRT1_2, (x - z) * Math.SQRT1_2); }
+      function corner(x, z) { if ((band ? inBand(x, z) : plInRoom(x, z) && !(wide && yardOut(x, z))) && plPen(x, z, boxes, circles) <= 0) P.push([x, z]); }
+      boxes.forEach(function (b) { corner(b[0] - m, b[2] - m); corner(b[1] + m, b[2] - m); corner(b[1] + m, b[3] + m); corner(b[0] - m, b[3] + m); });
+      circles.forEach(function (c) { var q = c[2] + m; corner(c[0] - q, c[1] - q); corner(c[0] + q, c[1] - q); corner(c[0] + q, c[1] + q); corner(c[0] - q, c[1] + q); });
+      function free(p, q) {   /* 둘레에 닿기만 하는 선분 (둘레에 붙어 선 출발 자리) 은 막힌 것이 아니다 → 1 cm 안쪽부터 막힌 것으로 */
+        var k, b, c, dx = q[0] - p[0], dz = q[1] - p[1], l2 = dx * dx + dz * dz, t;
+        for (k = 0; k < boxes.length; k++) { b = boxes[k]; if (plSegHits(p[0], p[1], q[0], q[1], [b[0] + e, b[1] - e, b[2] + e, b[3] - e])) return false; }
+        for (k = 0; k < circles.length; k++) { c = circles[k]; t = l2 > 1e-12 ? clamp(((c[0] - p[0]) * dx + (c[1] - p[1]) * dz) / l2, 0, 1) : 0; if (Math.hypot(p[0] + dx * t - c[0], p[1] + dz * t - c[1]) < c[2] - e) return false; }
+        return true;
+      }
+      var n = P.length, dist = [], prev = [], done = [];
+      for (i = 0; i < n; i++) { dist.push(i ? Infinity : 0); prev.push(-1); done.push(false); }
+      for (;;) {
+        var u = -1; for (i = 0; i < n; i++) if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
+        if (u < 0 || u === 1) break;
+        done[u] = true;
+        for (j = 0; j < n; j++) { if (done[j]) continue; var d = dist[u] + Math.hypot(P[j][0] - P[u][0], P[j][1] - P[u][1]); if (d < dist[j] && free(P[u], P[j])) { dist[j] = d; prev[j] = u; } }
+      }
+      if (dist[1] === Infinity) return null;
+      var path = [to]; for (i = prev[1]; i > 0; i = prev[i]) path.unshift(new T.Vector3(P[i][0], 0, P[i][1]));
+      return path;
+    }
+    function plWalkTo(to, face) {   /* 점까지 걷기 → Promise<walked:boolean>. face = 도착해 볼 방향(rad, 없으면 걸어온 쪽 그대로 — 11-18 주인). 모션 감소 · 숨은 탭 · 컨텍스트 잃음 · 준비 전 · 5 cm 미만 = 바로.
                                        걸음은 스틱과 같은 plMove(1.8 m/s — 스틱은 2.2 · 범위·장애물 미끄러짐) 로 경유점(plRoute)을 차례로 — 목표 5 cm 안이면 도착(마지막 점은 정확히 그 자리로), 세 프레임 연속 못 움직이면 다음 점으로(마지막이면 거기서 끝) · 길이 × 1.5 + 0.3 s 가 지나면 끝 (Promise 가 걸리지 않게) */
       plStop();
       var from = PL.pos.clone(), d = to.clone().sub(from), dist = Math.hypot(d.x, d.z);
@@ -2502,17 +3530,18 @@ var SCENE3D = (function () {
       var pts = plRoute(from, to), total = 0, prev = from;
       pts.forEach(function (p) { total += Math.hypot(p.x - prev.x, p.z - prev.z); prev = p; });
       PL.faceCam = false; PL.wantYaw = Math.atan2(pts[0].x - from.x, pts[0].z - from.z);
-      var dur = total / PL_SPEED * st.speed, hold = PL.moving ? 0 : PL_ANTIC * st.speed, k = 0, cancelled = false, stuck = 0;
+      var dash = PL.walkSpeed ? PL.walkSpeed > PL_RUN : total > PL_DASH_AUTO, spd = PL.walkSpeed || (dash ? PL_DASH : PL_SPEED);   /* 11-21 C11: playerWalkPath 가 속도를 정하면 그 속도 */   /* 11-21 먼 길 (4 m 넘게) 은 뛰어간다 */
+      var dur = total / spd * st.speed, hold = PL.moving ? 0 : PL_ANTIC * st.speed, k = 0, cancelled = false, stuck = 0;
       PL.antic = hold; PL.walks++;
       return new Promise(function (resolve) {
         function arrive(snap) { cancelled = true; if (snap) PL.pos.copy(to); PL.walking = null; PL.antic = 0; plFaceAfter(face); resolve(true); }
-        PL.walking = { cancel: function () { cancelled = true; }, finish: function () { if (!cancelled) arrive(true); },
+        PL.walking = { dash: dash, cancel: function () { cancelled = true; }, finish: function () { if (!cancelled) arrive(true); },
           step: function (dt) {
             if (cancelled) return;
             k += dt; PL.antic = Math.max(0, hold - k);
             if (k < hold) return;
             if (k - hold > dur * 1.5 + 0.3) { arrive(false); return; }
-            var tg = pts[0], dx = tg.x - PL.pos.x, dz = tg.z - PL.pos.z, dd = Math.hypot(dx, dz), step = Math.min(dd, PL_SPEED * dt / (st.speed || 1));
+            var tg = pts[0], dx = tg.x - PL.pos.x, dz = tg.z - PL.pos.z, dd = Math.hypot(dx, dz), step = Math.min(dd, spd * dt / (st.speed || 1));
             if (dd > 1e-6) { PL.wantYaw = Math.atan2(dx, dz); if (plMove(dx / dd * step, dz / dd * step) || plMove(dx / dd * step / 2, dz / dd * step / 2)) stuck = 0; else stuck++; }   /* 한 걸음이 장애물 둘레에 걸리면 반 걸음으로 한 번 더 (큰 dt 에서 둘레 앞까지 붙게) */
             dd = Math.hypot(tg.x - PL.pos.x, tg.z - PL.pos.z);
             if (dd < 0.05 || stuck >= 3) { if (pts.length > 1) { pts.shift(); stuck = 0; } else arrive(dd < 0.2); }   /* 마지막 점: 5 cm 안이면 도착 · 막혔어도 20 cm 안이면 그 자리로(쉬는 자리처럼 둘레 안에 둔 목표) · 더 멀면 거기서 끝(관통 금지) */
@@ -2521,35 +3550,62 @@ var SCENE3D = (function () {
     }
     function plRest(instant) { var r = PL_REST[PL.place] || PL_REST.attic, to = new T.Vector3(r[0], 0, r[2]); PL.pending = ''; if (instant) { plStop(); PL.pos.copy(to); plFaceAfter(null); PL.yaw = PL.wantYaw; PL.moving = false; plSnap(); } else plWalkTo(to, null); }
     function plEnter(to, from) {   /* 문 전환 가운데 프레임 (runDoor 의 swap): 들어온 방 문 앞에 서서 방 안쪽을 보고, 문이 닫히면 쉬는 자리로. 바깥(문어가 아직 산책 중)으로 나왔으면 내 캐릭터는 다락 쉬는 자리에 (안 보이는 곳에서 바로) */
+      if (to === 'yard') PL.yardArm = false; if (to === 'attic' && from === 'yard') PL.yardBack = false;   /* 11-18 방에 들어온 프레임의 문 잠금 둘: 마당 현관 (계단을 내려갔다 와야 다시 들어간다) · 다락의 마당 문 (쥔 채 들어오면 벗어날 때까지). 아래 '방 안쪽을 본 채' 줄을 고치지 않고 여기서 건다 (다른 가지가 그 윗줄을 고친다) — 그 사이 읽는 곳이 없어 차례는 상관없다 */
       if (to === 'attic' || isRoomP(to)) {
         var g = groupOf(to); if (plG.parent !== g) g.add(plG); fpClear(g);
-        var an = to === 'play' ? 'playAtticDoor' : to === 'loft' ? 'loftStair' : from === 'loft' ? 'atticStair' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
-        plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false; PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
+        var an = to === 'play' ? 'playAtticDoor' : to === 'loft' ? 'loftStair' : to === 'yard' ? 'yardAttic' : from === 'loft' ? 'atticStair' : from === 'yard' ? 'atticYard' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
+        PL.sit = false; PL.hop = null; PL.tbl = false; var mb0 = TB.meBite; TB.meBite = null; if (mb0) mb0.done(false); plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false;
+        /* 11-18 주인: 돌린 각에서 들어와도 방 안쪽을 본 채 (카메라 쪽으로 돌려 세우던 11-15 규칙은 뺐다) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = PL_CLEAR[an] ? 'clear:' + an : ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
       } else { if (plG.parent !== atticG) atticG.add(plG); fpClear(atticG); PL.place = 'attic'; plRest(true); }
     }
+    var WIDE_WALK = 8;   /* 11-19 넓은 바깥: 울타리 밖에서 집 문까지 남은 길 (m — 여기 → 울타리 문 → 계단 발치 → 문 앞, 곧은 선으로) 이 이보다 길면 걷지 않는다. 울타리 문에서 문 앞까지가 6.48 m 라 울타리 문 1.5 m 안에서만 걸어 들어온다 (걸음 5 s 쯤까지 — 마당 안의 가장 긴 걸음 6.6 s 보다 짧다) */
     function playerWalkTo(anchor) {   /* goRoom 의 walkFirst: 문 앞 앵커까지 걷고 문 쪽을 보며 서면 푼다 → { ok, walked, anchor, at }. 그 방에 없으면(바깥에서 들어갈 때) 걷기 없이 바로 */
-      var a = DOOR_ANCHORS[anchor], at = a ? a.slice() : [0, 0, 0], room = anchor === 'playAtticDoor' ? 'play' : anchor === 'loftStair' ? 'loft' : 'attic';
+      var a = DOOR_ANCHORS[anchor], at = a ? a.slice() : [0, 0, 0], room = anchor === 'playAtticDoor' ? 'play' : anchor === 'loftStair' ? 'loft' : anchor === 'yardAttic' ? 'yard' : 'attic';
       if (!a || PL.place !== room || plG.parent !== groupOf(room)) return Promise.resolve({ ok: true, walked: false, anchor: anchor, at: at });
-      PL.pending = '';
-      return plWalkTo(new T.Vector3(a[0], 0, a[2]), PL_FACE[anchor]).then(function (walked) { return { ok: true, walked: walked, anchor: anchor, at: at }; });
+      PL.pending = ''; PL.camGap = anchor === 'atticStair' ? 1.5 : 0.5;   /* 11-18: 이 걸음 동안 화면이 따라온다 (plFollow) — 문은 몸이 화면 안에 들 만큼 (0.5 m: 기본 구도의 문들은 이미 안이라 안 민다), 계단은 계단 몸까지 보이게 (발치 0.32 + 계단 0.84 + 여유) */
+      if (anchor === 'yardAttic' && YARD_WIDE && yardOut(PL.pos.x, PL.pos.z)) {   /* 11-18 넓은 바깥: 울타리 밖에서 집 문을 톡 → 앞 모서리의 울타리 문을 거쳐 들어온 뒤 예전 길로 */
+        /* 11-19 (검증): 멀리서는 걷지 않고 바로 푼다 (goRoom 은 곧바로 문 작업으로) — 길 끝에서 '산책 갈래?' · 집 문 톡이 11 초를 혼자 걸었고 그동안 입력이 막혔다.
+           가까우면 예전 길 그대로 (울타리 문 → 계단 발치 → 문 앞) 걷되 세 구간을 여기서 잇는다: 걷던 구간이 끊기면 (plStop — plWalkTo 는 끊긴 걸음을 풀지 않는다) ok false 로 풀어 문 작업이 걸린 채 남지 않게 */
+        var wg = new T.Vector3(3.7, 0, 3.7), wf = new T.Vector3(EXT.HX1 + 1.6, 0, EXT.HZC), wd = new T.Vector3(a[0], 0, a[2]);
+        var wend = function (ok, walked) { if (ok || !PL.walking) PL.camGap = 0; return { ok: ok, walked: walked, anchor: anchor, at: at }; };   /* 끊은 쪽이 새 걸음이면 그 걸음의 따라오기는 두고 */
+        if (Math.hypot(PL.pos.x - wg.x, PL.pos.z - wg.z) + wg.distanceTo(wf) + wf.distanceTo(wd) > WIDE_WALK) { plStop(); return wideJumpGo(a[0], a[2], PL_FACE[anchor]).then(function () { return wend(true, false); }); }   /* 11-21 7차: 멀리서는 빠른 이동과 같은 페이드로 문 앞에 선 뒤 문 작업 */
+        var wleg = function (to, face) { var p = plWalkTo(to, face), w = PL.walking; return !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); }); };   /* 한 구간 → 끊기면 null */
+        return wleg(wg, null).then(function (r) {
+          if (r === null) return wend(false, true);
+          if (PL.place !== 'yard' || PL_IN.held || yardOut(PL.pos.x, PL.pos.z)) return wend(true, true);
+          return wleg(wf, null).then(function (r2) {   /* 아래 마당 안 걸음의 두 구간과 같은 조건 · 같은 답 */
+            if (r2 === null) return wend(false, true);
+            if (PL.place !== 'yard' || PL_IN.held || Math.abs(PL.pos.z - EXT.HZC) > 0.36) return wend(true, true);
+            return wleg(wd, PL_FACE[anchor]).then(function (r3) { return wend(r3 !== null, true); });
+          });
+        });
+      }
+      if (anchor === 'yardAttic' && !(Math.abs(PL.pos.z - EXT.HZC) < 0.36 && PL.pos.x < EXT.HX1 + 1.6)) {   /* 0.36: 통로 반폭 0.35 (난간 ±0.6 − 몸 0.25) 보다 크게 — 0.34 일 땐 난간에 붙어 문에 닿으면 계단 발치까지 도로 내려갔다 왔다 (검증 11-18) */   /* 11-18 마당 집 문 톡: 계단 발치를 거쳐 통로로 오른다 (곧장 가면 현관 옆에 걸린다) */
+        return plWalkTo(new T.Vector3(EXT.HX1 + 1.6, 0, EXT.HZC), null).then(function () {
+          if (PL.place !== 'yard' || PL_IN.held || Math.abs(PL.pos.z - EXT.HZC) > 0.36) return false;
+          return plWalkTo(new T.Vector3(a[0], 0, a[2]), PL_FACE[anchor]);
+        }).then(function () { PL.camGap = 0; return { ok: true, walked: true, anchor: anchor, at: at }; });
+      }
+      return plWalkTo(new T.Vector3(a[0], 0, a[2]), PL_FACE[anchor]).then(function (walked) { PL.camGap = 0; return { ok: true, walked: walked, anchor: anchor, at: at }; });
     }
     function plFinish() { if (PL.walking && PL.walking.finish) PL.walking.finish(); if (PL.pending) plRest(true); }   /* 컨텍스트 잃음 · destroy: 걷던 길을 지금 도착시킨다 (Promise 는 푼다) */
-    function plInfo() { return { place: PL.place, at: [+PL.pos.x.toFixed(3), 0, +PL.pos.z.toFixed(3)], walking: !!PL.walking || !!PL.stick, moving: !!PL.moving, pending: PL.pending, yaw: +(plG.rotation.y / DEG).toFixed(1), frame: PL.frame | 0, group: plG.parent ? plG.parent.name : '', visible: !!(plG.parent && plG.parent.visible), walks: PL.walks, height: PL_H, look: Object.assign({}, PL.look), input: PL_IN.v ? [+PL_IN.v.x.toFixed(3), +PL_IN.v.y.toFixed(3)] : null, footprints: FP.list.length }; }
-    function plStand() {   /* 소파에서 내려온다 (앉는 쪽 앞 바닥으로 폴짝) */
+    function plInfo() { return { place: PL.place, at: [+PL.pos.x.toFixed(3), 0, +PL.pos.z.toFixed(3)], walking: !!PL.walking || !!PL.stick, moving: !!PL.moving, run: !!PL.dashing, pending: PL.pending, yaw: +(plG.rotation.y / DEG).toFixed(1), frame: PL.frame | 0, group: plG.parent ? plG.parent.name : '', visible: !!(plG.parent && plG.parent.visible), walks: PL.walks, height: PL_H, look: Object.assign({}, PL.look), input: PL_IN.v ? [+PL_IN.v.x.toFixed(3), +PL_IN.v.y.toFixed(3)] : null, footprints: FP.list.length }; }
+    function plStand(done) {   /* 소파에서 내려온다 (앉는 쪽 앞 바닥으로 폴짝) · 11-18 식탁이면 내 통로 자리로 */
+      if (PL.tbl) { var TA = BOOTH.me.aisle; PL.sit = false; PL.tbl = false; PL.hop = { t: 0, a: PL.pos.clone(), b: new T.Vector3(TA[0], 0, TA[1]), sit: false, done: done }; tableStood(); return; }
       var f = FURN.sofa, a = sofaAx(), lm = plLim(), k = f.hw + 0.4;
       var to = new T.Vector3(clamp(PL.pos.x + a[0] * k, lm[0], lm[1]), 0, clamp(PL.pos.z + a[1] * k, lm[0], lm[1]));
-      PL.sit = false; PL.hop = { t: 0, a: PL.pos.clone(), b: to, sit: false };
+      PL.sit = false; PL.hop = { t: 0, a: PL.pos.clone(), b: to, sit: false, done: done };
     }
     function playerSit() {   /* 소파 앞까지 걸어가 폴짝 뛰어 앉는다 → Promise<bool>. 앉은 채로는 소파가 보는 쪽을 본다 */
       var f = FURN.sofa;
-      if (PL.place !== 'attic' || PLACE.vis !== 'attic' || PL.sit || PL.hop || FU.carry || !playerInputAllowed()) return Promise.resolve(false);
+      if (PL.place !== 'attic' || PLACE.vis !== 'attic' || PL.sit || PL.hop || FM.on || !playerInputAllowed()) return Promise.resolve(false);
       var a = sofaAx(), sd = [-a[1], a[0]], cx = f.m.position.x, cz = f.m.position.z, lm = plLim();
       var side = ((PL.pos.x - cx) * sd[0] + (PL.pos.z - cz) * sd[1]) > 0 ? 0.27 * f.sc : -0.27 * f.sc;   /* 두 자리 중 가까운 쪽 */
       var seat = new T.Vector3(cx + a[0] * 0.10 * f.sc + sd[0] * side, 0.22 * f.sc, cz + a[1] * 0.10 * f.sc + sd[1] * side);
       var front = new T.Vector3(clamp(seat.x + a[0] * (0.72 * f.sc), lm[0], lm[1]), 0, clamp(seat.z + a[1] * (0.72 * f.sc), lm[0], lm[1]));
       var yaw = Math.atan2(a[0], a[1]);
       return plWalkTo(front, yaw + Math.PI).then(function () {
-        if (PL.place !== 'attic' || PL_IN.v || PL.sit || PL.hop || FU.carry) return false;
+        if (PL.place !== 'attic' || PL_IN.v || PL.sit || PL.hop || FM.on) return false;
         PL.sitYaw = yaw;
         if (st.reduced) { PL.pos.copy(seat); PL.sit = true; }
         else PL.hop = { t: 0, a: PL.pos.clone(), b: seat, sit: true };
@@ -2563,34 +3619,42 @@ var SCENE3D = (function () {
       if (!allowed) { PL_IN.v = null; PL_IN.held = false; }   /* 막힌 동안은 매 프레임 누르던 입력을 놓는다 (전이 프레임만 지우면 막힌 채 들어온 입력이 남아 방이 다시 보일 때 입력 없이 움직였다 — 리뷰 11-09) */
       if (allowed !== PL_IN.allowed) { PL_IN.allowed = allowed; emit('playerInput', allowed); }   /* 바뀔 때만 (앱이 스틱 hidden 을 쥔다) */
       var v = PL_IN.v, held = PL_IN.held, stick = false, pushed = false;
+      if (allowed && !v) { PL.doorArm = true; PL.yardBack = true; }   /* 11-18: 아무것도 쥐지 않은 프레임 = 문 · 계단 잠금이 풀린다. 잠금은 '쥔 채로 방을 옮겨 도착한' 걸음만 막는다 (방을 옮겨도 스틱이 이어지므로 — 톡으로 와서 서 있다가 미는 첫 걸음은 바로 듣는다) */
       if (PL.hop) {   /* 폴짝: 0.34 s 포물선 (앉기 · 내려오기) */
         var hp = PL.hop; hp.t += dt; var hk = Math.min(1, hp.t / 0.34);
         PL.pos.lerpVectors(hp.a, hp.b, hk); PL.pos.y = hp.a.y + (hp.b.y - hp.a.y) * hk + 0.3 * Math.sin(Math.PI * hk);
-        if (hk >= 1) { PL.pos.copy(hp.b); PL.sit = hp.sit; PL.hop = null; PL.settleT = 0; }
+        if (hk >= 1) { PL.pos.copy(hp.b); PL.sit = hp.sit; PL.hop = null; PL.settleT = 0; if (hp.done) hp.done(); }
       }
       if (v && PL.sit && !PL.hop) plStand();   /* 앉아 있다가 스틱 · 방향키를 밀면 일어난다 */
       if (PL.hop || PL.sit) v = null;
       if (v) {   /* 스틱 · 방향키: 가던 길(쉬는 자리 등)은 취소, 화면 축 → 월드 수평 축, 범위·장애물 보정 뒤 적용. 막혀서 한 발짝도 못 가면 서서 그쪽을 본다 */
-        if (PL.walking) plStop(); PL.pending = ''; PL.antic = 0; PL.heldStop = false;
+        if (PL.walking) plStop(); PL.pending = ''; PL.antic = 0; PL.heldStop = false; PL.lift = 0;
         PL_IN.rh.set(_r.x, 0, _r.z).normalize(); PL_IN.fh.set(PL_IN.rh.z, 0, -PL_IN.rh.x);   /* 화면 오른쪽 · 화면 위 = 카메라에서 멀어지는 수평 방향 */
-        var wx = PL_IN.rh.x * v.x + PL_IN.fh.x * v.y, wz = PL_IN.rh.z * v.x + PL_IN.fh.z * v.y, step = PL_RUN * dt / (st.speed || 1);   /* 스틱 · 방향키는 종종 달리기 2.2 m/s (주인 11-10 "억지로 느리게 한 느낌" — 1.2 는 방 하나 건너는 데 4초였다). 문 앞까지 혼자 걷기는 1.8 */
-        stick = plMove(wx * step, wz * step);
+        var wx = PL_IN.rh.x * v.x + PL_IN.fh.x * v.y, wz = PL_IN.rh.z * v.x + PL_IN.fh.z * v.y, step = PL_RUN * dt / (st.speed || 1), dashK = plDashHeld(v, dt) ? PL_DASH / PL_RUN : 1;   /* 스틱 · 방향키는 종종 달리기 2.2 m/s (주인 11-10 "억지로 느리게 한 느낌" — 1.2 는 방 하나 건너는 데 4초였다). 문 앞까지 혼자 걷기는 1.8 */
+        stick = (dashK > 1 && plMove(wx * step * dashK, wz * step * dashK)) || plMove(wx * step, wz * step);   /* 11-21 뛰는 걸음이 둘레에 걸리면 걷는 걸음으로 한 번 더 (벽 앞에 뛰는 걸음만큼 틈이 남지 않게) */
         PL.faceCam = false; PL.wantYaw = Math.atan2(wx, wz);
         /* 문에 닿은 채 문 쪽으로 걸으면 넘어간다 (주인 11-10 "닿은 채로 걸어가면 슥 넘어가는"): 문 앞 앵커 0.45 m 안에서 문이 있는 벽 쪽(다락 문 = +x · 놀이방 문 = −x)으로 밀 때 한 번 on.playerDoor(가는 방).
            방금 그 문으로 들어왔으면(PL.doorArm false) 문 앞을 한 번 벗어났다 와야 한다 — 들어오자마자 되돌아가지 않게 */
         var pushN = Math.hypot(wx, wz) || 1;
-        (PL.place === 'play' ? [['playAtticDoor', -1, 'attic', 0.85]] : PL.place === 'loft' ? [] : [['atticPlayDoor', 1, 'play', 0.85]]).forEach(function (q) {   /* [앵커, 미는 쪽(x 부호), 가는 곳, 문 양옆 폭] — 계단도 문처럼 발치에서 밀면 넘어간다 */
+        (PL.place === 'play' ? [['playAtticDoor', -1, 'attic', 0.85]] : PL.place === 'loft' || PL.place === 'yard' || PL.place === 'inside' ? [] : [['atticPlayDoor', 1, 'play', 0.85]]).forEach(function (q) {   /* [앵커, 미는 쪽(x 부호), 가는 곳, 문 양옆 폭] — 계단도 문처럼 발치에서 밀면 넘어간다 */
           var dAn = DOOR_ANCHORS[q[0]];
           if (!PL.doorCd && Math.abs(PL.pos.x - dAn[0]) < 0.75 && Math.abs(PL.pos.z - dAn[2]) < q[3] && q[1] * wx / pushN > 0.25 && !DQ.active && !DQ.pending && !PLACE.trans) { PL.doorCd = 0.4; emit('playerDoor', q[2]); }   /* 한 번 쏘고 꺼지지 않는다: 앱이 바쁜 틈이라 못 받았어도 계속 밀고 있으면 0.4 s 뒤 다시 쏜다 */
         });
-        /* 계단: 어느 쪽에서든 계단(위층은 계단 구멍)에 붙어 그쪽으로 밀면 오르내린다 — 비스듬히 걸어와도. 막 오르내린 뒤엔 스틱을 놓거나 다른 쪽으로 틀 때까지 잠긴다 (같은 방향을 쥔 채 도착하므로 되튀지 않게) */
+        /* 계단: 위층에선 어느 쪽에서든 계단 구멍에 붙어 그쪽으로 밀면 내려간다 — 비스듬히 걸어와도. 막 오르내린 뒤엔 스틱을 놓거나 다른 쪽으로 틀 때까지 잠긴다 (같은 방향을 쥔 채 도착하므로 되튀지 않게).
+           11-18 다락 계단은 발치에서만: 발치 칸 (계단 앞 0.5 m · 계단 폭) 에 서서 오르는 쪽 (−x) 으로 밀 때 — 긴 옆면에 붙어 밀어서는 오르지 않는다 (소파를 옮겨 옆면이 열려도 옆구리에 닿아 위층으로 가 버리지 않게, 주인 "잘못 방문") */
         var pad = PL.place === 'attic' ? [(STAIR.x0 + STAIR.x1) / 2, (STAIR.z0 + STAIR.z1) / 2, (STAIR.x1 - STAIR.x0) / 2, (STAIR.z1 - STAIR.z0) / 2, 'loft'] : PL.place === 'loft' ? [(HATCH.x0 + HATCH.x1) / 2 + 0.1, (HATCH.z0 + HATCH.z1) / 2, (HATCH.x1 - HATCH.x0) / 2 - 0.1, (HATCH.z1 - HATCH.z0) / 2, 'attic'] : null;
         if (pad) {
           var pdx = pad[0] - PL.pos.x, pdz = pad[1] - PL.pos.z, toward = (pdx * wx + pdz * wz) / ((Math.hypot(pdx, pdz) || 1) * pushN), near = Math.abs(pdx) < pad[2] + PL_RAD + 0.3 && Math.abs(pdz) < pad[3] + PL_RAD + 0.3;
+          if (PL.place === 'attic') { toward = -wx / pushN; near = PL.pos.x > STAIR.x1 - 0.05 && PL.pos.x < STAIR.x1 + PL_RAD + 0.3 && PL.pos.z > STAIR.z0 - 0.1 && PL.pos.z < STAIR.z1 + 0.1; }
           if (!near || toward < 0.1) PL.doorArm = true;
           else if (PL.doorArm && !PL.doorCd && toward > 0.5 && !DQ.active && !DQ.pending && !PLACE.trans) { PL.doorCd = 0.4; emit('playerDoor', pad[4]); }
         }
-      } else if (PL.held && !held) { PL.doorArm = true; PL.faceCam = true; if (PL.heldStop) { PL.settleT = 0; PL.heldStop = false; } }   /* 손을 떼면(막힌 채 서 있다 떼도 · 데드존에 잡고만 있다 떼도) 다시 카메라 쪽 + 도착 눌림 한 번 — 전이는 '잡고 있었나'(held) 기준 */
+        /* 11-15 마당 문: 다락 뒷벽 문간(문어 산책 문) 앞에서 벽 쪽(−z)으로 · 11-18 마당에선 현관 계단을 걸어 올라 마루 위 문 앞에서 문 쪽(−x)으로 밀면 넘어간다 (문어가 그 문을 쓰는 동안은 앱 goRoom 이 거절) */
+        var yq = PL.place === 'attic' ? DOOR_ANCHORS.atticYard : PL.place === 'yard' ? DOOR_ANCHORS.yardAttic : null;
+        if (PL.place === 'attic' && PL.yardBack === false && yq && (!(Math.abs(PL.pos.x - yq[0]) < 0.42 && PL.pos.z - yq[2] < 0.3) || -wz / pushN < 0.1)) PL.yardBack = true;   /* 11-18 (검증): 마당에서 위쪽 (−x−z) 을 쥔 채 들어오면 이어 걷는 방향이 이 문 조건 (−z) 에도 맞아 0.2 s 뒤 마당으로 되튀었다 (쉼 0.5 s 의 절반을 전환이 쓴다) → 문간을 벗어나거나 다른 쪽으로 틀 때까지 잠근다 (계단의 doorArm 과 같은 뜻) */
+        if (PL.place === 'yard' && !PL.yardArm && PL.pos.x > EXT.HX1 + 0.62) PL.yardArm = true;   /* 11-18: 집에서 막 나와 마루에 선 채 뒤돌아 밀어도 들어가지 않는다 — 계단을 한 칸 넘게 내려갔다 와야 문이 다시 듣는다 (스틱을 놓아도 풀리지 않는다) */
+        if (yq && !PL.doorCd && !DQ.active && !DQ.pending && !PLACE.trans && (PL.place === 'attic' ? PL.yardBack !== false && Math.abs(PL.pos.x - yq[0]) < 0.42 && PL.pos.z - yq[2] < 0.3 && -wz / pushN > 0.5 : PL.yardArm && Math.abs(PL.pos.z - yq[2]) < 0.4 && PL.pos.x < EXT.HX1 + 0.5 && PL.pos.x > EXT.HX1 && -wx / pushN > 0.5)) { PL.doorCd = 0.4; emit('playerDoor', PL.place === 'attic' ? 'yard' : 'attic'); }   /* 11-18 (검증): x > HX1 = 마루 위일 때만 — 아래 끝이 없어서 집 뒤 (같은 z 띠) 에서 서쪽으로 밀어도 집 안으로 넘어갔다 */
+      } else if (PL.held && !held) { PL.doorArm = true; PL.yardBack = true; if (PL.heldStop) { PL.settleT = 0; PL.heldStop = false; } }   /* 손을 떼면(막힌 채 서 있다 떼도 · 데드존에 잡고만 있다 떼도) 보던 쪽 그대로 (11-18 주인) + 도착 눌림 한 번 — 전이는 '잡고 있었나'(held) 기준 */
       if (allowed && !PL.walking && PL.place === 'attic' && !PL.sit && !PL.hop) {   /* 문어가 걸어와 내 캐릭터 위에 서면(문어 걷기는 플레이어를 모른다 — 걷기 시작 때 plAvoidOct 가 미리 비켜세우지만 길이 지나가기도 한다) 둥근 장애물 밖으로 밀려난다 — 걷는 속도로, 스틱을 쥐고 있어도(문어가 미는 셈), 미끄러짐은 plMove 몫 (리뷰 11-09) */
         var circ = plCircles(), pen = plPen(PL.pos.x, PL.pos.z, [], circ);
         if (pen > 1e-3) {
@@ -2601,17 +3665,19 @@ var SCENE3D = (function () {
           if (pushed && !v) { PL.faceCam = false; PL.wantYaw = Math.atan2(ox, oz); }
         }
       }
-      if (PL.pushed && !pushed && !held) PL.faceCam = true;   /* 밀려나기가 끝나면 다시 카메라 쪽 */
+      if (!v) plDashHeld(null, dt);
       PL.stick = stick; PL.held = held; PL.pushed = pushed;
       if (PL.walking) PL.walking.step(dt);
+      var dash = !st.reduced && (stick ? PL.dash : !!(PL.walking && PL.walking.dash));   /* 11-21 뛰는 걸음새인가 (스틱 = 오래 쥠 · 혼자 걷기 = 먼 길) */
       if (PL.pending === 'rest' && !DQ.active && !PLACE.trans) plRest(false);   /* 들어온 문이 닫힌 뒤: 쉬는 자리로 */
+      if (PL.pending.indexOf('clear:') === 0 && !DQ.active && !PLACE.trans && !PL_IN.held) { var cq = PL_CLEAR[PL.pending.slice(6)]; PL.pending = ''; if (cq && PL.place === 'attic') plWalkTo(new T.Vector3(cq[0], 0, cq[1]), null); }   /* 11-22 (검토): 문이 닫히면 문짝 · 상자에 가리지 않는 자리로 한 걸음 (쥔 채 들어왔으면 그 걸음이 이어지고 비키지 않는다) */
       var red = st.reduced, moving = ((!!PL.walking && PL.antic <= 0) || stick || pushed) && !red;
       var mx = PL.pos.x - PL.last.x, mz = PL.pos.z - PL.last.z; if (Math.hypot(mx, mz) > 1e-6) PL_IN.dir.set(mx, 0, mz).normalize();   /* 진행 방향 (발자국 회전·옆 오프셋) */
-      if (moving) { if (!PL.moving) { PL.last.copy(PL.pos); PL.n = Math.floor(PL.phase); } PL.phase += Math.min(0.3, Math.hypot(PL.pos.x - PL.last.x, PL.pos.z - PL.last.z)) / (stick ? PL_RUN_STRIDE : PL_STRIDE); }
+      if (moving) { if (!PL.moving) { PL.last.copy(PL.pos); PL.n = Math.floor(PL.phase); } PL.phase += Math.min(0.3, Math.hypot(PL.pos.x - PL.last.x, PL.pos.z - PL.last.z)) / (dash ? PL_DASH_STRIDE : stick ? PL_RUN_STRIDE : PL_STRIDE); }
       else if (PL.moving) { PL.phase = Math.ceil(PL.phase - 1e-6); if (held) PL.heldStop = true; else PL.settleT = 0; }   /* 멈춤 = 서기 프레임 + 착지 눌림 한 번 (잡은 채 멈췄으면 — 데드존 · 벽에 막힘 — 눌림은 놓을 때) */
       PL.last.copy(PL.pos); PL.moving = moving; PL.settleT += dt;
       stepFoot(dt);
-      if (PL.sit || PL.hop) { if (PL.sit || (PL.hop && PL.hop.sit)) PL.wantYaw = PL.sitYaw || 0; } else if (PL.faceCam && !PL.walking) PL.wantYaw = camYaw();   /* 쉴 땐 카메라 쪽 (돌려 보기를 따라간다) */
+      if (PL.sit || PL.hop) { if (PL.sit || (PL.hop && PL.hop.sit)) PL.wantYaw = PL.sitYaw || 0; } else if (PL.faceCam && !PL.walking) PL.wantYaw = camYaw();   /* 카메라 쪽은 검사 훅 debugPlayerYaw(null) 일 때만 — 놀이에선 마지막 방향 그대로 (11-18 주인) */
       var dy = angDiff(PL.wantYaw, PL.yaw);
       PL.yaw = red ? PL.wantYaw : PL.yaw + dy * Math.min(1, dt * PL_TURN); PL.yaw = Math.atan2(Math.sin(PL.yaw), Math.cos(PL.yaw));
       if (PL.dir8 == null || red || Math.abs(angDiff(PL.yaw, PL.dir8 * (Math.PI / 4))) > Math.PI / 8 + 0.12) PL.dir8 = Math.round(PL.yaw / (Math.PI / 4));   /* 8방향 계단 + 히스테리시스 ≈ 7°: 스틱 각이 22.5° 경계 근처에서 흔들려도 칸이 매 프레임 45° 씩 왔다 갔다 하지 않는다 (리뷰 11-09) */
@@ -2621,23 +3687,26 @@ var SCENE3D = (function () {
       var u = PL.phase - Math.floor(PL.phase), f = moving ? Math.floor(u * 4) & 3 : 0, sw = [0, 1, 0, -1][f];
       if (moving && (f & 1) && f !== PL.frame) plFoot(f === 1 ? -1 : 1);   /* 디딤 프레임에 들어설 때 = 한 걸음: 발자국 + on.playerStep() */
       PL.frame = f;
-      plLegL.rotation.x = -sw * PL_LEG; plLegR.rotation.x = sw * PL_LEG;
+      dash = dash && moving; PL.dashing = dash;
+      var legA = dash ? 0.85 : PL_LEG, armA = dash ? 0.95 : PL_ARM;   /* 뛰기: 다리 · 팔을 크게 */
+      plLegL.rotation.x = -sw * legA; plLegR.rotation.x = sw * legA;
       if (PL.sit) plLegL.rotation.x = plLegR.rotation.x = -1.35;   /* 앉은 다리: 앞으로 뻗는다 */
-      plArmL.rotation.x = sw * PL_ARM; plArmR.rotation.x = -sw * PL_ARM;
-      var out = moving ? 0.30 : 0.42; plArmL.rotation.z = -out; plArmR.rotation.z = out;   /* 팔은 살짝 벌려 늘어뜨린다 — 걸을 땐 조금 붙인다 */
-      plBody.rotation.z = sw * PL_SWAY;
+      plArmL.rotation.x = sw * armA; plArmR.rotation.x = -sw * armA;
+      var out = dash ? 0.18 : moving ? 0.30 : 0.42; plArmL.rotation.z = -out; plArmR.rotation.z = out;   /* 팔은 살짝 벌려 늘어뜨린다 — 걸을 땐 조금 붙인다 */
+      plBody.rotation.z = dash ? 0 : sw * PL_SWAY; plBody.rotation.x = dash ? 0.16 : 0;   /* 뛸 땐 뒤뚱 대신 앞으로 살짝 숙인다 */
       var sx = 1, sy = 1, by = 0, tb = Math.floor(PL.t * 8) / 8;
       if (!red) {
         if (!moving && PL.settleT > 0.3) sy = 1 - 0.012 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2));   /* 숨쉬기 8 fps 스텝 (1 px 안쪽, 가끔 1 px) */
         if (PL.antic > 0) { sy = 0.94; sx = 1.03; }                                                       /* 출발 예비 눌림 */
         else if (!moving && PL.settleT < 0.1) { sy = 0.95; sx = 1.02; }                                   /* 도착 눌림 80 ms */
-        if (moving && (f & 1)) by = -pxUp();
+        if (moving && (f & 1)) by = dash ? pxUp() : -pxUp();   /* 뛰기 = 디딤 프레임에 몸이 1 px 뜬다 (통통) */
         /* 눈 깜빡임 3~7 s 시드 간격 · 120 ms (문어와 같은 규칙) */
         if (PL.blinkLeft > 0) PL.blinkLeft -= dt; else { PL.blinkT -= dt; if (PL.blinkT <= 0) { PL.blinkLeft = 0.12; PL.blinkT = 3 + (hash('plb' + Math.floor(PL.t * 10)) % 1000) / 1000 * 4; } }
       } else PL.blinkLeft = 0;
       var shut = PL.blinkLeft > 0 && PL.look.eyes !== 'smile';   /* 웃는 눈(^^)은 깜빡이지 않는다 — 실눈이 깜빡이면 무섭다 (주인 11-10) */
       if (shut !== PL.shut) { PL.shut = shut; plEyeUV(); }   /* 감은 눈 = 아틀라스의 '감은 눈' 칸으로 uv 전환 (머리색 한 칸 어두운 선 하나 — 메시·드로우콜·텍스처 추가 없음) */
       plBody.scale.set(sx, sy, sx); plBody.position.y = snapUp(by);
+      plPoseStep(dt);   /* 11-21 C11: 빙글 · 포즈 · 인사 · 만세 (걷기 그림 위에 덮는다) */
     }
     /* 내 캐릭터 초상 (설정 시트 '내 모습' 미리보기, 64×64): 문어 portrait 과 같은 길 — 레이어 2 전용 3점 조명(문어 rig) · pCam · rtP/rtPN/rtPO · postP · 캐시(키 = cfg + 문어 색 + 팔레트 + 배경).
        찍는 동안만 내 캐릭터 7 메시를 레이어 2 에 넣고 문어의 레이어 2 메시는 뺀다(문어 초상엔 내 캐릭터가, 내 초상엔 문어가 안 들어온다). 조명 rig 는 octG 안에 있어 octG 를 보이게 하고 요를 0 으로 맞춘다(빛 방향이 문어 요를 따라 돌지 않게).
@@ -2652,7 +3721,7 @@ var SCENE3D = (function () {
       octG.traverse(function (o) { if (o.isMesh && (o.layers.mask & 4)) { octL2.push(o); o.layers.disable(2); } });
       plMeshes.forEach(function (m) { m.layers.enable(2); });
       PL.shut = false; PL.lod = fr.lod; plEyeUV();   /* 눈 뜨고 8×8 칸으로: 정면 61 px/m 는 장면 2× (54 px/m) 보다 촘촘해 2× 그림이 텍셀 ≈ 1.1 px 로 열이 안 빠진다 (요 30° 시절엔 먼 눈 조각이 0.84 px 라 4×5 로 찍었다) — 주인이 눈 · 코 · 입 · 볼을 고르는 바로 그 미리보기라 한쪽이 깨지면 안 된다 */
-      plBody.scale.set(1, 1, 1); plBody.position.y = 0; plBody.rotation.z = 0; plG.rotation.y = -(fr.yaw || 0);   /* 요 = 카메라가 아니라 내 캐릭터를 돌린다 (카메라 · 3점 빛은 그대로 → 돌려 찍어도 앞에서 받는 빛) */
+      plBody.scale.set(1, 1, 1); plBody.position.y = 0; plBody.rotation.z = 0; plBody.rotation.x = 0; plG.rotation.y = -(fr.yaw || 0);   /* 요 = 카메라가 아니라 내 캐릭터를 돌린다 (카메라 · 3점 빛은 그대로 → 돌려 찍어도 앞에서 받는 빛) */
       plLimbs.forEach(function (m) { m.rotation.x = 0; }); plArmL.rotation.z = -0.42; plArmR.rotation.z = 0.42;
       plG.visible = true; if (plG.parent) plG.parent.visible = true; octG.visible = true; if (octG.parent) octG.parent.visible = true; octG.rotation.y = 0;   /* 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */
       toonP.emissive.setRGB(0, 0, 0); toonP.color.setScalar(0.8); toonEye.emissive.setRGB(0, 0, 0); toonEye.color.setScalar(0.8);   /* 3점 흰빛 rig 는 장면 필보다 밝아 금발 윗면이 올리브 #d0da91 로 떴다 → 재질 색만 0.8 로 눌러 찍는다 (유니폼, 프로그램 그대로). 눈 재질도 같이 — 안 누르면 흰자가 살결보다 한 칸 떠 번쩍인다 */
@@ -2673,7 +3742,7 @@ var SCENE3D = (function () {
       /* 되돌리기 */
       scene.background = sv.bg; renderer.setClearColor(sc, sa); renderer.setRenderTarget(null);
       plMeshes.forEach(function (m) { m.layers.disable(2); }); octL2.forEach(function (o) { o.layers.enable(2); });
-      plBody.scale.set(sv.sx, sv.sy, sv.sz); plBody.position.y = sv.py; plBody.rotation.z = sv.rz; plG.rotation.y = sv.gy; plG.visible = sv.vis; if (plG.parent) plG.parent.visible = sv.pvis;
+      plBody.scale.set(sv.sx, sv.sy, sv.sz); plBody.position.y = sv.py; plBody.rotation.z = sv.rz; plBody.rotation.x = PL.dashing ? 0.16 : 0; plG.rotation.y = sv.gy; plG.visible = sv.vis; if (plG.parent) plG.parent.visible = sv.pvis;
       plLimbs.forEach(function (m, i) { m.rotation.x = sv.limbs[i][0]; m.rotation.z = sv.limbs[i][1]; });
       PL.shut = sv.shut; PL.lod = sv.lod; plEyeUV(); toonEye.emissive.copy(sv.eem); toonEye.color.copy(sv.ecol);
       octG.visible = sv.ovis; if (octG.parent) octG.parent.visible = sv.opvis; octG.rotation.y = sv.oy; toonP.emissive.copy(sv.em); toonP.color.copy(sv.col);
@@ -2707,8 +3776,8 @@ var SCENE3D = (function () {
     function plWithLook(look, fn) {
       var live = PL.look; if (JSON.stringify(look) === JSON.stringify(live)) return fn();
       var liveG = plMeshes.map(function (m) { return m.geometry; }), tmp = plGeos(look);
-      try { plMeshes.forEach(function (m, i) { m.geometry = tmp[i]; }); PL.look = look; plEyeBase(); plDrawEyes(look); return fn(); }
-      finally { plMeshes.forEach(function (m, i) { m.geometry = liveG[i]; }); tmp.forEach(function (g) { g.dispose(); }); PL.look = live; plDrawEyes(live); plEyeUV(); }
+      try { plMeshes.forEach(function (m, i) { m.geometry = tmp[i]; }); PL.look = look; plShoulders(look); plEyeBase(); plDrawEyes(look); return fn(); }
+      finally { plMeshes.forEach(function (m, i) { m.geometry = liveG[i]; }); tmp.forEach(function (g) { g.dispose(); }); PL.look = live; plShoulders(live); plDrawEyes(live); plEyeUV(); }
     }
     function renderPlayerShot(look, fr, bgHex) {
       var cv = document.createElement('canvas'); cv.width = fr.w; cv.height = fr.h; var cx = cv.getContext('2d'), N = PORT.N;
@@ -2724,7 +3793,7 @@ var SCENE3D = (function () {
       o = o || {};
       var name = PSHOT.frames[o.frame] ? o.frame : 'full', fr = PSHOT.frames[name], bg = portraitBg(o);
       var look = o.look ? normalizePlayer(Object.assign({}, PL.look, o.look)) : PL.look;
-      var k = JSON.stringify(look) + '|' + name + '|' + st.color + '|' + PAL.source + '|' + (bg || 't'), e = PSHOT.cache[k];
+      var k = JSON.stringify(look) + '|' + name + '|' + st.color + '|' + PAL.source + '|' + (bg || 't') + '|' + JSON.stringify(PL_DYES), e = PSHOT.cache[k];   /* 11-18: 물들인 색도 열쇠에 — 물들인 뒤 옷장 그림이 옛 색이었다 */
       if (!e && ctxLost()) { var blank = document.createElement('canvas'); blank.width = fr.w; blank.height = fr.h; return blank; }
       if (!e) {
         e = PSHOT.cache[k] = { cv: renderPlayerShot(look, fr, bg) }; PSHOT.keys.push(k);
@@ -2733,7 +3802,7 @@ var SCENE3D = (function () {
       if (o.shared) return e.cv;
       var cv = document.createElement('canvas'); cv.width = fr.w; cv.height = fr.h; cv.getContext('2d').drawImage(e.cv, 0, 0); return cv;
     }
-    var octState = { carrySvg: null, hang: null, carryId: null };   /* carryId = 들고 있는 포스터의 여행 id (APP 의 carry { svg, id }) */
+    var octState = { carrySvg: null, hang: null, carryId: null, carryTok: 0, carryBaking: -1 };   /* carryId = 들고 있는 포스터의 여행 id (APP 의 carry { svg, id }) · carryTok = 들고 있는 포스터 번호 (새 포스터마다 +1 — 늦게 온 지난 그림은 버린다) · carryBaking = 굽는 중인 번호 */
     function setOctState(s, extra) {
       st.octState = s; oct.animT = 0;
       if (opts.octEl) opts.octEl.className = opts.octEl.className.replace(/\bst-[a-z]+/g, '').trim() + ' st-' + s;
@@ -2741,7 +3810,27 @@ var SCENE3D = (function () {
       if (!away && s !== 'walk' && FADE.d < 1) setOctFade(1);   /* 의식 밖 상태 = 늘 온전히 보인다 (걷기는 의식이 사라짐·나타남을 쥔다) */
       octG.visible = !away && FADE.d > 0; octDecal.visible = !away && FADE.d >= 0.5;
       setExpression(STATE_EXPR[s] || 'idle');   /* 상태의 기본 표정 (룩 패스 8) */
-      if (s === 'carry') { carry.visible = true; if (extra && extra.id) octState.carryId = extra.id; if (extra && extra.svg) bakeSVG(extra.svg, 48, 64).then(function (t) { if (t) carry.material = new T.MeshPhongMaterial({ map: t, shininess: 0, specular: 0x000000 }); }); }
+      if (s === 'carry') {
+        /* 11-18 (주인: "새 주제인데 이전 포스터랑 그대로"): 새 포스터 (extra 에 svg · id) 를 들 때 앞서 들었던 그림을 먼저 내려놓는다 — 예전엔 새 그림이 구워질 때까지 (굽기가 실패하면 끝까지) 지난 산책의 포스터가 손에 보였다.
+           같은 포스터를 다시 드는 것 · extra 없이 상태만 다시 부르는 것 (앱의 walkTo 가 걷기 시작하며 그렇게 부른다) 은 아무것도 바꾸지 않는다 — 검증 11-18: 그 호출도 굽기 번호를 올리던 첫 고침은
+           첫 굽기 결과를 버려, 문에서 보드까지 걷는 내내 빈 종이를 들었다. 거는 연출 (hangFly) 이 쓰는 재질은 버리지 않고 놓기만 한다. 늦게 온 지난 그림은 번호 (carryTok) 로 버린다 */
+        var cid = extra && extra.id ? extra.id : null, same = !!cid && cid === octState.carryId;
+        if (extra && (extra.svg || cid) && !same) {
+          octState.carryTok++;
+          if (carry.material !== posterMat) { var om = carry.material; carry.material = posterMat; if (!hangFly || hangFly.m.material !== om) { if (om.map) om.map.dispose(); om.dispose(); } }
+        }
+        carry.visible = true; if (cid) octState.carryId = cid;
+        if (extra && extra.svg && (!same || carry.material === posterMat) && octState.carryBaking !== octState.carryTok) {
+          var tok = octState.carryTok; octState.carryBaking = tok;
+          bakeSVG(extra.svg, 48, 64).then(function (t) {
+            if (octState.carryBaking === tok) octState.carryBaking = -1;
+            if (!t) return;
+            if (tok !== octState.carryTok || st.octState !== 'carry') { t.dispose(); return; }
+            if (carry.material !== posterMat && (!hangFly || hangFly.m.material !== carry.material)) { if (carry.material.map) carry.material.map.dispose(); carry.material.dispose(); }
+            carry.material = new T.MeshPhongMaterial({ map: t, shininess: 0, specular: 0x000000 });
+          });
+        }
+      }
       else if (s === 'hang') { if (carry.visible && !st.reduced) startHang(); carry.visible = false; octState.carryId = null; }
       else { carry.visible = false; octState.carryId = null; }
       if (s !== 'walk' && s !== 'carry' && !oct.walking) oct.wantYaw = camYaw();
@@ -2759,7 +3848,7 @@ var SCENE3D = (function () {
       if (!hangFly) return;
       hangFly.k += dt; var k = Math.min(1, hangFly.k / hangFly.dur), e = k * k * (3 - 2 * k);
       hangFly.m.position.lerpVectors(hangFly.from, hangFly.to, e); hangFly.m.position.y += Math.sin(k * Math.PI) * 0.4; hangFly.m.scale.setScalar(hangFly.s0 + (1 - hangFly.s0) * e);
-      if (k >= 1) { atticG.remove(hangFly.m); hangFly = null; }
+      if (k >= 1) { var hm = hangFly.m.material; atticG.remove(hangFly.m); hangFly = null; if (hm !== posterMat && hm !== carry.material) { if (hm.map) hm.map.dispose(); hm.dispose(); } }   /* 거는 0.5 s 사이 새 포스터가 들렸으면 이 재질은 주인이 없다 (검증 11-18: 텍스처가 남았다) */
     }
     var _hp = new T.Vector3();
     function octScreen() { /* 머리 꼭대기 → 컨테이너 CSS px */
@@ -2770,7 +3859,7 @@ var SCENE3D = (function () {
     function updateOverlay() {
       var el = opts.octEl;
       if (el) {
-        var hide = isRoomP(PLACE.vis) && !octUp();   /* 놀이방: 문어 이름표·말풍선 오버레이를 숨긴다 (문어는 다락에 있다 — 숨은 머리 자리에 말풍선이 뜨지 않게). 인라인 display 만 (앱의 visibility 들어올림과 안 겹친다) */
+        var hide = isRoomP(PLACE.vis) && !octUp() && !(PLACE.vis === 'play' && TB.oct !== 'none');   /* 11-18: 식탁의 문어는 이름표 · 말풍선 허용 */   /* 놀이방: 문어 이름표·말풍선 오버레이를 숨긴다 (문어는 다락에 있다 — 숨은 머리 자리에 말풍선이 뜨지 않게). 인라인 display 만 (앱의 visibility 들어올림과 안 겹친다) */
         if (hide !== lastOctHide) { lastOctHide = hide; el.style.display = hide ? 'none' : ''; }
         if (!hide) { var p = octScreen(), s = 'translate(' + Math.round(p.x - 24) + 'px,' + Math.round(p.y - 48) + 'px)'; if (s !== lastOverlay) { lastOverlay = s; el.style.transform = s; } }
       }
@@ -2780,8 +3869,10 @@ var SCENE3D = (function () {
        위치 = 화면에 투영한 상자를 장면 안으로 자른 '보이는 부분' (#scene 안쪽 기준 CSS px), 44×44 보다 작으면 넓힌다 · 바뀔 때만 style 을 쓴다 · 장면이 hidden 을 쥔다:
        그 장소가 보이고 문 작업·전환·입장 연출이 없을 때만 보인다. atticPlay 는 바깥이 보이는 동안(산책 중) data-spot="edge" (위치를 비워 앱 CSS 의 가장자리 단추로) ·
        다락 위 = data-spot="over". 확대·밀기로 상자가 화면 밖이면 숨긴다 */
+    var YARD_DOOR_BOX = new T.Box3(new T.Vector3(DOOR.x0, 0, -R), new T.Vector3(DOOR.x1, DOOR.h, -R + 0.12));   /* 11-15: 다락 뒷벽 문간 (문어 산책 문 — 마당으로) */
     var STAIR_BOX = new T.Box3(new T.Vector3(STAIR.x0, 0, STAIR.z0), new T.Vector3(STAIR.x1, STAIR.top, STAIR.z1));
-    var SPOTS = {}, SPOT_KEYS = ['atticPlay', 'playAttic', 'machine', 'salon', 'atticStair', 'loftStair', 'sew', 'plot0', 'plot1', 'plot2'], spotEdge = true, spotLast = {}, _sv8 = new T.Vector3(), SPOT_MIN_VIS = 8;   /* 보이는 문 조각이 8 CSS px 보다 좁으면 단추를 숨긴다 · salon = 미용실 거울 (#btn-salon) */
+    var STAIR_LOW = new T.Box3(new T.Vector3(STAIR.x0 - 0.06, 0, STAIR.z0), new T.Vector3(STAIR.x0 + 2 * (STAIR.x1 - STAIR.x0) / 7 + 0.05, KNEE + 0.12, STAIR.z1));   /* 11-15: 계단이 잘려 아래 두 칸만 보일 때 (돌려 보기 90° 근처) 단추는 그 두 칸 위에만 — 온 계단 상자면 방 가운데의 나 · 상자를 톡 해도 위층으로 갔다 */
+    var SPOTS = {}, SPOT_KEYS = ['atticPlay', 'playAttic', 'machine', 'salon', 'atticStair', 'loftStair', 'sew', 'plot0', 'plot1', 'plot2', 'plot3', 'plot4', 'plot5', 'atticYard', 'yardAttic', 'counter', 'table'], spotEdge = true, spotLast = {}, _sv8 = new T.Vector3(), SPOT_MIN_VIS = 8;   /* 보이는 문 조각이 8 CSS px 보다 좁으면 단추를 숨긴다 · salon = 미용실 거울 (#btn-salon) */
     function boxScreen(b, obj) {   /* 그룹 좌표 상자 → 컨테이너 CSS px {l,t,r,b} */
       obj.updateWorldMatrix(true, false);
       var l = Infinity, t = Infinity, r = -Infinity, bt = -Infinity, mw = obj.matrixWorld;
@@ -2792,27 +3883,50 @@ var SCENE3D = (function () {
       }
       return { l: l, t: t, r: r, b: bt };
     }
+    /* 11-18 (이 가지의 단추 칸 · 값은 위 SPOT_KEYS 줄을 고치지 않고 여기서 덧붙인다 — 다른 가지가 그 줄에 제 칸을 넣는다): 위층 마네킹 (원피스) = 재봉틀과 같은 창 (#btn-sew-doll) ·
+       계단이 화면 가장자리에 잘려 보이는 폭이 이보다 좁으면 가장자리 단추 */
+    SPOT_KEYS.push('sewDoll');
+    var STAIR_EDGE_VIS = 40;
+    STAIR_LOW.set(new T.Vector3(STAIR.x1 - 2 * (STAIR.x1 - STAIR.x0) / 7 - 0.05, 0, STAIR.z0), new T.Vector3(STAIR.x1 + 0.06, KNEE + 0.12, STAIR.z1));   /* 11-18 계단 발치는 x1 쪽 (왼벽 앞 구석으로 옮기며 오르는 방향이 뒤집혔다) — 위 STAIR_LOW 줄은 옛 방향 그대로 두고 (다른 가지가 그 아랫줄을 고친다) 여기서 맞춘다 */
     function spotInfo(id) {
+      if (WIDE_SPOT[id]) return wideSpotInfo(id);   /* 11-21 7차: 등록부의 자리 (갈래 W) */
       var busy = DQ.active || DQ.pending || !!PLACE.trans || INTRO.on, v = PLACE.vis, q;
       if (id === 'atticPlay') {
         if (PLACE.room || busy) return null;
         if (v === 'exterior') return spotEdge ? { id: id, mode: 'edge' } : null;
         if (v !== 'attic') return null;
         q = boxScreen(ATTIC_DOOR.box, ATTIC_DOOR.g);
-      } else if (id === 'playAttic' || id === 'machine') {
+      } else if (id === 'table') {   /* 11-18 식탁 자리 → #btn-table (앉아 있거나 앉으러 가는 동안엔 식탁 = 먹기 — 앱이 정한다) */
         if (v !== 'play' || !PROOM || busy) return null;
-        q = id === 'machine' ? boxScreen(PROOM.machineBox, PROOM.g) : boxScreen(PLAY_DOOR.box, PLAY_DOOR.g);
-      } else if (id === 'plot0' || id === 'plot1' || id === 'plot2') {
-        if (v !== 'exterior' || PLACE.room || busy || !extReady) return null;
-        q = boxScreen(plotBoxes[+id.charAt(4)], extG);
+        q = boxScreen(PROOM.boothBox, PROOM.g);
+      } else if (id === 'playAttic' || id === 'machine' || id === 'counter') {   /* 11-15: counter = 놀이방 조리대 → 부엌 (#btn-cook) */
+        if (v !== 'play' || !PROOM || busy) return null;
+        q = id === 'machine' ? boxScreen(PROOM.machineBox, PROOM.g) : id === 'counter' ? boxScreen(PROOM.counterBox, PROOM.g) : boxScreen(PLAY_DOOR.box, PLAY_DOOR.g);
+      } else if (/^plot[0-5]$/.test(id)) {   /* 11-15: 밭은 마당에만 (연 칸만 — 잠긴 칸은 단추도 없다) */
+        if (v !== 'yard' || !YROOM || busy || !plotBoxes[+id.charAt(4)]) return null;
+        q = boxScreen(plotBoxes[+id.charAt(4)], YROOM.g);
+      } else if (id === 'atticYard') {   /* 11-15 마당 문 = 다락 뒷벽 문간 (문어 산책 문). 산책 중(바깥이 보일 때)엔 장면 왼쪽 아래 가장자리 단추 (집 단추 옆). 문어가 그 문을 쓰는 동안은 숨는다 */
+        if (PLACE.room || busy || yardDoorBusy()) return null;
+        if (v === 'exterior') return spotEdge ? { id: id, mode: 'edge' } : null;
+        if (v !== 'attic') return null;
+        q = boxScreen(YARD_DOOR_BOX, atticG);
+      } else if (id === 'yardAttic') {
+        if (v !== 'yard' || !YROOM || busy || yardDoorBusy()) return null;
+        q = boxScreen(YROOM.doorBox, YROOM.g);
       } else if (id === 'atticStair') {
         if (v !== 'attic' || PLACE.room || busy) return null;
-        q = boxScreen(STAIR_BOX, atticG);
-      } else if (id === 'loftStair' || id === 'sew') {
+        var sc = cutOf('attic', 'stair'); q = boxScreen(sc && sc.cut ? STAIR_LOW : STAIR_BOX, atticG);
+        /* 11-21 (주인: "문 근처에 가면 계단 버튼이 떠서 어색해"): 가장자리의 계단 단추는 없앴다. 계단이 화면 가장자리 밖이거나 조금만 걸쳐 보이는 동안 단추는
+           그쪽 가장자리의 **안 보이는** 44px 칸 (mode 'key') 으로만 남는다 — 키보드 · 화면 낭독기가 닿을 곳 (포커스 링만 보인다). 손가락 · 마우스는 이 칸을 못 누른다 (spotAt 은 'over' 만 본다):
+           보이는 계단 그림을 누를 때만 계단이다 (pick 의 디딤판 광선). 걸어가거나 밀어서 계단이 보이면 그림 위 단추 (over) 로 돌아간다 */
+        var svw = Math.min(S.W, q.r) - Math.max(0, q.l), svh = Math.min(S.H, q.b) - Math.max(0, q.t);   /* 보이는 폭 · 높이 */
+        if (isFinite(q.l) && ((svw < q.r - q.l - 0.5 && svw < STAIR_EDGE_VIS) || (svh < q.b - q.t - 0.5 && svh < SPOT_MIN_VIS)))   /* 화면 가장자리에 잘렸고 남은 게 좁을 때만 (잘린 계단 아래 두 칸처럼 원래 작은 상자는 그림 위 단추 그대로) */
+          return { id: id, mode: 'key', x: (q.l + q.r) / 2 < S.W / 2 ? 0 : Math.max(0, S.W - 44), y: clamp(Math.round(q.b - 52), 56, Math.max(56, Math.round(S.H - Math.min(S.H * 0.3, 240) - 48))), w: 44, h: 44 };   /* 아래 한계 = 떠다니는 스틱 구역 (.stick-zone: 높이 min(30%, 240px)) 바로 위 — 키워서 뒤쪽을 걸으면 단추가 그 구역 안에 놓여 스틱을 잡으려던 톡이 위층으로 갔다 (검증 11-18) */
+      } else if (id === 'loftStair' || id === 'sew' || id === 'sewDoll') {
         if (v !== 'loft' || !LROOM || busy) return null;
-        q = boxScreen(id === 'sew' ? LROOM.sewBox : LROOM.hatchBox, LROOM.g);
+        q = boxScreen(id === 'sew' ? LROOM.sewBox : id === 'sewDoll' ? LROOM.dollBox : LROOM.hatchBox, LROOM.g);
       } else if (id === 'salon') {   /* 미용실: 다락이 보이고 · 방 이동·문 작업·전환·입장·의식이 없고 · 코너가 보이고 · 앱이 setSalonOpen(true) 로 허락했고 · 연출 중이 아닐 때만 */
-        if (v !== 'loft' || busy || CER.active || !SAL.open || SAL.active || !salG.visible) return null;   /* 위층이 보일 때 (문어가 아래층에서 자고 있어도 거울은 눌린다 — 그때는 앱이 '자고 있어' 한 줄만 띄운다) */
+        if (v !== 'loft' || busy || CER.active || !SAL.open || SAL.active || !salG.visible || !salG.layers.mask) return null;   /* 11-15: 뒷벽과 같이 잘려 있으면 (돌려 보기) 단추도 없다 */   /* 위층이 보일 때 (문어가 아래층에서 자고 있어도 거울은 눌린다 — 그때는 앱이 '자고 있어' 한 줄만 띄운다) */
         q = boxScreen(SAL_BOX, salG);
       } else return null;
       /* 화면 안에 보이는 부분만 (확대·밀기로 문이 장면 가장자리를 넘으면 자른다 — 예전엔 투영 상자 전체 높이를 장면 안으로 *옮겨서* 문 위 바닥까지 덮었다).
@@ -2832,13 +3946,13 @@ var SCENE3D = (function () {
       if (spotFocus && ae && ae !== document.body && ae !== SPOTS[spotFocus]) spotFocus = null;
       for (var i = 0; i < SPOT_KEYS.length; i++) {
         var id = SPOT_KEYS[i], el = SPOTS[id]; if (!el) continue;
-        var s = spotInfo(id), key = !s ? 'off' : s.mode === 'edge' ? 'edge' : s.x + ',' + s.y + ',' + s.w + ',' + s.h;
+        var s = spotInfo(id), key = !s ? 'off' : s.mode === 'edge' ? 'edge' : (s.mode === 'key' ? 'k' : '') + s.x + ',' + s.y + ',' + s.w + ',' + s.h;
         if (spotLast[id] === key) continue;
         spotLast[id] = key;
         if (!s) { if (!el.hidden && ae === el) { spotFocus = id; try { spotQuiet = !el.matches(':focus-visible'); } catch (e) { spotQuiet = false; } }   /* :focus-visible 을 모르는 옛 브라우저 = 링 있는 쪽으로 */ el.hidden = true; continue; }
         var es = el.style; el.dataset.spot = s.mode;
-        if (s.mode === 'over') { es.left = s.x + 'px'; es.top = s.y + 'px'; es.width = s.w + 'px'; es.height = s.h + 'px'; es.right = 'auto'; es.bottom = 'auto'; }
-        else { es.left = es.top = es.width = es.height = es.right = es.bottom = ''; }
+        if (s.mode !== 'edge') { es.left = s.x + 'px'; es.top = s.y + 'px'; es.width = s.w + 'px'; es.height = s.h + 'px'; es.right = 'auto'; es.bottom = 'auto'; }   /* 'over' · 'key' (11-21: 계단의 안 보이는 키보드 칸) */
+        else { es.left = es.top = es.width = es.height = es.right = es.bottom = ''; }   /* 가장자리 단추: 자리는 앱 CSS */
         if (el.hidden) {
           el.hidden = false;
           if (spotFocus === id) {   /* 링이 없던 포커스(손가락으로 온 것)는 링 없이 돌려준다 — 'ring-off' 는 앱 css 의 같은 뜻 (focusVisible 옵션을 모르는 브라우저) */
@@ -2847,6 +3961,7 @@ var SCENE3D = (function () {
           }
         }
       }
+      stairEdgeCue();   /* 11-22 [7-U]: 계단이 화면 밖이면 가장자리의 작은 계단 그림 */
     }
     /* 손가락·마우스는 캔버스가 받는다 (단추는 'over' 일 때 pointer-events: none — css/style.css): 밀기·핀치·휠이 문 위에서 시작해도 장면으로 가고, 톡은 그린 순서대로
        (문어가 문 앞이면 문어, 문이 문어 앞이면 문). 톡이 문·오락기로 정해지면 그 단추를 누른다 (키보드 · 화면 낭독기는 단추를 그대로 쓴다) */
@@ -2863,11 +3978,24 @@ var SCENE3D = (function () {
     var SPOT_HIT = {};
     function spotHit(id) { return SPOT_HIT[id] || (SPOT_HIT[id] = { userData: { kind: 'spot', spot: id } }); }   /* pick() 이 돌려주는 표적 (메시 대신) */
     function doorMeshes(D) { var out = []; if (D && D.g.visible) D.g.traverseVisible(function (o) { if (o.isMesh && o.layers.mask & 1) out.push(o); }); return out; }
-    function spotTap(id) { var el = SPOTS[id]; if (el && !el.hidden && spotInfo(id)) el.click(); }
+    function spotTap(id) { var el = SPOTS[id]; if (el && !el.hidden && spotInfo(id)) { if (WIDE_SPOT[id] && WIDE_SPOT[id].room && inSpotWalk(id, el)) return; el.click(); } }   /* 11-22: 방 안의 자리는 먼저 걸어간 뒤 누른다 */
+    /* 11-15: 장면이 pointerup 에서 톡을 처리하면 (단추 누르기 · 문어 · 포스터 …) 브라우저가 같은 손가락의 진짜 click 을 뒤이어 보낸다 — 그 자리에 방금 열린 시트가 있으면
+       시트 바깥(백드롭)이면 닫히고, 안이면 그 자리 단추(염료 칩)가 눌렸다 (재봉틀이 첫 톡에 안 열리던 결함). 톡 뒤 800 ms 안 · 30 px 안의 진짜 click 하나를 삼킨다.
+       el.click() 같은 합성 click (isTrusted false) 은 그대로 · 다음 pointerdown 이 오면 풀린다 */
+    var tapGuard = null;
+    function guardTapClick(x, y) { tapGuard = { x: x, y: y, t: Date.now() }; }
+    listen(window, 'pointerdown', function () { tapGuard = null; }, true);
+    listen(window, 'click', function (e) {
+      var g = tapGuard; if (!g || !e.isTrusted) return;
+      tapGuard = null;
+      if (Date.now() - g.t > 800 || Math.hypot(e.clientX - g.x, e.clientY - g.y) > 30) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+    }, true);
     function clearSpots() { SPOT_KEYS.forEach(function (k) { var el = SPOTS[k]; if (!el) return; var es = el.style; es.left = es.top = es.width = es.height = es.right = es.bottom = ''; delete el.dataset.spot; }); SPOTS = {}; spotLast = {}; spotFocus = null; }
     function setHotspots(map, o) {
       clearSpots(); map = map || {}; o = o || {}; spotEdge = o.edge !== false;
       SPOT_KEYS.forEach(function (k) { if (map[k] && map[k].nodeType === 1) SPOTS[k] = map[k]; });
+      wideSpotsBind();
       if (ready) updateSpots();
       return Object.keys(SPOTS);
     }
@@ -2913,6 +4041,8 @@ var SCENE3D = (function () {
       var pkb = PK.on ? pkBody(dt) : null; if (!pkb) { PK.leanQ = 0; PK.arm = 0; }
       oct.animT += dt;
       if (oct.walking) oct.walking.step(dt);
+      if (NAV.hopNow && !oct.walking && !(CER && CER.active)) NAV.hopNow = false;   /* 걸음이 사라졌으면 (순간 이동 · 다른 걷기) */
+      if (NAV.hopNow || NAV.decal) { octDecal.scale.setScalar(NAV.hopNow ? 1 - 0.4 * Math.min(1, oct.hop * OCT_R / 1.2) : 1); NAV.decal = NAV.hopNow; }   /* [7-W] 가구 위로 폴짝하는 동안 바닥 그림자를 몸이 뜬 만큼 줄인다 (1.2 m 에서 60 %) */
       snapScreen(octG.position.copy(oct.pos));   /* 화면 픽셀 격자에 스냅 (걷기 보간은 oct.pos 에서 매끄럽게, 보이는 위치는 정수 픽셀) */
       stepGait(dt, !red && ((oct.walking && oct.walking.gait) || CER.walk));
       /* 방향: 걷는 중엔 첫 걸음(거리) 동안 새 방향으로 돈다 · 예비 동작 중엔 그대로 · 그 밖엔 지수 접근 */
@@ -2925,7 +4055,7 @@ var SCENE3D = (function () {
       var sx = 1, sy = 1, by = oct.hop, tb = Math.floor(t * 8) / 8, ex = face.expr, splay = 0, rz = 0;   /* 숨쉬기는 8 fps 스텝 샘플 (룩 패스 7) */
       face.t += dt;
       /* 포인터 쪽 (동공 방향 · curious 기울임; 포인터가 없으면 오른쪽) */
-      var look = salLookClient() || oct.lookTarget || oct.pointer, px = 0, py = 0;   /* 미용실: 눈은 내민 병 · 연출 중 병으로 */
+      var look = salLookClient() || tableLook() || oct.lookTarget || oct.pointer, px = 0, py = 0;   /* 미용실: 눈은 내민 병 · 연출 중 병으로 */
       if (PLAY && PLAY.eye) look = PLAY.eye;   /* 놀이: 눈은 kit.look 대상 (만진 컵·공·사람) */
       if (look) { var sp = octScreen(), r = canvas.getBoundingClientRect(); px = clamp((look.x - (r.left + sp.x - S.offX)) / 140, -1, 1); py = clamp((look.y - (r.top + sp.y - S.offY + 30)) / 140, -1, 1); }
       var dir = px < -0.05 ? 1 : -1;
@@ -2934,6 +4064,7 @@ var SCENE3D = (function () {
         if (s === 'idle' || s === 'stay') { sy = 1 - 0.03 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2)); sx = 1 + 0.02 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2)); }
         if (ex === 'sleep') { sy = 0.94 - 0.02 * Math.sin(tb * Math.PI / 2.5); sx = 1.03; }
         var gs = gaitBody(); sx *= gs[0]; sy *= gs[1]; by += gs[2];   /* 뒤뚱: 디딤 눌림 · 예비 눌림 · 걸음 중간 1px · 정착 통통 */
+        if (NAV.hopNow && NAV.hopSq) { var hq = NAV.hopSq; if (hq > 0) { sx *= 1 + 0.1 * hq; sy *= 1 - 0.16 * hq; } else { sx *= 1 + 0.04 * hq; sy *= 1 - 0.08 * hq; } }   /* [7-W] 가구 위로 폴짝: 뛰기 전 웅크림 · 닿을 때 눌림 (16 %) · 솟고 내릴 때 위아래로 늘어남 (8 %) — 엘리베이터처럼 곧게 뜨지 않게 */
         if (oct.nudgeT > 0) { oct.nudgeT = Math.max(0, oct.nudgeT - dt); if (oct.nudgeT > 0.09) by += 2 * pxUp() / OCT_R; }   /* 톡 받음: 아트 2px 위로 90 ms → 제자리 (nudge, 11-08) */
         if (s === 'anticipate') { var ak = Math.min(1, oct.animT / 0.6); sx = 1 + 0.05 * ak; sy = 1 - 0.08 * ak; }
         if (s === 'ponder') { var pq = Math.min(1, oct.animT / 0.12); sx = 1 + 0.05 * pq; sy = 1 - 0.08 * pq; }   /* 미용실 숨 고르기 뒤 움츠림 (scaleY .92 · scaleX 1.05, 얼굴 idle · 먹물·소리 없음 — 두 답 모두 같다) */
@@ -2976,6 +4107,7 @@ var SCENE3D = (function () {
         WAVE.t += dt / st.speed; var wf = Math.min(WAVE_N - 1, Math.floor(WAVE.t * 12)), wa = arms[WAVE.arm];
         if (!red) { wa.rotation.z = [0.75, 1.0, 0.5, 1.0, 0.35][wf]; wa.rotation.y = 0; wa.scale.x = wf === 0 || wf === WAVE_N - 1 ? 1.1 : 1.2; }
       }
+      tablePose(red);   /* 11-18 식탁 자세 (앉음 · 기울임 · 뻗기 · 접은 다리) */
       /* 눈 깜빡임 (룩 패스 7: 눈 뜬 표정에서만 3~7 s 시드 간격, 120 ms — 눈꺼풀 + 짧은 선 = blink 표정이 끼어든다; 모션 감소면 없음) · 동공 */
       if (OPEN_EYES[ex] && s !== 'away' && !red) {
         oct.blinkT -= dt; if (oct.blinkT <= 0) { oct.blinkLeft = 0.12; oct.blinkN = (oct.blinkN | 0) + 1; oct.blinkT = 3 + (hash('blink' + oct.blinkN) % 1000) / 1000 * 4; }
@@ -3017,7 +4149,7 @@ var SCENE3D = (function () {
     var EXT_C = { wallA: '#56606a', wallB: '#606a74', seam: '#2a2e38', post: W[1], plinth: '#6e6872', plinthLine: '#4a4650', roof: '#a04838', roofLine: '#6a2c2c', ridge: '#6a2c2c',
       chim: '#7a6a66', chimRim: '#4e4448', door: '#996643', frame: '#efe3c8', step: ['#8a5a3c', '#7b4f35'], rail: '#6a4630', stone: ['#a8a29a', '#8a8580'], rock: ['#77737f', '#9b97a3'],
       mail: '#b04a3c', mailFlag: '#e8b04a', fence: '#a07a52', snow: '#f2f4f6', trunk: '#6a4630' };
-    var ep = [], extPropN = 0;
+    var ep = [], extPropN = 0, EXT_MARK = {};   /* 11-15: EXT_MARK = ep 안 조각 경계 (마당이 집 · 덤불 · 돌 · 우체통 조각을 다시 합쳐 쓴다 — buildYard) */
     function E(g, m, c, tag) { ep.push({ g: g, m: m, c: c, tag: tag || 0 }); }
     function nearPath(x, z, r) { for (var i = 0; i < EXT_PATH.length - 1; i++) { var a = EXT_PATH[i], b = EXT_PATH[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz), 0, 1); if (Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t) < r) return true; } return false; }
     function inHouse(x, z, m) { return x > EXT.HX0 - m && x < EXT.HX1 + 1.25 + m && z > EXT.HZ0 - m && z < EXT.HZ1 + m; }
@@ -3045,7 +4177,7 @@ var SCENE3D = (function () {
           E(box(w, 0.02, w * 0.8), M(snapPos(sx + nx * off), 0.01, snapPos(sz + nz * off), 0, (rr >> 8) % 6 * 0.25, 0), EXT_C.stone[rr & 1]);
         }
       }
-      extPropN++;
+      extPropN++; EXT_MARK.h0 = ep.length;
       /* 집: 받침돌 · 벽 널 7줄(4면을 한 상자로) + 1px 이음 · 모서리 기둥 4 · 박공 널(계단식, 지붕이 덮는다) */
       E(box(Lx + 0.06, H.PL, Lz + 0.06), M(xc, H.PL / 2, H.HZC), EXT_C.plinth);
       E(box(Lx + 0.1, 0.04, Lz + 0.1), M(xc, H.PL - 0.02, H.HZC), EXT_C.plinthLine);
@@ -3089,7 +4221,7 @@ var SCENE3D = (function () {
         E(box(0.07, 0.56, 0.07), M(H.HX1 + 1.08, 0.28, H.HZC + dz), EXT_C.rail);
         seg(ep, [H.HX1 + 0.35, H.PL + 0.48, H.HZC + dz], [H.HX1 + 1.08, 0.54, H.HZC + dz], 0.03, EXT_C.rail, 4);
       });
-      extPropN += 4;
+      extPropN += 4; EXT_MARK.h1 = ep.length;
       /* 덤불 2 (잎 태그 13~15 · 꽃 점 16) */
       [[0.5, -0.05, 1.0], [-2.55, 0.05, 0.85]].forEach(function (bsh, bi) {
         var bx = snapPos(bsh[0]), bz = snapPos(bsh[1]), s = bsh[2];
@@ -3109,7 +4241,7 @@ var SCENE3D = (function () {
       E(box(0.34, 0.04, 0.24), M(MB.x, 0.92, MB.z), '#7a3030');
       E(box(0.03, 0.16, 0.05), M(MB.x - 0.06, 0.96, MB.z + 0.13), EXT_C.mailFlag);
       E(box(0.08, 0.56, 0.08), M(EXT_FENCE_END[0], 0.28, EXT_FENCE_END[1]), EXT_C.fence);
-      extPropN += 2;
+      extPropN += 2; EXT_MARK.p1 = ep.length;
       /* 물웅덩이 (바깥 기웃 '바다'): 진흙 테(길 태그 12) + 물(태그 17, 계절 재색 — 겨울엔 얼음). 잔물결은 따로 1px 선 (stepPeekProps) */
       var PU = EXT_PUDDLE, pux = snapPos(PU[0]), puz = snapPos(PU[1]);
       E(new T.CylinderGeometry(1, 1, 0.008, 14), M(pux, 0.004, puz, 0, 0, 0, PU[2] + 2 * PX, 1, PU[3] + 2 * PX), sc.path, 12);
@@ -3173,7 +4305,7 @@ var SCENE3D = (function () {
     deco.spring = keep(mergeParts(scatter('pet', 46, function (r, i) { var p = groundPt(r, i % 4 === 0); return p && { g: box(0.045, 0.012, 0.045), m: M(p[0], 0.006, p[1]), c: i % 3 ? '#f2a6c0' : '#df84a5' }; })));
     deco.summer = keep(mergeParts(scatter('flw', 22, function (r, i) { var p = groundPt(r, false); return p && !nearPath(p[0], p[1], 0.4) && { g: box(0.06, 0.06, 0.06), m: M(p[0], 0.05, p[1]), c: i % 2 ? '#f0d060' : '#f4f0e8' }; })));
     deco.autumn = keep(mergeParts(scatter('lit', 54, function (r, i) { var p = groundPt(r, i % 2 === 0); return p && { g: box(0.075, 0.012, 0.05), m: M(p[0], 0.008, p[1], 0, (r >> 18) % 6 * 0.5, 0), c: ['#d4782c', '#a4482a', '#e8a63e', '#7a4a2c'][(r >> 22) & 3] }; })));
-    deco.winter = keep(mergeParts((function () {
+    var winterParts = function () {   /* 11-15 합침: 이름을 붙였다 — 마당이 집에 붙은 눈 (지붕 · 굴뚝 · 창 서리) 만 따로 떼어 돌려 볼 때 집과 같이 자른다 */
       var H = EXT, ps = [], S = EXT_C.snow, hz = (H.HZ1 - H.HZ0) / 2 + 0.22, sl = hz * Math.SQRT2, RL = H.HX1 - H.HX0 + 0.36, xc = (H.HX0 + H.HX1) / 2;
       [1, -1].forEach(function (sg) { var ang = sg * Math.PI / 4, ny = Math.SQRT1_2, nz = sg * Math.SQRT1_2;
         ps.push({ g: box(RL, 0.09, sl - 0.08), m: M(xc, H.RY - hz / 2 + ny * 0.16, H.HZC + sg * hz / 2 + nz * 0.16, ang, 0, 0), c: S });
@@ -3195,7 +4327,8 @@ var SCENE3D = (function () {
       });
       ps.push({ g: box(0.46, 0.05, 0.012), m: M(snapPos(-1.25), H.PL + 0.74 - 0.2, H.HZ1 + 0.02), c: S });
       return ps;
-    })()));
+    };
+    deco.winter = keep(mergeParts(winterParts()));
     var decoM = {};
     SEASONS.forEach(function (s) { var m = new T.Mesh(deco[s], lambert); m.receiveShadow = true; m.castShadow = s === 'winter'; m.visible = false; extG.add(m); decoM[s] = m; });
     /* 창 2: 다락 창(박공, 등불 칸 수만큼 밤에 따뜻하게) · 1층 창(+z 벽, 밤이면 늘 켜짐) — 유리 MeshBasic + 발광 쌍둥이(레이어 1, 블룸) */
@@ -3224,6 +4357,7 @@ var SCENE3D = (function () {
       recolor(treeIM.geometry, 5, c.cap); recolor(coneIM.geometry, 5, SEASON.cur === 'winter' ? c.cap : c.cone[2]);
       recolor(treeIM.geometry, 6, SEASON.cur === 'spring' || SEASON.cur === 'autumn' ? c.bloom : c.leaf[1]);
       SEASONS.forEach(function (s) { decoM[s].visible = s === SEASON.cur; });
+      applySeasonYard();   /* 11-15 마당 땅 · 풀 · 덤불 (나무 · 장식은 같은 지오메트리라 이미 바뀌었다) */
       extApplyLight(); extApplyWeather();
     }
     function setSeason(s) { s = SEASONS.indexOf(s) >= 0 ? s : 'auto'; SEASON.mode = s; SEASON.cur = s === 'auto' ? seasonOfMonth(new Date().getMonth() + 1) : s; applySeason(); }
@@ -3274,6 +4408,7 @@ var SCENE3D = (function () {
         s.gx = h[0] + (((r >> 4) % 100) / 100 - 0.5) * 0.8; s.gz = h[1] + (((r >> 12) % 100) / 100 - 0.5) * 0.8; s.m = xRows(0.35 + ((r >> 20) % 100) / 100 * 0.9); s.c = 0; s.dm = 0;
       } else {
         s.gx = -L + (r % 1000) / 1000 * 2 * L; s.gz = -L + ((r >> 10) % 1000) / 1000 * 2 * L;
+        if (YARD_WIDE && PLACE.vis === 'yard') { var wq = wideXZ(-7 + (r % 1000) / 1000 * 14, -3.6 + ((r >> 10) % 1000) / 1000 * 7.2); s.gx = WSTATE.xoff[0] + wq[0]; s.gz = WSTATE.xoff[1] + wq[1]; }   /* 11-21 7차 넓은 바깥: 비 · 눈은 화면 가운데 둘레 (가로 7.2 m · 세로 14 m 땅) 에 — 길을 따라 멀리 가도 내린다. 꽃잎 · 낙엽은 집 둘레 나무에서 그대로 */
         s.m = init ? (r >> 20) % top : top - ((r >> 20) % 12); s.c = 0;
       }
       s.len = kind === 'rain' ? 3 + ((r >> 26) & 1) * 2 : 1;
@@ -3333,7 +4468,7 @@ var SCENE3D = (function () {
        INTERIOR_MODE 0단계 '둘째 후보': 주인은 "집 나가는 건 좋은데"라고 했으므로 이 전환은 그대로 두고, 문어가 섬 아래로 떨어지던 것(첫째)만 고쳤다.
        문어는 다락 문간에서 먼저 체크로 사라지므로 다락과 함께 가라앉지 않는다. 주인이 고친 것을 보고도 놀라면 그때 옆으로 미끄러지기·디더 바꾸기로 ── */
     var TRANS_DUR = 0.6, TRANS_DY = 2.6, TRANS_DX = 3.0;   /* 가로 전환(놀이방 문): 같은 0.6 s · 같은 디더 페이드, 움직임만 화면 가로 (위아래 0) */
-    function groupOf(p) { return p === 'exterior' ? extG : p === 'play' && PROOM ? PROOM.g : p === 'loft' && LROOM ? LROOM.g : atticG; }
+    function groupOf(p) { return p === 'inside' && IN.g ? IN.g : p === 'exterior' ? extG : p === 'yard' && YROOM ? YROOM.g : p === 'play' && PROOM ? PROOM.g : p === 'loft' && LROOM ? LROOM.g : atticG; }
     function storyVis() { return PLACE.room ? PLACE.cur : PLACE.vis; }
     function storyTrans() { return PLACE.trans && !PLACE.trans.door ? PLACE.trans : null; }   /* 다락 ↔ 바깥 전환만 (방 문 가로 전환은 의식이 끊지 않는다) */   /* 문어 쪽 '보이는' 장소: 놀이방에 있는 동안은 이야기 장소 (의식은 이것만 본다 — 안 보이는 곳에서 그대로 진행) */
     function emit(name, a, b) { var fn = on[name]; if (typeof fn !== 'function') return; try { fn(a, b); } catch (e) { console.error('[scene3d] on.' + name, e); } }   /* 앱 콜백이 던져도 프레임 루프는 산다 */
@@ -3352,12 +4487,487 @@ var SCENE3D = (function () {
       octEndWalk();
       atticG.add(octG); jumpTo(oct.anchor && oct.anchor !== 'salon' ? oct.anchor : 'center'); dither.still = 0; emit('octUp', false, oct.anchor);   /* 11-12: 다락에 놓인 자리를 앱에도 (앱 자리가 'salon' 으로 남아 다락에서 '거울 옆' 이라 읽었다) */
     }
+    var BOOTH = { x0: -1.53, x1: 0.66, z0: -1.92, z1: -0.62, seatY: 0.42, backH: 0.82, armH: 0.58, armD: 0.12,
+      oct: { back: -1.53, face: -1.41, front: -0.79, x: -0.95, z: -1.04, yaw: 70 * Math.PI / 180, aisle: [-0.95, 0.02], via: [-2.0, 0.02] },
+      me: { back: 0.66, face: 0.54, front: 0.0, x: 0.21, z: -1.36, yaw: -Math.PI / 2, aisle: [0.21, -0.30] },
+      table: { x0: -0.47, x1: -0.06, z0: -1.70, z1: -0.80, top: 0.63, th: 0.06, dishZ: -0.99 }, cushion: 'sky' };
+    /* ── 11-18 식탁 (6차 §4.2–4.5 · §10.3): 놀이방 식탁에 요리 · 내 캐릭터가 앉아 먹기 · 문어가 와서 맞은편에 앉기 · 한입 · 효과(오라). 흐름은 앱(M)이 쥐고 여기는 보여 주기만.
+       문어가 식탁에 있는 동안(TB.oct ≠ 'none') octG 는 놀이방 그룹 — 다락 앵커로 가는 jumpTo · moveTo · walkPoint 는 붙잡아 두었다가 내려놓은 뒤 적용 (안전망).
+       자세(앉기 · 기울이기 · 뻗기 · 접은 다리)는 bodyG 와 다리 회전 · scale.x 에만 — renderPortrait 가 저장 · 복원하는 것 (초상 · 달리기 굽기에 안 샌다) */
+    var TB = { dish: null, look: null, mesh: null, steam: null, n: 0, eaten: [], queued: undefined, appear: -1, steamT: 0, steamF: -1, crumbs: [],
+      oct: 'none', own: false, held: null, door: null, fade: null, beat: '', beatT: 0, bite: null, meBite: null, spotK: '', mounted: false,
+      pose: { lean: 0, sx: 1, sy: 1, by: 0, reach: -1, legs: 0 } };
+    var BOOTH_DISH = [(BOOTH.table.x0 + BOOTH.table.x1) / 2, BOOTH.table.top, BOOTH.table.dishZ];
+    function tableGeom() {
+      var B = BOOTH, Tb = B.table, S = function (o) { return { seat: [o.front < o.back ? Math.min(o.back, o.front) : Math.min(o.back, o.front), Math.max(o.back, o.front)] }; };
+      return { table: { x0: Tb.x0, x1: Tb.x1, z0: Tb.z0, z1: Tb.z1, y0: Tb.top - Tb.th, y1: Tb.top },
+        sofas: { oct: { seat: [B.oct.face, 0, B.z0 + B.armD, B.oct.front, B.seatY, B.z1], back: [B.oct.back, 0, B.z0, B.oct.face, B.backH, B.z1], arm: [B.oct.back, 0, B.z0, B.oct.front, B.armH, B.z0 + B.armD] },
+          me: { seat: [B.me.front, 0, B.z0 + B.armD, B.me.face, B.seatY, B.z1], back: [B.me.face, 0, B.z0, B.me.back, B.backH, B.z1], arm: [B.me.front, 0, B.z0, B.me.back, B.armH, B.z0 + B.armD] } },
+        obstacle: [B.x0, 0, B.z0, B.x1, B.backH, B.z1], keep: [B.x0 - 0.05, -1, B.z0 - 0.05, B.x1 + 0.05, B.backH + 0.1, B.z1 + 0.05],
+        seats: { me: [B.me.x, B.seatY - 0.24, B.me.z, B.me.yaw / DEG], oct: [B.oct.x, B.seatY, B.oct.z, B.oct.yaw / DEG] },
+        aisles: { me: B.me.aisle.slice(), oct: B.oct.aisle.slice() }, via: { oct: B.oct.via.slice() }, dish: BOOTH_DISH.slice() };
+    }
+    /* 접시 위 요리 (§4.2): 한 메시 (lambert 정점색 · +2 드로우콜 — 뷰티 + 노멀), 한입마다 다시 짓는다. 조각 4 = 한입 4 */
+    var DISH_PLATE = function () { return [PAL.paper[1], PAL.sky[2], PAL.rose[2]]; };
+    function dishBand(lk) { var b = lk && typeof lk.band === 'number' ? lk.band | 0 : 1; return [PAL.amber[4], PAL.amber[3], PAL.amber[2]][clamp(b, 0, 2)]; }
+    function dishParts() {
+      var d = TB.dish, lk = TB.look || {}, L = [], left = TB.n, pl = DISH_PLATE()[clamp(lk.plate | 0, 0, 2)] || PAL.paper[1];
+      L.push({ g: new T.CylinderGeometry(0.17, 0.16, 0.02, 14), m: M(0, 0.01, 0), c: pl }, { g: new T.CylinderGeometry(0.115, 0.115, 0.004, 12), m: M(0, 0.021, 0), c: PAL.paper[0] });
+      var rec = d.recipe, crust = dishBand(lk);
+      if (rec === 'jeon') {   /* 해초전: 4 조각 (+ 틈) · 조각마다 어두운 이끼 점 하나 — 먹는 쪽에서 가까운 것부터 */
+        [[0.06, -0.045], [0.06, 0.045], [-0.06, -0.045], [-0.06, 0.045]].forEach(function (q, i) {
+          if (TB.eaten.indexOf(i) >= 0) return;
+          L.push({ g: box(0.10, 0.025, 0.07), m: M(q[0], 0.035, q[1]), c: crust }, { g: box(0.022, 0.006, 0.022), m: M(q[0] + (i & 1 ? 0.02 : -0.015), 0.049, q[1] + (i & 2 ? 0.01 : -0.012)), c: PAL.moss[0] });
+        });
+      } else if (rec === 'jumeokbap') {   /* 주먹밥: 누룽지 윗면 · 김 띠 · 한입마다 줄어든다 (r ×0.8 · 0.6 · 0.4 · 없음) */
+        var k = [1, 0.8, 0.6, 0.4, 0][4 - left];
+        if (k > 0) L.push({ g: new T.CylinderGeometry(0.10 * k, 0.10 * k, 0.06, 12), m: M(0, 0.052, 0), c: PAL.paper[1] }, { g: new T.CylinderGeometry(0.10 * k - 0.004, 0.10 * k - 0.004, 0.008, 12), m: M(0, 0.084, 0), c: crust },
+          { g: new T.CylinderGeometry(0.10 * k + 0.003, 0.10 * k + 0.003, 0.024, 12), m: M(0, 0.05, 0), c: PAL.navy[4] });
+      } else if (rec === 'kkochi') {   /* 과일 꼬치: 꼬챙이 (x 축 = 두 자리 사이) + 포도 · 수박 ×3 · 귤 — 먹는 쪽에서 가까운 것부터, 마지막 한입에 남은 것 다. 빈 꼬챙이는 남는다 */
+        L.push({ g: box(0.30, 0.012, 0.012), m: M(0, 0.045, 0), c: W[3] });
+        var fr = [PAL.navy[2], PAL.rose[2], PAL.rose[2], PAL.rose[2], PAL.amber[3]];
+        fr.forEach(function (c, i) { if (TB.eaten.indexOf(i) >= 0 || (left === 0)) return; L.push({ g: box(0.05, 0.05, 0.05), m: M(-0.11 + i * 0.055, 0.047, 0), c: c }); if (i > 0 && i < 4) L.push({ g: box(0.05, 0.012, 0.05), m: M(-0.11 + i * 0.055, 0.075, 0), c: PAL.moss[2] }); });
+      } else if (TB.sprOn) {   /* 11-21 7차: 그림 있는 요리 — 그릇까지 그림 (dishSprLayout) 이 그린다. 이 메시는 숨는다 */
+      } else if (!(d.pic && left <= 0)) {   /* 모르는 요리 (나중 판): 덮개 덮은 접시 (자료는 그대로) · 11-21: 그림을 못 구한 새 요리도 — 다 먹으면 빈 접시 */
+        L.push({ g: new T.SphereGeometry(0.12, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), m: M(0, 0.02, 0, 0, 0, 0, 1, 0.7, 1), c: PAL.slate[2] }, { g: new T.SphereGeometry(0.02, 6, 4), m: M(0, 0.108, 0), c: PAL.slate[1] });
+      }
+      TB.crumbs.forEach(function (q) { L.push({ g: box(0.018, 0.006, 0.018), m: M(q[0], 0.024, q[1]), c: crust }); });
+      return L;
+    }
+    function dishRebuild() {
+      if (!PROOM) return;
+      if (!TB.dish) { if (TB.mesh) TB.mesh.visible = false; if (TB.steam) TB.steam.visible = false; TB.spr = null; TB.sprOn = false; if (TB.sprObj) TB.sprObj.visible = false; return; }
+      TB.spr = dishSprGet(); TB.sprOn = !!TB.spr;   /* 11-22: 다 먹어도 그 요리의 그릇 그림 그대로 (회색 둥근 접시로 바뀌지 않게) */ TB.sprKey = '';   /* 11-21: 식탁 위 작은 그림 (한 칸 = 방 그림 한 칸) — 다 먹으면 빈 접시 (메시) */
+      var geo = mergeParts(dishParts());
+      if (!TB.mesh) { TB.mesh = new T.Mesh(geo, lambert); TB.mesh.castShadow = false; TB.mesh.receiveShadow = true; TB.mesh.name = 'tableDish'; PROOM.g.add(TB.mesh); }
+      else { TB.mesh.geometry.dispose(); TB.mesh.geometry = geo; }
+      TB.mesh.visible = !TB.sprOn; TB.mesh.position.set(BOOTH_DISH[0], BOOTH_DISH[1], BOOTH_DISH[2]);
+      if (!TB.steam) { TB.steam = new T.Points(new T.BufferGeometry(), steamMat); TB.steam.geometry.setAttribute('position', new T.BufferAttribute(new Float32Array(6), 3)); TB.steam.frustumCulled = false; PROOM.g.add(TB.steam); }
+      dither.still = 0;
+    }
+    function setTableDish(dish, o) {   /* dish = null | { id, recipe, look, seed } → bool. 식사 연출 중이면 끝난 뒤로 미룬다 · 놀이방을 아직 안 지었으면 기억해 둔다 */
+      o = o || {};
+      var d = dish && typeof dish === 'object' ? { id: String(dish.id || ''), recipe: String(dish.recipe || ''), seed: dish.seed, look: dish.look && typeof dish.look === 'object' ? dish.look : {}, pic: dishPicOf(dish.pic) } : null;
+      if (TB.busy()) { TB.queued = { d: d, o: o }; return true; }
+      var same = d && TB.dish && TB.dish.id === d.id;
+      TB.dish = d; TB.look = d ? d.look : null;
+      if (!same) { TB.n = d ? 4 : 0; TB.eaten = []; TB.crumbs = []; TB.beat = ''; TB.beatT = 0; }   /* 새 요리: 문어는 앉은 채 숨쉬기로 (앞 요리의 기울임을 남기지 않는다) */
+      TB.appear = d && o.appear && !same && !st.reduced ? 0 : -1; TB.steamT = 0; TB.steamF = -1;
+      dishRebuild(); spotLast.table = null; return true;
+    }
+    TB.busy = function () {   /* 식사 연출 중 = 걸어오기 · 나가기 · 한입 · 또는 앉아 있는 동안 박자가 시작됐거나 한입이라도 먹었고 조각이 남았다 (§4.3: 새 요리는 마지막 한입 뒤로) */
+      if (TB.bite || TB.meBite || TB.oct === 'coming' || TB.oct === 'leaving') return true;
+      return !!TB.dish && TB.n > 0 && (TB.n < 4 || !!TB.beat) && (!!PL.tbl || TB.oct !== 'none');
+    };
+    function tableFlushQueue() { if (TB.queued === undefined || TB.busy()) return; var q = TB.queued; TB.queued = undefined; setTableDish(q.d, q.o); }
+    function stepDish(dt) {   /* 나타남 6칸 (12 fps): 2 px 위에서 떨어짐 2 · 눌림 1 · 김 2점 3 → 기다리는 동안 1.5 s 마다 김 2점 (모션 감소: 김 없음) */
+      if (!TB.mesh || !TB.dish) return;
+      var m = TB.mesh, f = -1;
+      if (TB.appear >= 0) { TB.appear += dt / st.speed; f = Math.floor(TB.appear * 12); if (f >= 6) { TB.appear = -1; f = -1; } }
+      var up = pxUp(), at = dishAt(), y = at[1];   /* 11-21: 들고 가는 동안은 손 자리 (dishAt) */
+      m.scale.set(1, 1, 1);
+      if (f === 0) y += 2 * up; else if (f === 1) y += up; else if (f === 2) m.scale.set(1.08, 0.7, 1.08);
+      _tbv.set(at[0], y, at[2]); if (TB.carry) { camera.getWorldDirection(_tbw); _tbw.y = 0; if (_tbw.lengthSq() > 1e-6) { _tbw.normalize(); _tbv.addScaledVector(_tbw, -(carryNear() - 0.06)); } }   /* 그림이 없는 접시 (메시) 도 몸 앞으로 */
+      m.position.copy(_tbv); m.renderOrder = TB.carry ? 6 : 0;
+      dishSprLayout(at[0], y, at[2], f === 2);
+      /* 김: 접시 위 1px 두 점이 세 칸 동안 한 줄씩 오른다 */
+      var steam = TB.steam, sf = -1;
+      if (f >= 3) sf = f - 3;
+      else if (f < 0 && TB.n > 0 && !st.reduced && !TB.carry) { TB.steamT += dt / st.speed; var c = TB.steamT % 1.5; if (c < 0.25) sf = Math.floor(c * 12); }
+      steam.visible = sf >= 0 && !st.reduced;
+      if (steam.visible && sf !== TB.steamF) {
+        var a = steam.geometry.attributes.position.array;
+        [-2, 2].forEach(function (col, i) { _tbv.set(BOOTH_DISH[0], BOOTH_DISH[1] + 0.1, BOOTH_DISH[2]); PROOM.g.localToWorld(_tbv); snapC(_tbv); _tbv.addScaledVector(_r, (col + (sf & 1 ? i * 2 - 1 : 0)) * S.pw); _tbv.y += (sf + 1 + i) * up; PROOM.g.worldToLocal(_tbv); a[i * 3] = _tbv.x; a[i * 3 + 1] = _tbv.y; a[i * 3 + 2] = _tbv.z; });
+        steam.geometry.attributes.position.needsUpdate = true;
+      }
+      TB.steamF = sf;
+    }
+    var _tbv = new T.Vector3(), _tbw = new T.Vector3();
+    function biteTake(who) {   /* 한 조각 없앰 + 부스러기 2~3 (먹는 쪽 접시 가장자리) */
+      if (TB.n <= 0 || !TB.dish) return false;
+      var sx = who === 'oct' ? -1 : 1, rec = TB.dish.recipe;   /* 내 자리 = +x 쪽 · 문어 = −x 쪽 (접시 좌표) */
+      if (rec === 'jeon') { var order = sx > 0 ? [0, 1, 2, 3] : [2, 3, 0, 1]; for (var i = 0; i < 4; i++) if (TB.eaten.indexOf(order[i]) < 0) { TB.eaten.push(order[i]); break; } }
+      else if (rec === 'kkochi') { var fo = sx > 0 ? [4, 3, 2, 1, 0] : [0, 1, 2, 3, 4]; for (var j = 0; j < 5; j++) if (TB.eaten.indexOf(fo[j]) < 0) { TB.eaten.push(fo[j]); break; } }
+      else if (TB.dish.pic) { var fq = [0, 1, 2, 3].filter(function (q) { return TB.eaten.indexOf(q) < 0; }); if (fq.length) TB.eaten.push(sx > 0 ? fq[fq.length - 1] : fq[0]); }   /* 11-21 그림 요리: 가로 넷 가운데 한 칸 (나 = 오른쪽부터 · 문어 = 왼쪽부터 — 큰 그림과 같다) */
+      TB.n--;
+      var h = hash('crumb' + (TB.dish.id || '') + TB.n), nc = 2 + (h & 1);
+      for (var c = 0; c < nc; c++) TB.crumbs.push([sx * (0.09 + ((h >> (3 + c * 3)) & 3) * 0.012), (((h >> (9 + c * 4)) & 7) - 3.5) * 0.02]);
+      dishRebuild(); return true;
+    }
+    /* ── 내 캐릭터: 식탁에 앉기 · 일어나기 · 먹기 ── */
+    function meAtTable() { return !!PL.tbl; }
+    function playerSitTable() {   /* 내 통로 자리까지 걷고 → 0.34 s 폴짝 → 식탁을 본다. Promise<bool> (앉으면 true) */
+      if (!PROOM || PL.place !== 'play' || PLACE.vis !== 'play' || PL.sit || PL.hop || !playerInputAllowed()) return Promise.resolve(false);
+      var B = BOOTH.me, seat = new T.Vector3(B.x, BOOTH.seatY - 0.24, B.z);
+      TB.meWalk = true; spotLast.table = null;
+      return plWalkTo(new T.Vector3(B.aisle[0], 0, B.aisle[1]), Math.PI).then(function () {
+        TB.meWalk = false;
+        if (PL.place !== 'play' || PLACE.vis !== 'play' || PL_IN.v || PL.sit || PL.hop || Math.hypot(PL.pos.x - B.aisle[0], PL.pos.z - B.aisle[1]) > 0.2) return false;
+        PL.sitYaw = B.yaw; PL.tbl = true; PL.faceCam = false; PL.wantYaw = B.yaw;
+        if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(seat); PL.sit = true; return true; }
+        return new Promise(function (res) { PL.hop = { t: 0, a: PL.pos.clone(), b: seat, sit: true, done: function () { res(true); } }; });
+      });
+    }
+    function playerStandTable() {   /* 내 통로 자리로 폴짝 내려온다 (스틱으로 일어나기와 같은 길) → Promise */
+      if (!PL.tbl) return Promise.resolve();
+      return new Promise(function (res) {
+        if (PL.hop) { var h0 = PL.hop; PL.pos.copy(h0.b); PL.sit = h0.sit; PL.hop = null; if (h0.done) h0.done(); }
+        if (!PL.sit) { PL.tbl = false; tableStood(); res(); return; }
+        plStand(res);
+        if (st.reduced || st.hidden || ctxLost()) { var hp = PL.hop; if (hp) { PL.pos.copy(hp.b); PL.sit = false; PL.hop = null; if (hp.done) hp.done(); } }
+      });
+    }
+    function tableStood() {   /* 일어났다: 빈 접시는 치우고 · 문어는 내려와 나간다 (§4.3 'after') · 먹던 한입은 false 로 끝 */
+      var mb = TB.meBite; TB.meBite = null; if (mb) mb.done(false);
+      if (TB.dish && TB.n <= 0) setTableDish(null);
+      if (TB.oct === 'seated' || TB.oct === 'coming') octLeaveTable({});
+      spotLast.table = null; tableFlushQueue();
+    }
+    function mealBite(who) {   /* 한입 (8칸 · 12 fps — 뻗기 2 · 한입 1 · 씹기 3 · 정착 2; 모션 감소 0.25 s 정지) → Promise<bool> */
+      if (!TB.dish || TB.n <= 0) return Promise.resolve(false);
+      if (who === 'oct') {
+        if (TB.oct !== 'seated') return Promise.resolve(false);
+        return new Promise(function (res) { TB.bite = { t: 0, f: -1, done: res }; });
+      }
+      if (!PL.tbl || !PL.sit) return Promise.resolve(false);
+      return new Promise(function (res) { TB.meBite = { t: 0, f: -1, done: res }; });
+    }
+    function biteFrame(b, dt) {   /* → 지금 칸 (0..7) · 끝나면 8. 모션 감소면 0.25 s 동안 칸 2(한입) 하나 */
+      b.t += dt / st.speed;
+      if (st.reduced) return b.t >= 0.25 ? 8 : 2;
+      return Math.min(8, Math.floor(b.t * 12));
+    }
+    function stepMeBite(dt) {   /* stepPlayer 뒤 (팔 · 몸 값을 덮어쓴다 — renderPlayerPortrait 가 저장 · 복원하는 것들) */
+      var b = TB.meBite; if (!b) return;
+      if (!PL.tbl || !PL.sit) { TB.meBite = null; b.done(false); return; }
+      var f = biteFrame(b, dt);
+      if (f >= 2 && !b.took) { b.took = true; biteTake('me'); }
+      if (f >= 8) { TB.meBite = null; b.done(true); tableFlushQueue(); return; }
+      if (st.reduced) return;
+      if (f <= 2) { plArmR.rotation.x = f === 0 ? -1.4 : -2.5; plArmR.rotation.z = 0.12; }   /* 오른팔을 얼굴로 */
+      else if (f <= 5) { plArmR.rotation.x = -1.2; if (f === 3 || f === 5) plBody.position.y = snapUp(-pxUp()); }   /* 씹기: 몸 1px 통통 ×2 */
+    }
+    /* ── 문어: 식탁으로 오기 · 앉기 · 박자 · 한입 · 나가기 ── */
+    function octAtTable() { return TB.oct !== 'none'; }
+    function octCanCome() {   /* octToTable 이 시작에 하는 바로 그 동기 검사 */
+      if (TB.oct === 'seated') return true;
+      if (TB.oct !== 'none') return false;
+      return !!PROOM && PLACE.vis === 'play' && PLACE.room === 'play' && PLACE.cur === 'attic' && !PLACE.trans && PL.place === 'play' && octG.parent === atticG && !octUp() &&
+        st.octState !== 'away' && st.octState !== 'sleep' && !(CER && CER.active) && !SAL.active && !PLAY && FADE.d >= 1 && !ctxLost();
+    }
+    function tableSeatVec() { return new T.Vector3(BOOTH.oct.x, BOOTH.seatY, BOOTH.oct.z); }
+    function tableDoor(open) {   /* 놀이방 문 4칸 (12 fps — 소리 없음, R17). 모션 감소면 바로 */
+      if (!PLAY_DOOR) return;
+      TB.door = { want: open ? 4 : 0, acc: 0 };
+      if (st.reduced || st.hidden || ctxLost()) { setLeaf(PLAY_DOOR, TB.door.want); TB.door = null; }
+    }
+    function octOwnWalk(to) { TB.own = true; try { return walkPoint(to, function () {}, true); } finally { TB.own = false; } }
+    function octToTable(o) {   /* → Promise<bool>: 이미 앉았으면 바로 true · 못 오면 false · 아니면 문 → 걸어 들어와 → 폴짝 앉기 (도중에 내려놓이면 false) */
+      o = o || {};
+      if (TB.oct === 'seated') return Promise.resolve(true);
+      if (!octCanCome()) return Promise.resolve(false);
+      octEndWalk(); WAVE.on = false;
+      PROOM.g.add(octG); TB.oct = 'coming'; TB.held = null; TB.beat = ''; setExpression('idle');
+      var D = DOOR_ANCHORS.playAtticDoor, run = { alive: true }; TB.run = run;
+      oct.pos.set(D[0], 0, D[2]); oct.hop = 0; snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = Math.PI / 2; gaitReset(); dither.still = 0; spotLast.table = null;
+      if (o.instant || st.reduced || st.hidden || ctxLost()) {
+        if (PLAY_DOOR && st.reduced && !o.instant) { setLeaf(PLAY_DOOR, 4); TB.doorShut = 2; }   /* 모션 감소: 문이 한 프레임 열렸다 닫힌다 */
+        octSeatNow(); return Promise.resolve(true);
+      }
+      return new Promise(function (res) {
+        TB.comeRes = res;
+        tableDoor(true);
+        tbWait(4 / 12).then(function () {
+          if (!run.alive) return;
+          var V = BOOTH.oct.via; return octOwnWalk(new T.Vector3(V[0], 0, V[1]));
+        }).then(function () {
+          if (!run.alive) return; tableDoor(false); var A = BOOTH.oct.aisle; return octOwnWalk(new T.Vector3(A[0], 0, A[1]));
+        }).then(function () {
+          if (!run.alive) return;
+          oct.wantYaw = oct.faceYaw = BOOTH.oct.yaw;   /* 앉을 쪽을 보고 폴짝 (접은 다리가 등판 · 식탁에 안 닿게 — 돌며 뛰면 옆다리가 등판에 닿았다) */
+          var from = oct.pos.clone(), to = tableSeatVec(), k = 0, dur = 0.3 * st.speed; TB.pose.legs = 1;
+          oct.walking = { gait: false, cancel: function () {}, finish: function () { octSeatNow(); },
+            step: function (dt) { k += dt; var t = Math.min(1, k / dur); oct.pos.lerpVectors(from, to, t); oct.hop = Math.sin(Math.PI * t) * 0.35 / OCT_R; if (t >= 1) octSeatNow(); } };
+        });
+      });
+    }
+    function octSeatNow() { if (oct.walking) { oct.walking = null; } var cr = TB.comeRes; TB.comeRes = null; oct.hop = 0; oct.pos.copy(tableSeatVec()); snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = BOOTH.oct.yaw; TB.oct = 'seated'; TB.pose.legs = 1; octDecal.visible = false; TB.beat = ''; dither.still = 0; spotLast.table = null; if (cr) cr(true); }
+    function tbWait(sec) { return new Promise(function (res) { if (st.reduced && sec <= 0) { res(); return; } TB.waits.push({ t: sec * st.speed, res: res }); }); }
+    TB.waits = [];
+    function octTableBeat(name) {   /* 'think' 1.0 s 가만히 · 눈은 요리 · 'ponder' 0.12 s 눌림 · 'eat' 8° 기울여 멈춤 · 'watch' 바로 앉음 */
+      if (TB.oct !== 'seated') return Promise.resolve();
+      TB.beat = name; TB.beatAge = 0; TB.beatT = name === 'think' ? 1.0 : name === 'ponder' ? 0.12 : name === 'eat' ? 3 / 12 : 0;
+      setExpression('idle');
+      if (name === 'watch' || name === 'eat' && st.reduced) TB.beatT = 0;
+      return tbWait(TB.beatT).then(function () { if (TB.beat === name && name !== 'eat' && name !== 'watch') TB.beat = ''; TB.beatT = 0; tableFlushQueue(); });
+    }
+    function octLeaveTable(o) {   /* 폴짝 내려와 문으로 걸어 나가 문간에서 체크로 사라짐 → 다락 앵커. instant = 지금 */
+      o = o || {};
+      if (TB.oct === 'none') return Promise.resolve();
+      if (o.instant || st.reduced || st.hidden || ctxLost() || PLACE.vis !== 'play') { octTableUnmount(); return Promise.resolve(); }
+      if (TB.oct === 'leaving') return TB.leaving;
+      var seated = TB.oct === 'seated';
+      if (TB.run) TB.run.alive = false;
+      var cr = TB.comeRes; TB.comeRes = null; if (cr) cr(false);
+      var run = { alive: true }; TB.run = run; TB.oct = 'leaving'; TB.beat = ''; var bt = TB.bite; TB.bite = null; if (bt) bt.done(false);
+      if (oct.walking) { oct.walking = null; oct.hop = 0; }
+      var A = BOOTH.oct.aisle, V = BOOTH.oct.via, D = DOOR_ANCHORS.playAtticDoor;
+      TB.leaving = new Promise(function (resAll) {
+        TB.leaveRes = resAll;
+        new Promise(function (res) {
+          if (!seated) { res(); return; }
+          var from = oct.pos.clone(), to = new T.Vector3(A[0], 0, A[1]), k = 0, dur = 0.3 * st.speed; oct.wantYaw = oct.faceYaw; TB.pose.legs = 1;   /* 내릴 땐 앉은 방향 그대로 (바닥에서 돈다) */
+          oct.walking = { gait: false, cancel: function () {}, finish: function () { oct.walking = null; oct.pos.copy(to); res(); },
+            step: function (dt) { k += dt; var t = Math.min(1, k / dur); oct.pos.lerpVectors(from, to, t); oct.hop = Math.sin(Math.PI * t) * 0.35 / OCT_R; if (t >= 1) { oct.hop = 0; oct.walking = null; res(); } } };
+        }).then(function () {
+          if (!run.alive) return;
+          TB.pose.legs = 0; octDecal.visible = true;
+          return octOwnWalk(new T.Vector3(V[0], 0, V[1]));
+        }).then(function () { if (!run.alive) return; tableDoor(true); return octOwnWalk(new T.Vector3(D[0], 0, D[2])); })
+          .then(function () { if (!run.alive) return; return new Promise(function (res) { TB.fade = { t: 0, res: res }; }); })
+          .then(function () { if (run.alive) { tableDoor(false); octTableUnmount(); } });
+      });
+      return TB.leaving;
+    }
+    function octTableUnmount() {   /* 다락 그룹 · 제 앵커로 (식탁 자세 · 접은 다리 풀고) — 붙잡아 둔 다락 앵커 이동은 이제 */
+      if (TB.oct === 'none') return;
+      if (TB.run) TB.run.alive = false;
+      if (oct.walking) { var w = oct.walking; oct.walking = null; if (w.cancel) w.cancel(); }
+      var cr = TB.comeRes, lr = TB.leaveRes; TB.comeRes = TB.leaveRes = null; TB.leaving = null;
+      TB.oct = 'none'; TB.beat = ''; TB.beatT = 0; TB.fade = null; var bt = TB.bite; TB.bite = null; if (bt) bt.done(false);
+      TB.pose = { lean: 0, sx: 1, sy: 1, by: 0, reach: -1, legs: 0 };
+      if (TB.door && PLAY_DOOR) { setLeaf(PLAY_DOOR, 0); TB.door = null; }
+      atticG.add(octG); setOctFade(1); octG.visible = st.octState !== 'away'; octDecal.visible = octG.visible;
+      jumpTo(oct.anchor && oct.anchor !== 'salon' ? oct.anchor : 'center');
+      var h = TB.held; TB.held = null;
+      if (h) { if (h.anchor) { oct.anchor = h.anchor; jumpTo(h.anchor); } else if (h.to) { oct.pos.copy(h.to); snapScreen(octG.position.copy(oct.pos)); } if (h.done) h.done(); if (h.res) h.res(h.val); }
+      dither.still = 0; spotLast.table = null; if (cr) cr(false); if (lr) lr(); tableFlushQueue();
+    }
+    function tableLost() {   /* 컨텍스트 잃음: 프레임이 안 돈다 → 걸린 박자 · 한입 Promise 를 지금 푼다 (한입은 false) · 문어는 내려놓는다 */
+      var mb = TB.meBite, bt = TB.bite, ws = TB.waits; TB.meBite = TB.bite = null; TB.waits = [];
+      if (mb) mb.done(false); if (bt) bt.done(false); ws.forEach(function (w) { w.res(); });
+      octTableUnmount();
+    }
+    function tableHold(kind, a, done, val) {   /* 문어가 식탁에 있는 동안 다락 쪽 이동을 붙잡는다 (마지막 것만) → Promise(val) */
+      var prev = TB.held;
+      return new Promise(function (res) { TB.held = { anchor: kind === 'anchor' ? a : null, to: kind === 'to' ? a.clone() : null, done: done, res: res, val: val }; if (prev && prev.res) prev.res(prev.val); });
+    }
+    function stepTable(dt) {   /* 프레임마다 (stepOct 뒤): 기다림 · 문 · 박자 · 한입 · 사라짐 · 자세 */
+      for (var i = TB.waits.length - 1; i >= 0; i--) { var w = TB.waits[i]; w.t -= dt; if (w.t <= 0) { TB.waits.splice(i, 1); w.res(); } }
+      if (TB.door && PLAY_DOOR) { TB.door.acc += dt / st.speed; while (TB.door && TB.door.acc >= 1 / 12) { TB.door.acc -= 1 / 12; var f = PLAY_DOOR.f + (TB.door.want > PLAY_DOOR.f ? 1 : -1); setLeaf(PLAY_DOOR, f); if (f === TB.door.want) TB.door = null; } }
+      if (TB.doorShut) { TB.doorShut--; if (!TB.doorShut && PLAY_DOOR) setLeaf(PLAY_DOOR, 0); }
+      if (TB.fade) { TB.fade.t += dt / st.speed; var q = 1 - Math.min(1, Math.floor(TB.fade.t * 24) / 8); setOctFade(q); if (q <= 0) { var fr = TB.fade.res; TB.fade = null; if (fr) fr(); } }
+      stepCarry(dt); stepDish(dt); stepMeBite(dt); stepSprProps();
+      var P = TB.pose, b = TB.bite;
+      P.lean = 0; P.sx = 1; P.sy = 1; P.by = 0; P.reach = -1;
+      if (TB.oct === 'seated') {
+        if (TB.beat === 'eat') P.lean = 8 * DEG * (st.reduced ? 1 : Math.min(1, Math.floor(TB.beatAge * 12 + 1) / 3));
+        if (TB.beat === 'ponder' && !st.reduced) { var pq = Math.min(1, (0.12 - TB.beatT) / 0.12); P.sx = 1 + 0.05 * pq; P.sy = 1 - 0.08 * pq; }
+        if (b) {
+          var bf = biteFrame(b, dt);
+          if (bf >= 2 && !b.took) { b.took = true; biteTake('oct'); }
+          if (bf >= 8) { TB.bite = null; b.done(true); tableFlushQueue(); }
+          else if (!st.reduced) { if (bf <= 1) { P.reach = bf; P.lean = 0; P.by = 1; } else if (bf <= 3) { P.sx *= 1.05; P.sy *= 0.9; } }   /* 뻗는 두 칸은 몸을 세우고 1px 들어 — 다리가 식탁 윗판 위로 지나간다 */
+        }
+      }
+      TB.beatAge = (TB.beatAge || 0) + dt / st.speed;
+      if (TB.beat && TB.beatT > 0) TB.beatT = Math.max(0, TB.beatT - dt / st.speed);
+      stepTableSpot();
+    }
+    function tablePose(red) {   /* stepOct 안 — 몸 · 다리 값 위에 식탁 자세를 덮는다 (bodyG · 다리 회전 · scale.x 만) */
+      if (TB.oct === 'none') return;
+      var P = TB.pose;
+      if (P.legs) arms.forEach(function (arm) {   /* 앉은 다리: 앞(+z 로컬)은 짧게 자리 앞 끝으로 늘어뜨리고 · 옆은 자리 위에 · 뒤는 등판에 안 닿게 더 접는다 */
+        var a = arm.userData.a, fz = Math.sin(a);
+        arm.scale.x = fz > 0.5 ? 0.66 : fz < -0.5 ? 0.42 : 0.55; arm.rotation.z = fz > 0.5 ? -0.12 : 0.04; arm.rotation.y = -a;
+      });
+      if (P.reach >= 0) { var ra = arms[1], dyaw = Math.atan2(BOOTH_DISH[0] - oct.pos.x, BOOTH_DISH[2] - oct.pos.z) - oct.faceYaw; ra.rotation.y = dyaw - Math.PI / 2; ra.rotation.z = P.reach ? 1.1 : 1.0; ra.scale.x = P.reach ? 1.3 : 1.1; }   /* 앞다리 하나를 식탁 위로 (손 흔들기처럼 회전 + ×1.2 뻗기) */
+      if (P.by) bodyG.position.y += P.by * pxUp() / OCT_R;
+      if (P.lean || P.sx !== 1 || P.sy !== 1) { bodyG.rotation.x += P.lean; bodyG.scale.set(bodyG.scale.x * P.sx, bodyG.scale.y * P.sy, bodyG.scale.z * P.sx); }
+      if (TB.oct === 'seated') octDecal.visible = false;
+    }
+    function stepTableSpot() {   /* on.tableSpot({ seat, call, dish }) — 바뀔 때만 (소파 노란 점과 같은 화면 안 규칙) */
+      var vis = PROOM && PLACE.vis === 'play' && !PLACE.trans, out = { seat: null, call: null, dish: null };
+      function sp(x, y, z) { _tbw.set(x, y, z); PROOM.g.localToWorld(_tbw).project(camera); var px = Math.round(S.offX + (_tbw.x * 0.5 + 0.5) * S.cw), py = Math.round(S.offY + (1 - (_tbw.y * 0.5 + 0.5)) * S.ch); return px < 14 || px > S.W - 14 || py < 58 || py > S.H - 14 ? null : { x: px, y: py }; }
+      if (vis) {
+        if (PL.place === 'play' && !PL.tbl && !PL.sit && !PL.hop && playerInputAllowed()) out.seat = sp(BOOTH.me.x, BOOTH.seatY + 0.24, BOOTH.me.z);
+        if (PL.tbl && PL.sit) out.call = sp(BOOTH.oct.x, BOOTH.seatY + (HEAD_Y + HEAD_SQ) * OCT_R + 0.12, BOOTH.oct.z);
+        if (TB.dish && TB.mesh) out.dish = sp(BOOTH_DISH[0], BOOTH_DISH[1] + 0.04, BOOTH_DISH[2]);
+      }
+      var k = JSON.stringify(out); if (k !== TB.spotK) { TB.spotK = k; emit('tableSpot', out); }
+    }
+    function tableInfo() {
+      return { built: !!PROOM, dish: TB.dish ? { id: TB.dish.id, recipe: TB.dish.recipe } : null, pieces: TB.dish ? TB.n : 0, queued: TB.queued !== undefined, carry: CARRY ? CARRY.stage : null, sprite: !!TB.sprOn,
+        me: PL.tbl && PL.sit && !PL.hop ? 'seated' : PL.tbl || TB.meWalk ? 'walking' : 'none', oct: TB.oct, beat: TB.beat, aura: { me: AU.me.fx, oct: AU.oct.fx },
+        pose: { lean: +(TB.pose.lean / DEG).toFixed(2), reach: TB.pose.reach, legs: TB.pose.legs, decal: octDecal.visible }, held: TB.held ? (TB.held.anchor || 'point') : null, geom: tableGeom() };
+    }
+
+    function tableLook() {   /* 앉은 문어의 눈은 요리로 (클라이언트 px) */
+      if (TB.oct !== 'seated' || !TB.dish || !TB.mesh || !PROOM) return null;
+      _tbw.set(BOOTH_DISH[0], BOOTH_DISH[1] + 0.03, BOOTH_DISH[2]); PROOM.g.localToWorld(_tbw).project(camera);
+      var r = canvas.getBoundingClientRect(); return { x: r.left + (_tbw.x * 0.5 + 0.5) * S.cw, y: r.top + (1 - (_tbw.y * 0.5 + 0.5)) * S.ch };
+    }
+    function tableBodies() {   /* 시험용 (T8): 지금 자세의 실제 메시 → 놀이방 그룹 좌표. 문어 머리 타원체 (중심 · 축 3 · 반지름) · 다리마다 키포인트 구 · 내 머리 · 머리칼 구 · 몸 상자 */
+      if (!PROOM) return null;
+      scene.updateMatrixWorld(true);
+      var inv = new T.Matrix4().copy(PROOM.g.matrixWorld).invert(), out = { oct: null, me: null };
+      function L(v) { return v.applyMatrix4(inv); }
+      if (octG.parent === PROOM.g) {
+        var c = L(bodyG.localToWorld(new T.Vector3(0, HEAD_Y, 0))), ax = [[1, 0, 0], [0, 1, 0], [0, 0, 1]].map(function (a) { var p = L(bodyG.localToWorld(new T.Vector3(a[0], HEAD_Y + a[1] * HEAD_SQ, a[2]))); return [p.x - c.x, p.y - c.y, p.z - c.z]; });
+        var legs = arms.map(function (m) { var pts = []; ARM.forEach(function (k, j) { var p = L(m.localToWorld(new T.Vector3(k[0], k[1], 0))), e = L(m.localToWorld(new T.Vector3(k[0], k[1] + k[2], 0))); pts.push([+p.x.toFixed(4), +p.y.toFixed(4), +p.z.toFixed(4), +Math.hypot(e.x - p.x, e.y - p.y, e.z - p.z).toFixed(4)]); }); return pts; });
+        var dc = new T.Box3().setFromObject(octDecal);
+        out.oct = { c: [c.x, c.y, c.z], axes: ax, legs: legs, origin: [octG.position.x, octG.position.y, octG.position.z], decal: octDecal.visible ? [dc.min.x, dc.max.x, dc.min.z, dc.max.z] : null };
+      }
+      if (plG.parent === PROOM.g) {
+        var hc = L(plBody.localToWorld(new T.Vector3(0, PL_HEAD_Y, 0))), hr = L(plBody.localToWorld(new T.Vector3(PL_HC[0], PL_HC[1], PL_HC[2])));
+        var boxes = [plTorso, plArmL, plArmR, plLegL, plLegR].map(function (m) { var b = new T.Box3().setFromObject(m); b.applyMatrix4(inv); return [b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]; });
+        out.me = { head: [hc.x, hc.y, hc.z, PL_HEAD_R], hair: [hr.x, hr.y, hr.z, PL_HR], boxes: boxes, origin: [plG.position.x, plG.position.y, plG.position.z] };
+      }
+      return out;
+    }
+    function auraInfo(who) {   /* 시험용: 지금 오라 점 (월드 → 화면 CSS px, 보이는 것만) · 부모 그룹 이름 · 칸 */
+      var A = AU[who === 'oct' ? 'oct' : 'me'], o = A.obj, pts = [], tw = [];
+      if (o.visible && o.parent) {
+        o.updateMatrixWorld(true);
+        var pa = o.geometry.attributes.position.array, ta = A.twin.geometry.attributes.position.array;
+        for (var i = 0; i < (A.n || 0); i++) { _tbw.set(pa[i * 3], pa[i * 3 + 1], pa[i * 3 + 2]).applyMatrix4(o.matrixWorld).project(camera); pts.push([(_tbw.x * 0.5 + 0.5) * S.cw, (1 - (_tbw.y * 0.5 + 0.5)) * S.ch]); }
+        for (i = 0; i < (A.tn || 0); i++) { _tbw.set(ta[i * 3], ta[i * 3 + 1], ta[i * 3 + 2]).applyMatrix4(o.matrixWorld).project(camera); tw.push([(_tbw.x * 0.5 + 0.5) * S.cw, (1 - (_tbw.y * 0.5 + 0.5)) * S.ch]); }
+      }
+      var H = auraHost(who === 'oct' ? 'oct' : 'me'), box = null;
+      if (H.parent) { var l = 1e9, t2 = 1e9, rr = -1e9, bb = -1e9, top = H.oct ? 1.2 : 1.7; H.parent.updateMatrixWorld(true);
+        for (var c = 0; c < 8; c++) { _tbw.set(H.pos.x + (c & 1 ? 0.75 : -0.75), H.pos.y + (c & 2 ? top : 0), H.pos.z + (c & 4 ? 0.75 : -0.75)); H.parent.localToWorld(_tbw).project(camera); var x = (_tbw.x * 0.5 + 0.5) * S.cw, y = (1 - (_tbw.y * 0.5 + 0.5)) * S.ch; l = Math.min(l, x); rr = Math.max(rr, x); t2 = Math.min(t2, y); bb = Math.max(bb, y); }
+        box = [l, t2, rr, bb]; }
+      return { box: box, fx: A.fx, visible: o.visible, parent: o.parent ? o.parent.name : '', step: A.step, bloom: A.bloom, n: A.n || 0, parts: A.parts || 0, size: o.material.size, pts: pts, twin: tw, twinVis: A.twin.visible, cw: S.cw, ch: S.ch, rw: S.rw, rh: S.rh };
+    }
+    /* ── 11-18 효과 (오라, §5): 캐릭터마다 Points 하나 (≤ 20 점, 정점색 — 바깥 꽃잎과 같은 재질 변형) + 발광 쌍둥이 (≤ 4 점, 레이어 1 — 반딧불 쌍둥이 변형).
+       캐릭터의 지금 방 그룹의 자식 · 바탕 = 캐릭터 자리를 픽셀 중심에 스냅 · 오프셋은 화면 정수 열/행 · 12 fps 칸 · 숨은 · 사라지는 중 · 가구 모드면 숨김 · 모션 감소 = 정지 자세.
+       새 셰이더 프로그램 없음: 두 재질 변형을 부팅 예열에서 다락 · 바깥 조명 묶음으로 컴파일 (놀이방 · 위층 = 다락과 같은 점광 2 · 마당 = 바깥과 같은 묶음 — T8 이 캐시 키로 잰다) */
+    /* 11-18 (리드 후속: '효과가 한눈에 보이게'): 알갱이 = 2×2 렌더 px 밝은 심 (효과 제 색) + 1 px 어두운 테 (네 쪽 2 px 블록을 1 px 밀어 먼저 그린다) — 한 Points (크기 2, 정점색) 한 드로우콜.
+       점은 픽셀 모서리에 (2 px 점이 정확히 2×2 칸에 앉게) · 블룸 없음 · 6~10 알갱이가 머리 · 어깨 둘레에 (얼굴 열은 피한다) · 반짝이 = 커졌다 작아지며 위로 1 px 씩 · 별 = 머리 위 고리를 돈다 · 꽃잎 = 흔들리며 떨어진다 */
+    var AURA_C = { sparkle: { core: '#ebede9', mid: '#a4dddb', edge: '#3c5e8b' }, star: { core: '#f4d47a', mid: '#e8a63e', edge: '#7a4a2c' }, petal: { core: '#f2a6c0', mid: '#fbe0ea', edge: '#9a3c62' },
+      bubble: { core: '#ebede9', mid: '#73bed3', edge: '#3c5e8b' }, confetti: { core: '#e8c170', mid: '#f2a6c0', edge: '#3e2731', more: ['#e8c170', '#f2a6c0', '#a4dddb', '#a8ca58'] } };   /* 11-21 7차: 방울 (계란말이) · 색종이 (딸기 케이크) */
+    var AURA_N = 64, AURA_TW = 4, AURA_PX = 2;
+    function auraMake(name) {
+      var g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array(AURA_N * 3), 3)); g.setAttribute('color', new T.BufferAttribute(new Float32Array(AURA_N * 3), 3));
+      var p = new T.Points(keep(g), auraMat); p.frustumCulled = false; p.visible = false; p.name = 'aura-' + name; p.renderOrder = 4;
+      var tg = new T.BufferGeometry(); tg.setAttribute('position', new T.BufferAttribute(new Float32Array(AURA_TW * 3), 3));
+      var tw = new T.Points(keep(tg), keep(new T.PointsMaterial({ color: C('#ebede9'), size: 3, sizeAttenuation: false, depthWrite: false }))); tw.layers.set(1); tw.frustumCulled = false; p.add(tw);
+      return { fx: null, obj: p, twin: tw, step: -1, acc: 0, bloom: -1, key: '', slots: [] };
+    }
+    var auraMat = keep(new T.PointsMaterial({ color: 0xffffff, vertexColors: true, size: AURA_PX, sizeAttenuation: false, depthWrite: false }));   /* 크기는 유니폼 — 프로그램 키 그대로 */
+    var steamMat = keep(new T.PointsMaterial({ color: C(PAL.paper[0]), size: 1, sizeAttenuation: false, depthWrite: false }));
+    var AU = { me: auraMake('me'), oct: auraMake('oct'), step: 0, acc: 0 };
+    atticG.add(AU.me.obj); extG.add(AU.oct.obj);   /* 예열: 다락 패스엔 내 것 · 바깥 패스엔 문어 것이 각 조명 묶음으로 두 변형을 컴파일한다 (숨겨도 compile 은 재질을 훑는다) */
+    function setAura(who, fx, o) {
+      var A = AU[who === 'oct' ? 'oct' : 'me']; if (!A) return;
+      fx = typeof fx === 'string' && Object.prototype.hasOwnProperty.call(AURA_C, fx) ? fx : null;
+      if (fx !== A.fx) { A.fx = fx; A.slots = []; A.key = ''; A.step = -1; }
+      A.bloom = fx && o && o.bloom && !st.reduced ? 0 : -1; A.key = '';
+      dither.still = 0;
+    }
+    function auraHost(who) {   /* → { parent, pos (부모 좌표), h (키 기준 높이 배율), shown } */
+      if (who === 'me') return { parent: plG.parent, pos: plG.position, oct: false, shown: !!plG.parent && plG.visible && !(FM && FM.on) && PL.place !== 'exterior' };
+      return { parent: octG.parent, pos: octG.position, oct: true, shown: !!octG.parent && octG.visible && FADE.d >= 0.5 && st.octState !== 'away' };
+    }
+    function auraSlot(A, i, cyc) { var r = hash('au' + A.obj.name + A.fx + i + '_' + cyc) >>> 0; return { side: (r & 1) ? 1 : -1, u: ((r >>> 1) % 1000) / 1000, v: ((r >>> 11) % 1000) / 1000 }; }   /* >>> (부호 없는 밀기 — >> 는 위 비트가 서면 음수가 되어 꽃잎이 화면 왼쪽으로 멀리 갔다) */
+    function snapCorner(v) { var pw = S.pw, dx = v.dot(_r), dy = v.dot(_u), hx = (S.rw & 1) ? 0.5 : 0, hy = (S.rh & 1) ? 0.5 : 0; return v.addScaledVector(_r, (Math.round(dx / pw - hx) + hx) * pw - dx).addScaledVector(_u, (Math.round(dy / pw - hy) + hy) * pw - dy); }   /* 픽셀 모서리 (2 px 점용) */
+    function auraLayout(who, A) {
+      var H = auraHost(who), obj = A.obj, fx = A.fx;
+      A.twin.visible = false;
+      if (!fx || !H.shown || !H.parent) { obj.visible = false; return; }
+      if (obj.parent !== H.parent) H.parent.add(obj);
+      obj.visible = true;
+      _tbv.copy(H.pos); H.parent.localToWorld(_tbv); snapCorner(_tbv);
+      var key = A.step + '|' + _tbv.x.toFixed(4) + ',' + _tbv.y.toFixed(4) + ',' + _tbv.z.toFixed(4) + '|' + A.bloom + '|' + (st.reduced ? 1 : 0) + '|' + S.pw;
+      if (key === A.key) return; A.key = key;
+      var base = _tbv.clone(), up = pxUp(), pw = S.pw, pa = obj.geometry.attributes.position.array, ca = obj.geometry.attributes.color.array, n = 0, s = A.step, red = st.reduced, oc = H.oct, parts = 0;
+      var bk = A.bloom >= 0 ? Math.min(1, (A.bloom + 1) / 6) : 1, cy = Math.round((oc ? 0.35 : 0.6) / up);
+      camera.getWorldDirection(_tbw); var V = _tbw.clone();
+      /* 몸 치수 (렌더 px): 얼굴 열 반폭 · 머리 위 · 어깨 높이 */
+      var faceLo = Math.round((oc ? 0.0 : 0.5) / up), faceHi = Math.round((oc ? 0.8 : 1.25) / up), faceC = Math.ceil((oc ? 0.44 : 0.4) / pw), topR = Math.round((oc ? 0.80 : 1.30) / up), shR = Math.round((oc ? 0.22 : 0.45) / up), headR = Math.round((oc ? 0.40 : 0.87) / up);
+      var Cc = AURA_C[fx];
+      function put(col, row, hex) {
+        if (n >= AURA_N) return;
+        var c2 = Math.round(col * bk), r2 = Math.round(cy + (row - cy) * bk);
+        _tbw.copy(base).addScaledVector(_r, c2 * pw); _tbw.y += r2 * up; _tbw.addScaledVector(V, -0.35);   /* 카메라 쪽 0.35 m (몸 옆 · 위에 그려지게 — 화면 자리는 그대로) */
+        H.parent.worldToLocal(_tbw);
+        pa[n * 3] = _tbw.x; pa[n * 3 + 1] = _tbw.y; pa[n * 3 + 2] = _tbw.z; var c = C(hex); ca[n * 3] = c.r; ca[n * 3 + 1] = c.g; ca[n * 3 + 2] = c.b; n++;
+      }
+      function grain(col, row, size, mirror) {   /* size 0 = 심만 · 1 = 심 + 테 · 2 = 심 + 테 + 팔 '+' (반짝이 꼭대기) · 'petal' = 테 + 심 + 꼬리 */
+        parts++;
+        if (size === 'petal') { var m = mirror ? -1 : 1; put(col - m, row, Cc.edge); put(col, row - 1, Cc.edge); put(col + 2 * m, row + 1, Cc.edge); put(col + m, row + 2, Cc.edge); put(col, row, Cc.core); put(col + m, row + 1, Cc.mid); return; }
+        if (size >= 1) { put(col - 1, row, Cc.edge); put(col + 1, row, Cc.edge); put(col, row - 1, Cc.edge); put(col, row + 1, Cc.edge); }
+        if (size >= 2) { put(col - 2, row, Cc.mid); put(col + 2, row, Cc.mid); put(col, row - 2, Cc.mid); put(col, row + 2, Cc.mid); }
+        put(col, row, Cc.core);
+      }
+      var spread = Math.max(3, Math.round(0.22 / pw));   /* 얼굴 열 밖으로 퍼지는 폭 — 미터로 (픽셀 크기가 달라도 머리 · 어깨 둘레) */
+      function sideCol(side, k) { return side * (faceC + 2 + Math.round(k * spread)); }
+      if (fx === 'sparkle') {   /* 8 자리 · 8칸 주기 (작게 · 보통 · '+' · 보통 · 작게 · 보통 · 작게 · 꺼짐), 자리마다 한 칸씩 엇갈림 → 늘 7 개 · 떠오르며 (2칸에 1 px) */
+        for (var i = 0; i < 8; i++) {
+          var ph = red ? 3 : s + i, cyc = Math.floor(ph / 8), u = ((ph % 8) + 8) % 8, sl = auraSlot(A, i, red ? 0 : cyc), sz = [0, 1, 2, 1, 0, 1, 0, -1][u];
+          if (red) sz = 1;
+          if (sz < 0) continue;
+          var above = sl.v > 0.72, row = above ? topR + Math.max(1, Math.round(0.06 / up)) + Math.round(sl.u * 0.15 / up) : shR + Math.round(sl.v / 0.72 * (topR - shR)), col = above ? Math.round((sl.u - 0.5) * 2 * faceC) : sideCol(sl.side, sl.u);
+          grain(col, row + (red ? 0 : Math.floor(u / 2)), sz);
+        }
+      } else if (fx === 'star') {   /* 별 6 개가 머리 위 고리를 돈다 (칸마다 8°) · 차례로 '+' 로 반짝 */
+        var hr = oc ? 0.40 : 0.32, hy = topR + Math.max(2, Math.round(0.1 / up));
+        for (var j = 0; j < 6; j++) {
+          var a = (red ? 0 : s * 8 * DEG) + j * Math.PI / 3, ox = Math.cos(a) * hr, oz = Math.sin(a) * hr, col2 = Math.round((ox * _r.x + oz * _r.z) / pw), dep = ox * _r.z - oz * _r.x;
+          var tw = red ? 1 : ((s + j * 3) % 9 < 2 ? 2 : 1);
+          grain(col2, hy + Math.round(dep / up * 0.5), tw);
+        }
+      } else if (fx === 'petal') {   /* 꽃잎 8 장: 머리 위에서 생겨 칸마다 1 행 떨어지고 3칸마다 1 열 흔들림 · 바닥 닿으면 다시 · 몸 열은 비켜 간다 */
+        var top = topR + Math.max(3, Math.round(0.2 / up)), np = red ? 6 : 8, period = top + 2;
+        for (var k = 0; k < np; k++) {
+          var ph2 = red ? 0 : s + Math.floor(k * period / np), cyc2 = Math.floor(ph2 / period), fall = ph2 % period, sl2 = auraSlot(A, k, cyc2), sway = red ? 0 : (Math.floor(fall / 3) & 1 ? 1 : -1);
+          var prow = red ? Math.round(shR + (top - shR) * (k + 1) / (np + 1)) : top - fall, pcol = Math.round((sl2.u * 2 - 1) * (faceC + 2 + spread)) + sway;
+          if (prow < 2) continue;
+          if (prow > faceLo && prow < faceHi && Math.abs(pcol) < faceC + 2) pcol = (pcol < 0 || (pcol === 0 && (k & 1)) ? -1 : 1) * (faceC + 2);   /* 얼굴 높이에선 얼굴 열 밖으로 비켜 떨어진다 */
+          grain(pcol, prow, 'petal', (k & 1) === 0);
+        }
+      } else if (fx === 'bubble') {   /* 11-21 방울 6 개: 어깨 높이에서 생겨 칸마다 1 행 떠오르고 4칸마다 1 열 흔들린다 — 점 → 빈 고리 (2 px 알갱이 넷 · 위쪽 하나는 흰 빛) → 톡 터짐 (네 귀 점) → 쉼. 얼굴 열 밖 */
+        for (var bi = 0; bi < 6; bi++) {
+          var bph = red ? 4 : s + bi * 2, bcyc = Math.floor(bph / 12), bu = ((bph % 12) + 12) % 12, bs = auraSlot(A, bi, red ? 0 : bcyc);
+          if (bu >= 10) continue;
+          var bcol = sideCol(bs.side, bs.u) + (red ? 0 : (Math.floor(bu / 4) & 1 ? 1 : 0)), brow = shR + Math.round(bs.v * (topR - shR) * 0.6) + (red ? 0 : bu);
+          parts++;
+          if (bu < 1) put(bcol, brow, Cc.mid);
+          else if (bu < 9) { put(bcol - 1, brow, Cc.mid); put(bcol + 1, brow, Cc.mid); put(bcol, brow - 1, Cc.edge); put(bcol, brow + 1, Cc.core); }
+          else { put(bcol - 2, brow - 1, Cc.mid); put(bcol + 2, brow - 1, Cc.mid); put(bcol - 2, brow + 2, Cc.core); put(bcol + 2, brow + 2, Cc.core); }
+        }
+      } else if (fx === 'confetti') {   /* 11-21 색종이 9 장 (네 색): 머리 위에서 생겨 칸마다 1 행 떨어지며 좌우로 흔들리고, 두 칸마다 눕고 선다 (가로 둘 ↔ 세로 둘) · 아래 어두운 테 한 점. 얼굴 열은 비켜 간다 */
+        var ctop = topR + Math.max(3, Math.round(0.24 / up)), cn = red ? 7 : 9, cper = ctop + 2;
+        for (var ci = 0; ci < cn; ci++) {
+          var cph = red ? 0 : s + Math.floor(ci * cper / cn), ccyc = Math.floor(cph / cper), cfall = cph % cper, cs = auraSlot(A, ci, ccyc), cw = red ? 0 : [0, 1, 0, -1][Math.floor(cfall / 2) & 3];
+          var crow = red ? Math.round(shR + (ctop - shR) * (ci + 1) / (cn + 1)) : ctop - cfall, ccol = Math.round((cs.u * 2 - 1) * (faceC + 3 + spread)) + cw, hexc = Cc.more[ci & 3], flat = red ? (ci & 1) === 0 : ((cfall >> 1) + ci) % 2 === 0;
+          if (crow < 2) continue;
+          if (crow > faceLo && crow < faceHi && Math.abs(ccol) < faceC + 3) ccol = (ccol < 0 || (ccol === 0 && (ci & 1)) ? -1 : 1) * (faceC + 3);
+          parts++;
+          put(flat ? ccol + 1 : ccol, flat ? crow - 1 : crow - 2, Cc.edge); put(ccol, crow, hexc); put(flat ? ccol + 1 : ccol, flat ? crow : crow - 1, hexc);
+        }
+      }
+      for (var z = n; z < AURA_N; z++) { pa[z * 3] = 0; pa[z * 3 + 1] = -50; pa[z * 3 + 2] = 0; }
+      obj.geometry.attributes.position.needsUpdate = true; obj.geometry.attributes.color.needsUpdate = true;
+      A.n = n; A.tn = 0; A.parts = parts;
+    }
+    function stepAura(dt) {
+      if (!AU.me.fx && !AU.oct.fx) { AU.me.obj.visible = AU.oct.obj.visible = false; return; }
+      AU.acc += dt / st.speed; var adv = false;
+      while (AU.acc >= 1 / 12) { AU.acc -= 1 / 12; adv = true; if (!st.reduced) AU.step++; ['me', 'oct'].forEach(function (w) { var A = AU[w]; if (A.bloom >= 0) { A.bloom++; if (A.bloom >= 6) A.bloom = -1; } }); }
+      if (AU.acc > 1) AU.acc = 0;
+      ['me', 'oct'].forEach(function (w) { var A = AU[w]; if (adv && !st.reduced) A.step = AU.step; else if (A.step < 0) A.step = AU.step; auraLayout(w, A); });
+    }
     function showPlace(p) {
       var prev = PLACE.vis; LIFT.to = 0; if (p !== 'loft') LIFT.y = 0;
       if (p !== 'loft' && octUp()) octUnmountLoft();
-      atticG.visible = p === 'attic'; extG.visible = p === 'exterior'; if (PROOM) PROOM.g.visible = p === 'play'; if (LROOM) LROOM.g.visible = p === 'loft'; PLACE.vis = p;
-      atticG.position.set(0, 0, 0); extG.position.set(0, 0, 0); if (PROOM) PROOM.g.position.set(0, 0, 0); if (LROOM) LROOM.g.position.set(0, 0, 0); panReset(); PAN.cut = true;   /* 장소가 바뀌면 밀린 것은 0 (장소마다 경계가 다르다) · 의식 중 확대면 다음 따라가기가 그 자리로 바로 (디더에 덮인 프레임) */
+      if (p !== 'play' && TB.oct !== 'none') octTableUnmount();   /* 11-18 놀이방을 떠나면 식탁의 문어는 바로 다락으로 */
+      if (p !== 'play' && prev === 'play' && TB.dish && TB.n <= 0) setTableDish(null);   /* 빈 접시는 방을 떠나면 치운다 */
+      atticG.visible = p === 'attic'; extG.visible = p === 'exterior'; if (PROOM) PROOM.g.visible = p === 'play'; if (LROOM) LROOM.g.visible = p === 'loft'; if (YROOM) YROOM.g.visible = p === 'yard'; if (typeof IN !== 'undefined' && IN) Object.keys(IN.groups).forEach(function (k) { IN.groups[k].g.visible = p === 'inside' && k === IN.key; IN.groups[k].g.position.set(0, 0, 0); }); PLACE.vis = p;
+      if (outdoorP(p)) yardBorrow(p === 'yard');   /* 11-15: 비 · 눈 입자 · 창 불빛을 보이는 바깥 장소로 */
+      atticG.position.set(0, 0, 0); extG.position.set(0, 0, 0); if (PROOM) PROOM.g.position.set(0, 0, 0); if (LROOM) LROOM.g.position.set(0, 0, 0); if (YROOM) YROOM.g.position.set(0, 0, 0); panReset(); PAN.cut = true; PAN.arrive = p !== prev;   /* 장소가 바뀌면 밀린 것은 0 (장소마다 경계가 다르다) · 의식 중 확대면 다음 따라가기가 그 자리로 바로 (디더에 덮인 프레임) */
       if (!isRoomP(p)) { var g = groupOf(p); if (octG.parent !== g) g.add(octG); }   /* 놀이방: 문어는 자기 장소(cur) 그룹에 남아 그 그룹과 같이 숨는다 (놀이방엔 문어가 없다) */
+      if (YARD_WIDE && (p === 'yard') !== (prev === 'yard')) applyZoom();   /* 11-21 7차: 바깥 ↔ 방은 배율이 다르다 — 전환이 화면을 덮은 프레임에 바꾼다 */
       applyLight(); dither.still = 0;
       container.dataset.view = p;
       if (p !== prev) emit('view', p, prev);
@@ -3372,6 +4982,7 @@ var SCENE3D = (function () {
       var swap = o.onSwap || function () { defaultSwap(p); };
       if (PLACE.room) {   /* 놀이방에 있는 동안: 이야기 장소만 바뀐다 — 화면·전환은 그대로, 문어 그룹만 옮기고 자리 맞춤(swap)은 바로 (안 보이는 곳에서) */
         if (p === PLACE.cur) return;
+        if (TB.oct !== 'none') octTableUnmount();   /* 11-18 식탁의 문어가 이야기 장소를 따라갈 땐 먼저 내려놓는다 */
         PLACE.cur = p; var gp = groupOf(p); if (octG.parent !== gp) gp.add(octG); swap(p); return;
       }
       if (PLACE.trans) finishTrans();
@@ -3442,23 +5053,28 @@ var SCENE3D = (function () {
       it.until = function () { return !tr || PLACE.trans !== tr; };
       return it;
     }
+    function yardDoorBusy() { return !!(CER && CER.active && (CER.name === 'depart' || CER.name === 'return')); }   /* 11-15: 문어가 산책 문을 쓰는 동안 (출발 · 귀가 의식) — 마당 문 단추는 숨고 goRoom('yard') 는 기다리라고 돌려준다 */
     function goRoom(room, o) {
       o = o || {};
       var enter = isRoomP(room), stair = room === 'loft' || (!enter && PLACE.room === 'loft');   /* 위층은 문이 아니라 계단: 문짝 · 끼익 없이 위아래로 미끄러진다 */
       function no(why) { return Promise.resolve({ ok: false, reason: why, view: PLACE.vis, room: PLACE.room, place: PLACE.cur }); }
       if (DQ.active || DQ.pending) return no('busy');
       if (INTRO.on) return no('intro');
+      if (PLACE.room === 'inside') return enter ? no('far') : leaveRoom().then(function (r) { return r && r.ok ? goRoom(room, o) : { ok: false, reason: 'busy', view: PLACE.vis, room: PLACE.room, place: PLACE.cur }; });   /* 11-22: 가게 · 카페 안에서 집으로 ('산책 갈래?' · 돌아온 문어 보러 가기) = 먼저 문 밖으로 나온 뒤 예전 길 */
       if (enter ? PLACE.room === room : !PLACE.room) return no('here');
       if (enter && (PLACE.room || (room === 'loft' && PLACE.vis !== 'attic'))) return no('far');   /* 방에서 방으로 바로는 못 간다 (거실을 거친다) · 계단은 거실에만 있다 */
-      var anchor = stair ? (enter ? 'atticStair' : 'loftStair') : enter ? (PLACE.vis === 'attic' && !PLACE.trans ? 'atticPlayDoor' : null) : 'playAtticDoor';
+      var yard = room === 'yard' || (!enter && PLACE.room === 'yard');   /* 11-15 마당: 문어 산책 문을 같이 쓴다 */
+      if (yard && yardDoorBusy()) return no('ceremony');   /* 문어가 그 문으로 나가거나 들어오는 동안 마당 문은 (나가는 쪽도 들어오는 쪽도) 기다린다 */
+      var anchor = stair ? (enter ? 'atticStair' : 'loftStair') : yard ? (enter ? (PLACE.vis === 'attic' && !PLACE.trans ? 'atticYard' : null) : 'yardAttic') : enter ? (PLACE.vis === 'attic' && !PLACE.trans ? 'atticPlayDoor' : null) : 'playAtticDoor';
       var walk = typeof o.walkFirst === 'function' ? o.walkFirst : o.walkFirst ? playerWalkTo : null;
       if (stair) enter = enter ? 'up' : 'down';
+      if (yard) enter = enter ? 'out' : 'in';
       if (!walk || !anchor) return runDoor(enter, o);
       DQ.pending = true;   /* 걷는 동안 두 번째 톡은 'busy' — 문 단추도 숨는다 */
       return Promise.resolve().then(function () { return walk(anchor, DOOR_ANCHORS[anchor].slice()); }).then(function (r) {
         DQ.pending = false;
         if (r === false || (r && r.ok === false)) return { ok: false, reason: 'walk', view: PLACE.vis, room: PLACE.room, place: PLACE.cur };
-        if (DQ.active || INTRO.on || (enter === true || enter === 'up' ? PLACE.room : !PLACE.room)) return { ok: false, reason: 'busy', view: PLACE.vis, room: PLACE.room, place: PLACE.cur };
+        if (DQ.active || INTRO.on || (enter === true || enter === 'up' || enter === 'out' ? PLACE.room : !PLACE.room) || ((enter === 'out' || enter === 'in') && yardDoorBusy())) return { ok: false, reason: 'busy', view: PLACE.vis, room: PLACE.room, place: PLACE.cur };
         return runDoor(enter, o);
       }, function () { DQ.pending = false; return { ok: false, reason: 'walk', view: PLACE.vis, room: PLACE.room, place: PLACE.cur }; });
     }
@@ -3469,7 +5085,17 @@ var SCENE3D = (function () {
       if (PLACE.trans) finishTrans();   /* 이야기 전환(다락 ↔ 바깥)이 돌던 중이면 끝 자리에서 출발 */
       var from = PLACE.vis, ctx = { to: 'play' }, items;
       DQ.instant = !!o.instant || !ready || ctxLost() || !!st.hidden;   /* 탭이 숨었거나 컨텍스트를 잃어 프레임이 안 도는 동안은 바로 (Promise 가 걸려 있지 않게) · debugStep 으로 멈춘 루프는 손으로 민다 */
-      if (enter === 'up') {
+      if (enter === 'out') {   /* 11-15 마당으로: 다락 뒷벽 문간(문어 산책 문) 알림 → 세로 전환 (다락이 아래로 · 마당이 위에서 — 바깥 나가는 전환과 같은 결) → 현관 알림. 문짝은 없다 (문간은 늘 열려 있다) */
+        if (!YROOM) buildYard();
+        PLACE.room = 'yard'; container.dataset.room = 'yard';
+        items = [doorItem(function () { return null; }, true, function () { return { act: 'open', room: 'yard', door: from === 'attic' ? 'atticYard' : null, from: from }; }),
+          slideItem(from, function () { return 'yard'; }, 1, function () { plEnter('yard'); }, 'y'),
+          doorItem(function () { return null; }, false, function () { return { act: 'close', room: 'yard', door: 'yardAttic', from: from }; })];
+      } else if (enter === 'in') {   /* 마당에서 집으로: 이야기 장소로 (문어가 산책 중이면 산책 화면 — 놀이방 문과 같다) */
+        items = [doorItem(function () { return null; }, true, function () { return { act: 'open', room: PLACE.cur, door: 'yardAttic', from: 'yard' }; }),
+          slideItem('yard', function () { PLACE.room = null; container.dataset.room = ''; ctx.to = PLACE.cur; return ctx.to; }, -1, function (to) { plEnter(to, 'yard'); }, 'y'),
+          doorItem(function () { return null; }, false, function () { return { act: 'close', room: ctx.to, door: ctx.to === 'attic' ? 'atticYard' : null, from: 'yard' }; })];
+      } else if (enter === 'up') {
         PLACE.room = 'loft'; container.dataset.room = 'loft';
         items = [slideItem(from, function () { return 'loft'; }, 1, function () { plEnter('loft'); octMountLoft(); }, 'y')];   /* 거실이 아래로 내려가고 위층이 위에서 내려온다 */
       } else if (enter === 'down') {
@@ -3486,7 +5112,7 @@ var SCENE3D = (function () {
             function (to) { setLeaf(PLAY_DOOR, 0); if (to === 'attic') setLeaf(ATTIC_DOOR, 4); plEnter(to); }),
           doorItem(function () { return ctx.to === 'attic' ? ATTIC_DOOR : null; }, false, function () { return { act: 'close', room: ctx.to, door: ctx.to === 'attic' ? 'atticPlay' : null, from: 'play' }; })];
       }
-      var p = dqRun(enter === true || enter === 'up' ? 'enter' : 'leave', items, o.onDoor);
+      var p = dqRun(enter === true || enter === 'up' || enter === 'out' ? 'enter' : 'leave', items, o.onDoor);
       if (DQ.instant) stepDQ(0);
       dither.still = 0;
       return p;
@@ -3503,6 +5129,28 @@ var SCENE3D = (function () {
     }
     var PLAY_WIN = { z0: 0.72, z1: 1.52, y0: 0.9, y1: 1.8 }, PLAY_DOOR_Z = snapPos(DOOR_ANCHORS.playAtticDoor[2]), PLAY_MX = -1.8;   /* 11-10: 방을 넓히며 오락기를 왼쪽으로 (조리대와 사이를 띄운다) */
     var SCR = { bg: PAL.navy[4], run: PAL.rose[2], hide: PAL.navy[4] };
+    /* 11-18 식탁 자리 (6차 §4.1, 주인 "조리대 옆에 식탁 하나 + 마주 보는 2인 소파"): 숫자는 캐릭터 실제 크기에서 — 문어 머리 0.84 m 폭(원점 위 0.386 중심, 반축 0.42 × 0.37) · 내 머리칼 껍질 r 0.38.
+       자리 B (오락기 줄 x −1.8 · 조리대 줄 x 0.95 사이, 뒷벽에서 띄움): 상자 + 0.25 가 T7 통로(문 줄 z −0.33 · 오락기 줄 · 조리대 줄 · 쉬는 자리 걷기)를 안 건드린다 — x −1.53..0.66 (가장자리 둘 다 2 cm 남김), z −1.92..−0.62.
+       서쪽 소파 = 문어 (+x 를 보고 앉는다 → 기본 카메라에 얼굴 3/4) · 동쪽 소파 = 나 (−x, 카메라에 등 3/4). 소파는 뒷벽 쪽 끝에만 팔걸이 — 앞(+z) 끝이 열려 거기서 폴짝 올라앉는다.
+       x 축: 등 0.12 · 문어 등판 면 → 원점 0.46 · 원점 → 식탁 0.48 (기울여 8° 에도 머리가 식탁 가장자리에서 ≥ 0.03) · 식탁 0.46 · 식탁 → 내 원점 0.22 · 내 원점 → 등판 면 0.33 · 등 0.12 */
+    function boothParts(pp) {   /* 식탁 + 2인 소파 둘 (정적 병합 — 드로우콜 0): 다락 소파 말씨 (통통한 상자 · 방석 윗면 1px 밝은 띠) · PAL 램프만 */
+      var B = BOOTH, CU = PAL[B.cushion], cD = CU[1], cM = CU[2], cL = CU[3], zc = (B.z0 + B.z1) / 2, zl = B.z1 - B.z0, sy = B.seatY;
+      [B.oct, B.me].forEach(function (S) {
+        var dir = S.front > S.back ? 1 : -1, xb = Math.min(S.back, S.face), xf = Math.max(S.back, S.face), sx0 = Math.min(S.face, S.front), sx1 = Math.max(S.face, S.front), d = sx1 - sx0;
+        pp.push({ g: box(Math.abs(S.front - S.back), 0.21, zl), m: M((S.front + S.back) / 2, 0.175, zc), c: W[2] });   /* 몸통 (나무 틀) */
+        [B.z0 + 0.06, B.z1 - 0.06].forEach(function (z) { [S.back + dir * 0.06, S.front - dir * 0.06].forEach(function (x) { pp.push({ g: box(0.07, 0.07, 0.07), m: M(x, 0.035, z), c: W[1] }); }); });   /* 발 4 */
+        var cz0 = B.z0 + B.armD, cl = (B.z1 - cz0 - 0.02) / 2;
+        [cz0 + cl / 2, cz0 + cl * 1.5 + 0.02].forEach(function (z) {   /* 방석 2 (2인용) + 윗면 띠 */
+          pp.push({ g: box(d, 0.13, cl), m: M((sx0 + sx1) / 2, sy - 0.08, z), c: cM }, { g: box(d - 0.06, 0.03, cl - 0.06), m: M((sx0 + sx1) / 2, sy - 0.015, z), c: cL });
+        });
+        pp.push({ g: box(xf - xb, B.backH - 0.07, zl), m: M((xb + xf) / 2, (B.backH + 0.07) / 2, zc), c: cD }, { g: box(xf - xb - 0.04, 0.03, zl - 0.04), m: M((xb + xf) / 2, B.backH - 0.015, zc), c: cM });   /* 등판 + 윗면 띠 */
+        pp.push({ g: box(sx1 - sx0, B.armH - 0.07, B.armD), m: M((sx0 + sx1) / 2, (B.armH + 0.07) / 2, B.z0 + B.armD / 2), c: cD }, { g: box(sx1 - sx0 - 0.04, 0.03, B.armD - 0.04), m: M((sx0 + sx1) / 2, B.armH - 0.015, B.z0 + B.armD / 2), c: cM });   /* 팔걸이 (뒷벽 쪽 끝 하나) */
+      });
+      var Tb = B.table, tx = (Tb.x0 + Tb.x1) / 2, tz = (Tb.z0 + Tb.z1) / 2, tw = Tb.x1 - Tb.x0, td = Tb.z1 - Tb.z0;
+      pp.push({ g: box(tw, Tb.th - 0.012, td), m: M(tx, Tb.top - 0.012 - (Tb.th - 0.012) / 2, tz), c: W[2] }, { g: box(tw - 0.04, 0.012, td - 0.04), m: M(tx, Tb.top - 0.006, tz), c: W[3] });   /* 윗판 (W[2] 테 + W[3] 면) */
+      [[Tb.x0 + 0.06, Tb.z0 + 0.06], [Tb.x1 - 0.06, Tb.z0 + 0.06], [Tb.x0 + 0.06, Tb.z1 - 0.06], [Tb.x1 - 0.06, Tb.z1 - 0.06]].forEach(function (q) { pp.push({ g: box(0.06, Tb.top - Tb.th, 0.06), m: M(q[0], (Tb.top - Tb.th) / 2, q[1]), c: W[1] }); });
+      pp.push({ g: box(0.36, 0.004, 0.36), m: M(tx, Tb.top + 0.002, Tb.dishZ), c: PAL.paper[2] });   /* 접시 자리 깔개 (식탁 앞쪽 — 두 머리에 안 가린다) */
+    }
     function buildPlayRoom() {
       var Rp = PLAY_R, H = PLAY_H, g = new T.Group(); g.name = 'play'; g.visible = false; scene.add(g);
       var pp = [], n = 0, P = 0.12, dw = 0.72, dh = 1.68, WZ = PLAY_WIN, MX = PLAY_MX;
@@ -3625,7 +5273,10 @@ var SCENE3D = (function () {
         pp.push({ g: box(ax ? 0.16 : 0.06, 0.06, ax ? 0.06 : 0.16), m: M(ax ? -Rp + 0.14 : q[0], 1.8, ax ? q[2] : -Rp + 0.14), c: W[1] }); n++;
       });
       /* 놀이방 → 다락 문 (왼쪽 벽, 다락 문과 같은 칠): 문틀은 벽에 박힌 깊은 틀 (0.2 m), 그림자를 던진다 (닫히면 문짝이, 열리면 문간판이 해를 막는다) */
+      boothParts(pp); n += 3;   /* 11-18 식탁 · 소파 둘 */
       PLAY_DOOR = makeDoor(Object.assign({}, DOOR_PAINT, { name: 'playAttic', parent: g, x: -Rp, z: PLAY_DOOR_Z, w: dw, h: dh, depth: 0.2, cast: true, sill: null }));
+      var CUT_P = cutSplit(pp, { walls: [['left', 'x', -Rp, 1.0], ['back', 'z', -Rp, 1.4]], knee: 2 * rh,   /* 11-15 돌려 보기: 오락기 · 부엌 (조리대 위 냄비 · 주전자까지)은 바닥 가구라 남긴다 — 걸이 봉 · 선반 · 후드는 뒷벽과 같이 */
+        keep: [[MX - 0.45, MX + 0.45, -1, 1.75, -Rp + 0.04, zb + 0.6], [KX + 0.2, KX + ox + 0.45, -1, 1.15, -Rp + 0.15, lz1 + 0.15], [BOOTH.x0 - 0.05, BOOTH.x1 + 0.05, -1, BOOTH.backH + 0.1, BOOTH.z0 - 0.05, BOOTH.z1 + 0.05]] });   /* 11-18 식탁 자리도 남긴다 */
       var room = new T.Mesh(keep(mergeParts(pp)), lambert); room.castShadow = true; room.receiveShadow = true; g.add(room);
       /* 창 유리: 다락 창의 재질을 같이 쓴다 (시각대 색·발광을 applyLight 가 이미 맞춘다) */
       var gl = new T.Mesh(keep(new T.PlaneGeometry(wzl, wyl)), glass.material); gl.position.set(-Rp + 0.01, wyc, wzc); gl.rotation.y = Math.PI / 2; g.add(gl);
@@ -3649,9 +5300,16 @@ var SCENE3D = (function () {
       var shp = new T.Mesh(keep(mergeParts([{ g: box(2 * Rp + 1.2, 0.05, 2 * Rp + 1.2), m: M(0, H + 0.06, 0), c: '#000000' }, { g: box(2 * Rp + 1.2, H + 1.2, 0.05), m: M(0, H / 2, Rp + 0.55), c: '#000000' },
         { g: box(0.05, H + 1.2, 2 * Rp + 1.2), m: M(Rp + 0.55, H / 2, 0), c: '#000000' }, { g: box(0.05, H + 1.2, 0.7), m: M(-Rp - 0.1, H / 2, Rp + 0.3), c: '#000000' }])), shade.material);
       shp.castShadow = true; shp.receiveShadow = false; shp.frustumCulled = false; shp.renderOrder = -10; g.add(shp);
+      cutRoom('play', g, { lo: CUT_P, hi: null, lo0: -Rp, xR: Rp, zF: Rp, knee: 2 * rh, shade: shp, bulbs: { mesh: bulbs, em: bulbEm, parts: bp }, skirt: 0.86,
+        lowExtra: function (k) { return k === 'left' ? [{ g: box(0.12, 2 * rh, dw + 2 * P), m: M(-Rp, rh, PLAY_DOOR_Z), c: MAT.wallB }] : []; },
+        shadeExtra: [{ g: box(0.12, dh + P, dw + 2 * P), m: M(-Rp, (dh + P) / 2, PLAY_DOOR_Z), c: '#000000' }],   /* 문 자리 그림자 (문이 잘려 숨어도 해가 문 구멍으로 들어와 문 앞의 나를 하얗게 태우지 않게 — 닫힌 문 · 열린 문간판이 막던 그대로) */   /* 왼벽이 잘리면 다락 문도 같이 숨는다 (문 앞에 선 내 캐릭터를 가렸다) → 띠가 문 자리를 메우고, 문은 그 자리 단추(playAttic)로 그대로 눌린다 */
+        newWalls: function (q, k) { if (k === 'right') { cutBoards(q, 'x', Rp, -1, -Rp, Rp, H, rows, []); cutStuds(q, 'x', Rp, -1, [0.6, 1.9], H); } else { cutBoards(q, 'z', Rp, -1, -Rp, Rp, H, rows, [], true); cutStuds(q, 'z', Rp, -1, [-1.4, 0, 1.4], H); } },
+        dyn: function () { var L = cutOf('play', 'left'); return [[gl, L], [PLAY_DOOR.g, L]]; } });
       PROOM = { g: g, room: room, glass: gl, screen: scr, screenGeo: scrGeo, screenEm: scrEm, bulbs: bulbs, bulbEm: bulbEm, lA: lA, lB: lB, shade: shp, props: n,
-        machineBox: new T.Box3(new T.Vector3(MX - 0.36, 0, zb), new T.Vector3(MX + 0.36, 1.66, zb + 0.54)), counterBox: new T.Box3(new T.Vector3(KX + cx - 0.73, 0, cz - 0.28), new T.Vector3(KX + ox + 0.35, 0.87, cz + 0.32)), legBox: new T.Box3(new T.Vector3(KX + lx - 0.3, 0, lz0), new T.Vector3(KX + lx + 0.3, 0.87, lz1 + 0.06)), scr: { t: 0, f: 0 } };   /* counterBox = 조리대 윗판 둘레 (내 캐릭터 장애물) */
+        machineBox: new T.Box3(new T.Vector3(MX - 0.36, 0, zb), new T.Vector3(MX + 0.36, 1.66, zb + 0.54)), counterBox: new T.Box3(new T.Vector3(KX + cx - 0.73, 0, cz - 0.28), new T.Vector3(KX + ox + 0.35, 0.87, cz + 0.32)), legBox: new T.Box3(new T.Vector3(KX + lx - 0.3, 0, lz0), new T.Vector3(KX + lx + 0.3, 0.87, lz1 + 0.06)), scr: { t: 0, f: 0 },
+        boothBox: new T.Box3(new T.Vector3(BOOTH.x0, 0, BOOTH.z0), new T.Vector3(BOOTH.x1, BOOTH.backH, BOOTH.z1)) };   /* 11-18 식탁 자리 (장애물 · 'table' 단추) */   /* counterBox = 조리대 윗판 둘레 (내 캐릭터 장애물) */
       playApplyLight(); doorsApplyLight();
+      if (TB.dish) dishRebuild();   /* 11-18 짓기 전에 놓인 요리 */
       return PROOM;
     }
     /* ── 위층 다락 (11-10 주인: "계단으로 이어지는 윗층 다락방 · 창문은 동그란 창에 + 살 · 세모난 면이 벽면 · 기둥 눕힌 것처럼 · 미용실과 재봉틀 · 옷감 · 염료 있는 옷방"):
@@ -3715,6 +5373,9 @@ var SCENE3D = (function () {
       pp.push({ g: box(0.16, 0.03, hd - 0.12), m: M(HATCH.x0 + 0.12, 0.018, hz), c: W[4] }); pp.push({ g: box(0.16, 0.03, hd - 0.12), m: M(HATCH.x0 + 0.34, 0.016, hz), c: W[2] });
       [[HATCH.x0, HATCH.z0], [HATCH.x1, HATCH.z0], [HATCH.x1, HATCH.z1], [HATCH.x0, HATCH.z1]].forEach(function (q) { pp.push({ g: box(0.07, 0.8, 0.07), m: M(q[0], 0.4, q[1]), c: W[1] }); });
       pp.push({ g: box(hw, 0.06, 0.06), m: M(hx, 0.78, HATCH.z0), c: W[2] }); pp.push({ g: box(hw, 0.06, 0.06), m: M(hx, 0.78, HATCH.z1), c: W[2] }); pp.push({ g: box(0.06, 0.06, hd), m: M(HATCH.x1, 0.78, hz), c: W[2] }); n += 2;
+      /* 11-15 내려가는 길 표시 (다락 계단과 같은 stairCue): 구멍 테두리 셋 (들어가는 −x 쪽 · 앞뒤) + 안쪽 디딤판 둘의 앞 모서리 띠 · 카메라 쪽 앞(+x +z) 기둥 위 초롱 (들머리 −x 쪽 기둥은 올라온 내 캐릭터가 서는 자리라 가린다) */
+      var hatchEdges = [[HATCH.x0 + 0.025, 0.012, hz, 0.05, 0.02, hd], [hx, 0.012, HATCH.z0 + 0.025, hw, 0.02, 0.05], [hx, 0.012, HATCH.z1 - 0.025, hw, 0.02, 0.05],
+        [HATCH.x0 + 0.06, 0.02, hz, 0.04, 0.036, hd - 0.116], [HATCH.x0 + 0.28, 0.018, hz, 0.04, 0.036, hd - 0.116]];
       /* 옷방 (뒷벽): 재봉 책상 + 재봉틀 + 걸상 */
       var zb = -Rl + 0.06, sx = -0.2, sz = zb + 0.3;   /* 11-11: 뒷벽 왼쪽은 미용실 거울 자리 → 재봉 책상 · 옷감 선반을 오른쪽으로 */
       pp.push({ g: box(0.8, 0.05, 0.52), m: M(sx, 0.7, sz), c: W[3] }); [[-0.34, -0.2], [0.34, -0.2], [-0.34, 0.2], [0.34, 0.2]].forEach(function (q) { pp.push({ g: box(0.06, 0.68, 0.06), m: M(sx + q[0], 0.34, sz + q[1]), c: W[1] }); });
@@ -3745,6 +5406,9 @@ var SCENE3D = (function () {
       pp.push({ g: new T.CylinderGeometry(0.16, 0.2, 0.04, 8), m: M(mx, 0.02, mz), c: W[1] }); pp.push({ g: new T.CylinderGeometry(0.025, 0.025, 0.62, 6), m: M(mx, 0.33, mz), c: W[1] });
       pp.push({ g: new T.CylinderGeometry(0.15, 0.2, 0.4, 9), m: M(mx, 0.84, mz), c: PAL.amber[3] }); pp.push({ g: new T.SphereGeometry(0.155, 9, 6), m: M(mx, 1.04, mz, 0, 0, 0, 1, 0.7, 0.85), c: PAL.amber[3] });
       pp.push({ g: new T.CylinderGeometry(0.2, 0.26, 0.2, 9), m: M(mx, 0.56, mz), c: PAL.amber[2] }); pp.push({ g: new T.CylinderGeometry(0.04, 0.05, 0.08, 6), m: M(mx, 1.16, mz), c: PAL.paper[1] }); n++;
+      /* 11-18 (주인: "옷 간단한 하얀 원피스라도 의상쪽 마네킹에 입혀서 사용자가 인식할 수 있게"): 마네킹에 흰 원피스 — 윗도리 (몸통보다 1.5 cm 크게) · 어깨 · 분홍 허리 띠 · 퍼지는 치마 · 밑단 한 줄. 여기가 옷 물들이는 자리라는 표시 (톡하면 재봉틀과 같은 창 — 아래 dollBox) */
+      pp.push({ g: new T.CylinderGeometry(0.165, 0.215, 0.42, 9), m: M(mx, 0.85, mz), c: FIXED.white }); pp.push({ g: new T.SphereGeometry(0.17, 9, 6), m: M(mx, 1.04, mz, 0, 0, 0, 1, 0.7, 0.85), c: FIXED.white });
+      plDollTee(pp, mx, mz); n++;   /* 11-21 (주인 "하얀 티셔츠에 문어 그려진 옷을 마네킹 위에"): 흰 원피스의 허리띠 · 치마 대신 문어 티셔츠 — 윗도리 두 조각 (윗줄) 은 그대로 티셔츠 몸판이 된다 */
       /* 미용실: 진짜 거울 코너(salG)가 뒷벽 왼쪽에 걸린다 (아래 LSALW). 그 앞은 비워 둔다 — 문어가 거울로 걸어가는 길 (11-12: 둥근 의자를 뺐다) */
       /* 깔개 + 방석 + 궤짝 */
       pp.push({ g: box(1.5, 0.008, 1.1), m: M(0.1, 0.004, 0.55), c: MAT.rugEdge }); pp.push({ g: box(1.36, 0.01, 0.96), m: M(0.1, 0.005, 0.55), c: MAT.rugA }); pp.push({ g: box(1.0, 0.012, 0.6), m: M(0.1, 0.006, 0.55), c: MAT.rugB });
@@ -3753,6 +5417,9 @@ var SCENE3D = (function () {
       /* 벽 등 받침 2 */
       var SC = [[0.75, 1.3, -Rl + 0.2], [-Rl + 0.2, 1.3, -1.55]];
       pp.push({ g: box(0.06, 0.06, 0.14), m: M(SC[0][0], 1.38, -Rl + 0.12), c: W[1] }); pp.push({ g: box(0.14, 0.06, 0.06), m: M(-Rl + 0.12, 1.38, SC[1][2]), c: W[1] });
+      var CUT_LW = [['left', 'x', -Rl, 1.0], ['back', 'z', -Rl, 1.2]];   /* 11-15 돌려 보기: 재봉 책상 · 걸상 · 옷감 선반(위 염료 병까지) · 계단 구멍 난간은 남기고 · 선반 위 벽 등 받침은 뒷벽으로 */
+      var CUT_L = cutSplit(pp, { walls: CUT_LW, keep: [[sx - 0.5, sx + 0.5, -1, 1.25, zb + 0.03, sz + 0.8], [fx0 - 0.03, fx0 + fw + 0.06, -1, 1.5, zb + 0.005, zb + 0.45], [HATCH.x0 - 0.1, HATCH.x1 + 0.1, -1, 1, HATCH.z0 - 0.1, HATCH.z1 + 0.1]],
+        to: [[SC[0][0] - 0.05, SC[0][0] + 0.05, 1.3, 1.45, -Rl, -Rl + 0.2, 'back']] }), CUT_LH = cutSplit(hi, { walls: CUT_LW }, true);
       var room = new T.Mesh(keep(mergeParts(pp)), lambert); room.castShadow = true; room.receiveShadow = true; g.add(room);
       var roomHi = new T.Mesh(keep(mergeParts(hi)), lambert); roomHi.castShadow = false; roomHi.receiveShadow = true; g.add(roomHi);
       var gl = new T.Mesh(keep(new T.CircleGeometry(WR, 24)), glass.material); gl.position.set(-Rl + 0.01, wyc, 0); gl.rotation.y = Math.PI / 2; g.add(gl);
@@ -3765,24 +5432,34 @@ var SCENE3D = (function () {
       var shp = new T.Mesh(keep(mergeParts([{ g: box(2 * Rl + 1.2, 0.05, 2 * Rl + 1.2), m: M(0, PK + 0.3, 0), c: '#000000' }, { g: box(2 * Rl + 1.2, PK + 1.2, 0.05), m: M(0, PK / 2, Rl + 0.55), c: '#000000' },
         { g: box(0.05, PK + 1.2, 2 * Rl + 1.2), m: M(Rl + 0.55, PK / 2, 0), c: '#000000' }, { g: box(2 * Rl + 1.2, PK - H + 0.4, 0.05), m: M(0, (PK + H) / 2 + 0.2, -Rl - 0.1), c: '#000000' }])), shade.material);
       shp.castShadow = true; shp.receiveShadow = false; shp.frustumCulled = false; shp.renderOrder = -10; g.add(shp);
-      LROOM = { g: g, room: room, glass: gl, bulbEm: bulbEm, lA: lA, lB: lB, shade: shp, props: n, cushions: cush,
-        sewBox: new T.Box3(new T.Vector3(sx - 0.4, 0, zb), new T.Vector3(sx + 0.4, 1.1, sz + 0.3)), hatchBox: new T.Box3(new T.Vector3(HATCH.x0, 0, HATCH.z0), new T.Vector3(HATCH.x1, 0.8, HATCH.z1)),
-        boxes: [[sx, sz, 0.4, 0.28], [sx, sz + 0.55, 0.16, 0.16], [fcx, zb + 0.2, fw / 2 + 0.03, 0.22], [dx + 0.5, zb + dzb, 0.28, 0.28], [mx, mz, 0.2, 0.2], [1.55, 1.4, 0.37, 0.24], [hx + 0.1, hz, hw / 2 - 0.1, hd / 2]] };
+      cutRoom('loft', g, { lo: CUT_L, hi: CUT_LH, lo0: -Rl, xR: Rl, zF: Rl, shade: shp, hiRecv: true, skirt: 0.85, bulbs: { mesh: bulbs, em: bulbEm, parts: bp },
+        newWalls: function (q, k) {   /* 앞 = 무릎벽 + 위 도리 · 오른 = 박공 (왼벽과 같은 세모 · 테) */
+          if (k === 'front') { cutBoards(q, 'z', Rl, -1, -Rl, Rl, H, 5, [], true); q.push({ g: box(2 * Rl + 0.1, 0.1, 0.16), m: M(0, H + 0.02, Rl), c: W[1] }); return; }
+          cutBoards(q, 'x', Rl, -1, -Rl, Rl, H, 5, []);
+          for (var j = 0; j < 5; j++) { var y0 = H + j * gr, hw = Rl * (1 - (j + 0.5) / 5); q.push({ g: box(0.12, gr, 2 * hw), m: M(Rl, y0 + gr / 2, 0), c: j % 2 ? MAT.wallB : MAT.wallA }); q.push({ g: box(0.02, 0.045, 2 * hw), m: M(Rl - 0.065, y0, 0), c: MAT.wallSeam }); }
+          seg(q, [Rl - 0.03, H - 0.02, -Rl - 0.05], [Rl - 0.03, PK + 0.08, 0], 0.09, W[1]); seg(q, [Rl - 0.03, PK + 0.08, 0], [Rl - 0.03, H - 0.02, Rl + 0.05], 0.09, W[1]);
+          cutStuds(q, 'x', Rl, -1, [-1.2], gy(1.2) - 0.1); cutStuds(q, 'x', Rl, -1, [1.2], gy(1.2) - 0.1);
+        },
+        dyn: function () { var B = cutOf('loft', 'back'), out = [[gl, cutOf('loft', 'left')]]; if (LSALW && salG.parent === LSALW) out.push([salG, B]); return out; } });
+      LROOM = { g: g, room: room, glass: gl, bulbEm: bulbEm, lA: lA, lB: lB, shade: shp, props: n, cushions: cush, cue: stairCue(g, hatchEdges, [HATCH.x1, 0.81, HATCH.z1]),
+        sewBox: new T.Box3(new T.Vector3(sx - 0.4, 0, zb), new T.Vector3(sx + 0.4, 1.1, sz + 0.3)), dollBox: new T.Box3(new T.Vector3(mx - 0.36, 0, mz - 0.36), new T.Vector3(mx + 0.36, 1.2, mz + 0.36)),   /* 11-18: 원피스 입은 마네킹도 옷 물들이기 창을 연다 */ hatchBox: new T.Box3(new T.Vector3(HATCH.x0, 0, HATCH.z0), new T.Vector3(HATCH.x1, 0.8, HATCH.z1)),
+        boxes: [[sx, sz, 0.4, 0.28], [sx, sz + 0.55, 0.16, 0.16], [fcx, zb + 0.2, fw / 2 + 0.03, 0.22], [dx + 0.5, zb + dzb, 0.28, 0.28], [mx, mz, 0.3, 0.3], [1.55, 1.4, 0.37, 0.24], [hx + 0.1, hz, hw / 2 - 0.1, hd / 2]] };
       LSAL.dx = snapPos(-1.5) - SALC.x; LSAL.dz = snapPos(R - LOFT_R);   /* 다락 뒷벽(z = −R) 의 코너를 위층 뒷벽(z = −LOFT_R) 의 x = −1.5 로 */
       LSALW = new T.Group(); LSALW.name = 'loftSalon'; LSALW.position.set(LSAL.dx, 0, LSAL.dz); g.add(LSALW); LSALW.add(salG);
       loftApplyLight();
       return LROOM;
     }
+    function roomNightUp() { return 1 + 0.25 * nightK(); }   /* 11-15 위층·놀이방 벽 등: 밤(nightK 1)에 세기·거리 ×1.25 — 노을까지는 그대로 (주인 11-14 "저녁이라 해도 너무 어두워서") */
     function loftApplyLight() {
       var P = LROOM; if (!P) return;
-      var em = light.em == null ? 1 : light.em, nk = clamp((em - 0.25) / 0.75, 0, 1);
-      P.lA.intensity = 0.5 + 0.8 * nk; P.lB.intensity = 0.4 + 0.65 * nk;
+      var em = light.em == null ? 1 : light.em, nk = clamp((em - 0.25) / 0.75, 0, 1), up = roomNightUp();
+      P.lA.intensity = (0.5 + 0.8 * nk) * up; P.lB.intensity = (0.4 + 0.65 * nk) * up; P.lA.distance = 4.6 * up; P.lB.distance = 4.2 * up;   /* 11-15 밤 ×1.25 (다락 등불 1.2 → 1.5 · 6 → 7.5 와 같은 비율) */
       P.bulbEm.material.color.copy(C(EM.lamp)).multiplyScalar(0.6 + 0.4 * nk);
     }
     function playApplyLight() {   /* 벽 등 2: 낮에도 켜짐(약하게), 노을·밤에 세게 — 시각대 em (낮 0.25 → 밤 1) 따라. 화면·전구 발광도 */
       var P = PROOM; if (!P) return;
-      var em = light.em == null ? 1 : light.em, nk = clamp((em - 0.25) / 0.75, 0, 1);
-      P.lA.intensity = 0.5 + 0.8 * nk; P.lB.intensity = 0.4 + 0.65 * nk;
+      var em = light.em == null ? 1 : light.em, nk = clamp((em - 0.25) / 0.75, 0, 1), up = roomNightUp();
+      P.lA.intensity = (0.5 + 0.8 * nk) * up; P.lB.intensity = (0.4 + 0.65 * nk) * up; P.lA.distance = 4.6 * up; P.lB.distance = 4.2 * up;   /* 11-15 밤 ×1.25 (위층과 같이) */
       P.bulbEm.material.color.copy(C(EM.lamp)).multiplyScalar(0.6 + 0.4 * nk);
       P.screenEm.material.color.copy(C(PAL.sky[1])).multiplyScalar(0.3 + 0.4 * nk);
     }
@@ -3807,10 +5484,11 @@ var SCENE3D = (function () {
     EXT_P.stop = [EXT_P.edge[0] - EXIT_DIR[0] * FADE_LEN, 0, EXT_P.edge[2] - EXIT_DIR[1] * FADE_LEN];
     function V(a) { return new T.Vector3(a[0], a[1], a[2]); }
     function cerWalk(to, speed, hop, fade) { /* 걷기(hop 0, 다리 번갈아 + 통통) 또는 폴짝(hop = 호 높이) — 마디 하나. fade = [시작 밀도, 끝 밀도]: 간 거리에 맞춰 체크 8단계로 사라짐·나타남 */
-      var from = new T.Vector3(), tv = V(to), it = { dur: 0 };
-      it.start = function () { from.copy(oct.pos); var d = tv.clone().sub(from); it.dur = st.reduced ? 0 : Math.max(0.05, (hop ? 0.22 : Math.hypot(d.x, d.z) / speed)) * st.speed; if (Math.hypot(d.x, d.z) > 1e-3) oct.wantYaw = Math.atan2(d.x, d.z); CER.walk = !hop; it.hold = hop || !it.dur ? 0 : anticHold(); it.dur += it.hold; if (fade) setOctFade(fade[0]); };   /* 서 있다 걷기 시작하면 예비 동작만큼 제자리 */
-      it.update = function (k) { var w = it.dur > it.hold ? Math.max(0, (k * it.dur - it.hold) / (it.dur - it.hold)) : 1; oct.pos.lerpVectors(from, tv, w); oct.hop = hop ? Math.sin(k * Math.PI) * hop / OCT_R : 0; if (fade) setOctFade(fade[0] + (fade[1] - fade[0]) * w); };
-      it.end = function () { oct.pos.copy(tv); oct.hop = 0; CER.walk = false; if (fade) setOctFade(fade[1]); };
+      var from = new T.Vector3(), tv = V(to), it = { dur: 0 }, plan = null, pd = 0;
+      it.start = function () { from.copy(oct.pos); plan = hop ? null : octPlan(from, tv); if (plan && plan.pts.length < 2 && !plan.groups.length) plan = null; pd = plan ? planDur(plan, speed) : 0; var d = (plan ? plan.pts[0] : tv).clone().sub(from); it.dur = st.reduced ? 0 : Math.max(0.05, hop ? 0.22 : plan ? pd : Math.hypot(d.x, d.z) / speed) * st.speed;   /* 11-15: 다락에서 걸을 땐 소파 · 상자를 돌아간다 · [7-W] 다섯째 바퀴: 칸 지도 길 (막히면 폴짝) */ if (Math.hypot(d.x, d.z) > 1e-3) oct.wantYaw = Math.atan2(d.x, d.z); CER.walk = !hop; it.hold = hop || !it.dur ? 0 : anticHold(); it.dur += it.hold; if (fade) setOctFade(fade[0]); };   /* 서 있다 걷기 시작하면 예비 동작만큼 제자리 */
+      it.land = function () { var q = plan && it.w != null ? planLand(plan, from, it.w * pd, speed) : null; if (q && oct.hop > 1e-3) oct.pos.copy(q); oct.hop = 0; NAV.hopNow = false; };   /* [7-W] 의식이 끊기면 폴짝 중이던 문어가 가구 위에 남지 않게 내리는 자리로 */
+      it.update = function (k) { var w = it.dur > it.hold ? Math.max(0, (k * it.dur - it.hold) / (it.dur - it.hold)) : 1; it.w = w; if (plan) { oct.hop = planAt(plan, from, w * pd, speed, oct.pos); NAV.hopNow = !!planLand(plan, from, w * pd, speed); CER.walk = !NAV.hopNow; } else { oct.pos.lerpVectors(from, tv, w); oct.hop = hop ? Math.sin(k * Math.PI) * hop / OCT_R : 0; } if (fade) setOctFade(fade[0] + (fade[1] - fade[0]) * w); };
+      it.end = function () { oct.pos.copy(tv); oct.hop = 0; CER.walk = false; NAV.hopNow = false; if (fade) setOctFade(fade[1]); };
       return it;
     }
     function cerWave() { /* 가장자리 0.5 m 앞에서 카메라 쪽으로 돌아보며 다리 하나 흔들기 (5칸 @ 12 fps ≈ 0.42 s, 0단계 '0.4초'). 모션 감소면 0 s (바로 사라진다) */
@@ -3822,10 +5500,12 @@ var SCENE3D = (function () {
     function cerDo(fn, dur) { return { dur: st.reduced ? 0 : (dur || 0), start: fn }; }
     function cerTrans(p, onSwap, dur) { var it = { dur: 0 }; it.start = function () { it.dur = st.reduced ? 0 : (dur || TRANS_DUR); setPlace(p, { onSwap: onSwap, dur: dur }); }; it.end = function () { if (PLACE.trans && !PLACE.trans.door) finishTrans(); }; return it; }   /* dur = 짧은 전환 (기본 TRANS_DUR) */
     function cerRun(name, items, onDone) {
+      if (FM.on && (name === 'depart' || name === 'return')) furnSave();   /* 11-15: 가구 모드 중 문어가 나가거나 돌아오면 저장하고 닫는다 (바뀐 것 안 잃음 · 문어 자리는 저장한 배치 기준) */
       if (SAL.active) salFinishNow();   /* 미용실 연출 중에 의식이 오면 (주 버튼 등) 남은 연출을 끝 상태로 감고 시작 */
-      if (CER.active) { CER.walk = false; oct.hop = 0; WAVE.on = false; }   /* 앞 의식은 조용히 취소 (onDone 안 부름) */
+      if (CER.active) { if (CER.cur && CER.cur.land) CER.cur.land(); CER.walk = false; oct.hop = 0; WAVE.on = false; }   /* 앞 의식은 조용히 취소 (onDone 안 부름) */
       if (oct.walking) { oct.walking.cancel(); oct.walking = null; }   /* 돌아다니던 걸음(moveTo)이 의식 위치를 덮어쓰지 않게 */
       if (octUp()) octUnmountLoft();   /* 의식(출발 · 귀가)은 다락에서 */
+      if (TB.oct !== 'none') octTableUnmount();   /* 11-18 식탁에 앉아 있어도 */
       CER.q = items; CER.cur = null; CER.active = true; CER.name = name;
       return new Promise(function (resolve) { CER.done = function () { if (onDone) onDone(); resolve(); }; });
     }
@@ -3989,11 +5669,11 @@ var SCENE3D = (function () {
         if (act === 'mailOpen') pose.mail = 1;
         pkPose(pose);
         if (act === 'ripple') PK.plop = 1;
-        setExpression(status === 'none' ? 'sleepy' : status === 'failed' ? 'calm' : happy && st.reduced ? 'happy' : 'curious');   /* read/first = curious → happy · builtin·simulated = curious · failed = calm · none = sleepy */
+        setExpression('idle');   /* 11-15 합침 (주인 C6 b · 검증 V4 S3): 기웃의 얼굴은 코드가 고르니 평소 얼굴 — 예전엔 read 면 curious → happy ('찾았다' ^ ^) · failed = calm · none = sleepy 로 마음을 덧입혔다. 자세 (기댐 · 으쓱 · 앉기) 는 몸짓이라 그대로 */
       };
       it.update = function (k) {
         var t = k * it.dur / st.speed; PK.t = t;
-        if (happy && !swapped && (t >= 0.35 || st.reduced)) { swapped = true; setExpression('happy'); if (!PK.sit) PK.lean = 0; }   /* 찾았다 → 몸을 펴고 폴짝 2 (^ ^ 눈이 보이게) */
+        if (happy && !swapped && (t >= 0.35 || st.reduced)) { swapped = true; if (!PK.sit) PK.lean = 0; }   /* 읽었다 → 몸을 편다 (11-15: 웃는 얼굴 · 폴짝은 뺐다 — 위 C6 b) */
         if (PK.count > -2 && !st.reduced) {   /* 수: 기둥마다 고개 까딱 (0.25 s 간격, 기둥 쪽으로 돌아보며) */
           var c = Math.min(PK_FENCE.length - 1, Math.floor(t / 0.25));
           if (c !== PK.count) { PK.count = c; PK.nod = 0; var f = PK_FENCE[c]; oct.wantYaw = Math.atan2(f[0] - oct.pos.x, f[1] - oct.pos.z); }
@@ -4068,37 +5748,187 @@ var SCENE3D = (function () {
       rustleM.visible = PK.rustle;
       if (PK.rustle) { var sgn = (PKP.step & 1) ? 1 : -1; rustleM.position.set(snapPos(0.5), 0, snapPos(-0.05)).addScaledVector(_r, sgn * S.pw); rustleM.scale.set(1.12, 1.08 + ((PKP.step >> 1) & 1) * 0.04, 1.12); }
     }
-    /* ── 바깥 텃밭 (11-10 주인: "바깥 맵에 텃밭 · 문어가 나가 있는 동안 가꾸기 · 염료는 기른다"): 마당 앞쪽에 밭 세 칸. 흙 · 나무 테는 늘 있고, 심은 것(씨앗 둔덕 · 새싹 · 꽃)은 setGarden 이 다시 만든다 (앱의 S.user.garden 그대로).
-       바깥이 보일 때 칸을 톡 하면 앱이 심기 · 물 주기 · 거두기를 한다 (단추 plot0…2). 물을 안 줘도 시들지 않는다 ── */
-    var PLOT = { xs: [0.65, 1.52, 2.39], z: 2.3, w: 0.7 }, plotG = new T.Group(), plotPlants = null, plotBase = null, plotKey = '', plotBoxes = [], plotState = [null, null, null];   /* 11-11: 0.1 m 오른쪽으로 (울타리 끝과 떨어지게) */
-    (function () {
-      var pp = [];
-      PLOT.xs.forEach(function (x) {
-        pp.push({ g: box(PLOT.w, 0.07, PLOT.w), m: M(x, 0.035, PLOT.z), c: W[0] });
-        [[0, -1], [0, 1]].forEach(function (d) { pp.push({ g: box(PLOT.w + 0.08, 0.1, 0.05), m: M(x, 0.05, PLOT.z + d[1] * (PLOT.w / 2 + 0.01)), c: W[3] }); });
-        [-1, 1].forEach(function (d) { pp.push({ g: box(0.05, 0.1, PLOT.w + 0.08), m: M(x + d * (PLOT.w / 2 + 0.01), 0.05, PLOT.z), c: W[3] }); });
-        plotBoxes.push(new T.Box3(new T.Vector3(x - PLOT.w / 2 - 0.05, 0, PLOT.z - PLOT.w / 2 - 0.05), new T.Vector3(x + PLOT.w / 2 + 0.05, 0.75, PLOT.z + PLOT.w / 2 + 0.05)));
-      });
-      plotBase = new T.Mesh(keep(mergeParts(pp)), lambert); plotBase.castShadow = true; plotBase.receiveShadow = true; plotG.add(plotBase); extG.add(plotG);
-    })();
-    function setGarden(list) {   /* [{ color: '#hex', water: 0|1|2 } | null] × 3 */
-      plotState = [0, 1, 2].map(function (i) { var g = list && list[i]; return g ? { color: String(g.color || '#e8a93a'), water: Math.max(0, Math.min(2, g.water | 0)) } : null; });
-      var key = JSON.stringify(plotState); if (key === plotKey) return; plotKey = key;   /* 11-11: 같은 밭이면 다시 짓지 않는다 (앱이 renderAll 마다 부른다) */
-      if (plotPlants) { plotG.remove(plotPlants); var k = disposables.indexOf(plotPlants.geometry); if (k >= 0) disposables.splice(k, 1); plotPlants.geometry.dispose(); plotPlants = null; }   /* 11-11: keep 목록에서도 뺀다 (장면을 버릴 때 같이 놓도록 keep 으로 건다) */
-      var pp = [];
-      plotState.forEach(function (g, i) {
-        if (!g) return; var x = PLOT.xs[i], z = PLOT.z;
-        if (g.water === 0) {   /* 씨앗: 밝은 흙 둔덕 + 팻말 막대 (11-11 — 어두운 흙 위 4×3 px 점이라 심은 게 안 보였다) */
-          pp.push({ g: new T.SphereGeometry(0.17, 7, 4), m: M(x, 0.07, z, 0, 0, 0, 1, 0.45, 1), c: W[3] }); pp.push({ g: box(0.05, 0.05, 0.05), m: M(x, 0.15, z), c: PAL.moss[3] || PAL.moss[2] });
-          pp.push({ g: box(0.035, 0.32, 0.035), m: M(x + 0.16, 0.2, z - 0.16), c: W[2] }); pp.push({ g: box(0.17, 0.11, 0.025), m: M(x + 0.17, 0.34, z - 0.15, 0, Math.PI / 4, 0), c: PAL.paper[3] }); return;
+    /* ── 마당 텃밭 (11-15 주인: "나가는 방문 만들고 농사 게임처럼 · 외출 맵 일부를 재활용하거나 더 넓게"): 문어 산책 화면과 따로 된 내 장소 'yard'.
+       바깥 디오라마의 집 · 길 · 덤불 · 돌 · 우체통 · 물웅덩이 조각(ep)을 그대로 다시 합치고, 받침을 반폭 YARD_L 로 넓혀 둘레에 울타리 · 나무를 둘렀다 (어느 쪽에서 봐도 받침 끝이 허공에 바로 닿지 않게).
+       나무 · 울타리 · 계절 장식 · 창은 바깥 지오메트리 · 재질을 같이 써서 계절 재색 · 시각대 창 빛이 저절로 따라온다 (applySeason · extApplyLight). 비 · 눈 입자와 1층 창 불빛(extLamp)은
+       마당이 보이는 동안만 마당 그룹으로 빌려 온다 (yardBorrow) — 점광 수가 바깥과 같아 새 셰이더가 없다. 문어는 마당에 오지 않는다 (문어 그룹은 이야기 장소에 남아 같이 숨는다).
+       밭 여섯 칸 (두 줄 세 칸): 앱이 연 칸 수만큼만 setGarden 목록이 온다 — 잠긴 칸은 아예 그리지 않는다 (울타리 · 자물쇠 · 숫자 없음). 드로우콜: 정적 1 · 집 1 · 나무 2 · 울타리 1 · 계절 1 · 창 2(+발광 2) · 문 1 · 밭 2 · 입자 */
+    var YPLOT = { xs: [0.75, 1.95, 3.15], zs: [1.45, 3.05], w: 0.7 }, plotG = new T.Group(), plotPlants = null, plotBase = null, plotKey = '', plotBoxes = [], plotState = [];
+    function plotXZ(i) { return [YPLOT.xs[i % 3], YPLOT.zs[(i / 3) | 0]]; }
+    var YARD_TREES = { round: [[-3.75, -3.7, 1.05, 0.7], [0.4, -3.95, 0.95, 2.1], [-4.0, 2.4, 0.9, 1.4], [3.85, -2.6, 1.0, 0.2]], cone: [[-2.2, -3.95, 1.1, 0], [-4.0, -1.0, 0.95, 0], [2.3, -4.0, 0.9, 0]] };   /* 둘레 나무 (뒤쪽 · 옆 가장자리 — 밭과 길 앞은 비운다) */
+    var YARD_LAMP = [0.2, 2.25];   /* 밭 옆 작은 등 (밤에 밭과 길이 읽히게 — 1층 창 불빛 점광을 여기로 빌려 온다) */
+    var YARD_CUTS = [];   /* 11-15: 카메라와 마당 사이에 설 수 있는 큰 것 { full, low, nx, nz, cx, cz } — 갈래 A 의 cutAdd 가 오면 그쪽에 건다 (아래 buildYard 끝) */
+    function buildYard() {
+      var g = new T.Group(); g.name = 'yard'; g.visible = false; scene.add(g);
+      var L = YARD_L, sc = SEASON_C[SEASON.cur], SW = 2 * L + 2 * SLAB_OV, yp = [];
+      /* 받침: 바깥과 같은 지층 (풀 태그 10 · 흙 · 1px 줄 · 아래 지층), 더 넓게 */
+      yp.push({ g: box(SW, 2 * PX, SW, 8, 1, 8), m: M(0, -PX, 0), c: sc.ground, tag: 10 });
+      if (YARD_WIDE) {   /* 11-18 넓은 바깥: 받침의 지층 대신 화면 끝까지 이어지는 땅 한 장 (마당 풀과 같은 색 · 같은 계절 재색 — 받침 윗면 바로 아래). 정점 조명이라 1.5 m 눈금으로 나눈다 */
+        yp.push(stPlane(WIDE.L0, WIDE.LAND, -WIDE.GT, WIDE.GT, -0.004, 4, sc.ground, 10));   /* 11-21 7차: 대각 네모 (집 뒤 60 m ~ 해변 계단 위 · 반폭 80 m) — 그 아래는 모래와 바다 (wideBuild) */
+      } else {
+      yp.push({ g: box(SW, 4 * PX, SW), m: M(0, -4 * PX, 0), c: MAT.slabTop });
+      yp.push({ g: box(SW + 0.02, PX, SW + 0.02), m: M(0, -6.5 * PX, 0), c: MAT.slabLine });
+      yp.push({ g: box(SW, 6 * PX, SW), m: M(0, -10 * PX, 0), c: MAT.slabBase });
+      }
+      /* 바깥 그림의 풀 · 디딤돌 (ep[4 .. h0]) · 덤불 · 돌 · 우체통 · 울타리 끝 (h1 .. p1) · 물웅덩이 (p1 ..) 를 그대로.
+         11-15 5차 (주인: "마당 맵에서 캐릭터 아래에 밝은 갈색 땅덩어리 전부 지워줘 … 카펫처럼 놓인 사각형 이어붙인 거"): 흙길 (태그 12, 납작 상자) 은 빼고
+         디딤돌만 풀 위에 남긴다. 물웅덩이의 진흙 테 (같은 태그지만 둥근 원기둥, h1 뒤) 는 웅덩이 그림이라 그대로. 산책 바깥 그림의 길은 그대로 */
+      ep.slice(4, EXT_MARK.h0).filter(function (q) { return q.tag !== 12; }).concat(ep.slice(EXT_MARK.h1)).forEach(function (q) { yp.push(q); });
+      /* 넓힌 땅의 풀 포기 (바깥 네모 3.2 밖 · 밭 · 나무 자리는 피한다) */
+      for (var i = 0, n = 0; i < 160 && n < 70; i++) {
+        var r = hash('ytuft' + i), x = -L + 0.2 + (r % 1000) / 1000 * (2 * L - 0.4), z = -L + 0.2 + ((r >> 10) % 1000) / 1000 * (2 * L - 0.4);
+        if (Math.max(Math.abs(x), Math.abs(z)) < EXT.L + 0.1 || yardTreeNear(x, z, 0.5) || yardPlotNear(x, z, 0.15)) continue;
+        yp.push({ g: box(0.07, 0.05 + (r >> 20) % 3 * 0.015, 0.07), m: M(snapPos(x), 0.025, snapPos(z)), c: sc.tuft, tag: 11 }); n++;
+      }
+      /* 11-15 5차: 계단 발치에서 밭 사이로 가던 흙길 가지 둘은 지웠다 (주인 — 위 흙길과 같이) */
+      if (YARD_WIDE) {
+        /* 마당 밖 풀 포기 (대각 좌표로 흩는다 — 마당 네모 안 · 길 위는 비운다) */
+        var segV = WIDE_PARTS.village;
+        for (i = 0, n = 0; i < 6000 && n < 1150; i++) {   /* 11-21 7차: 마을 · 광장 둘레까지 (포장한 길 · 광장 · 가게 터는 비운다). s 20 부터는 마을 구간 메시로 */
+          var wr = hash('wtuft' + i), wsd = -24 + (wr % 1000) / 1000 * 69.6, wtd = -26 + ((wr >>> 10) % 1000) / 1000 * 52, wq = wideXZ(wsd, wtd), wt = Math.abs(wtd);
+          if ((Math.abs(wq[0]) < L + 0.1 && Math.abs(wq[1]) < L + 0.1) || (wt < 0.5 && wsd > 5.6 && wsd < 20) || (wsd >= 19.6 && wsd < 38 && wt < 10.2) || (wsd >= 37.6 && wt < 8.3)) continue;
+          (wsd < 20 ? yp : segV).push({ g: box(0.07, 0.05 + (wr >>> 20) % 3 * 0.015, 0.07), m: M(snapPos(wq[0]), 0.025, snapPos(wq[1])), c: sc.tuft, tag: 11 }); n++;
         }
-        var hgt = g.water === 1 ? 0.22 : 0.46;
+        /* 디딤돌: 현관 계단 발치 → 밭 오른쪽 샛길 → 앞 모서리의 울타리 문 → 문 밖 길 (화면 아래로) */
+        var WPATH = [[2.35, -0.75], [3.88, -0.35], [3.88, 3.3], [4.15, 4.15]].concat([wideXZ(19.4, 0)]);   /* 11-21 7차: 마을 문 (s 19) 까지 — 그 뒤는 포장한 마을 길 */
+        for (i = 0; i < WPATH.length - 1; i++) {
+          var wa = WPATH[i], wb = WPATH[i + 1], wdx = wb[0] - wa[0], wdz = wb[1] - wa[1], wl = Math.hypot(wdx, wdz), ws = Math.max(1, Math.floor(wl / 0.44));
+          for (var wk = 0; wk < ws; wk++) {
+            var wu = (wk + 0.5) / ws, wh = hash('wstn' + i + '_' + wk), wo = ((wh % 3) - 1) * 0.11, ww = 0.16 + (wh >>> 4) % 4 * 0.02;
+            yp.push({ g: box(ww, 0.02, ww * 0.8), m: M(snapPos(wa[0] + wdx * wu - wdz / wl * wo), 0.01, snapPos(wa[1] + wdz * wu + wdx / wl * wo), 0, (wh >>> 8) % 6 * 0.25, 0), c: EXT_C.stone[wh & 1] });
+          }
+        }
+        wideSignParts(yp, 0);   /* 11-21 7차: 길 어귀의 표지판 (빠른 이동) */
+        wideRoadDress(yp);
+        /* 울타리 문 기둥 둘 (조금 굵고 높게 · 머리에 1px 띠) */
+        [[L - 0.3, WIDE.gate], [WIDE.gate, L - 0.3]].forEach(function (gp) {
+          yp.push({ g: box(0.11, 0.76, 0.11), m: M(snapPos(gp[0]), 0.38, snapPos(gp[1])), c: EXT_C.fence });
+          yp.push({ g: box(0.15, 0.04, 0.15), m: M(snapPos(gp[0]), 0.78, snapPos(gp[1])), c: EXT_C.trunk });
+        });
+      }
+      /* 밭 옆 작은 등: 나무 기둥 + 등 (유리는 따뜻한 색 — 밤 불빛은 빌려 온 점광) */
+      yp.push({ g: box(0.07, 0.86, 0.07), m: M(YARD_LAMP[0], 0.43, YARD_LAMP[1]), c: W[1] });
+      yp.push({ g: box(0.18, 0.04, 0.07), m: M(YARD_LAMP[0] + 0.06, 0.86, YARD_LAMP[1]), c: W[1] });
+      yp.push({ g: box(0.13, 0.17, 0.13), m: M(YARD_LAMP[0] + 0.12, 0.74, YARD_LAMP[1]), c: PAL.amber[3] });
+      yp.push({ g: box(0.15, 0.03, 0.15), m: M(YARD_LAMP[0] + 0.12, 0.84, YARD_LAMP[1]), c: PAL.ink });
+      var stat = new T.Mesh(keep(mergeParts(yp)), lambert); stat.castShadow = true; stat.receiveShadow = true; g.add(stat);
+      /* 집 (바깥과 같은 조각 — 따로 한 메시: 카메라와 마당 사이에 서면 무릎 높이로 자를 수 있게) */
+      var hp = ep.slice(EXT_MARK.h0, EXT_MARK.h1), house = new T.Mesh(keep(mergeParts(hp)), lambert); house.castShadow = true; house.receiveShadow = true; g.add(house);
+      var low = new T.Mesh(keep(mergeParts(hp.filter(function (q) { return !q.m || q.m.elements[13] < 0.62; }))), lambert); low.castShadow = true; low.receiveShadow = true; low.visible = false; g.add(low);
+      YARD_CUTS.push({ full: house, low: low, nx: -Math.SQRT1_2, nz: -Math.SQRT1_2, cx: (EXT.HX0 + EXT.HX1) / 2, cz: EXT.HZC });   /* 집 뒤(−x −z)에서 볼 때 마당을 가린다 */
+      /* 나무 · 울타리 (바깥 인스턴스와 같은 지오메트리 — 계절 재색을 같이 받는다) */
+      function inst(geo, list, mk) { var im = new T.InstancedMesh(geo, lambert, list.length); list.forEach(function (it, k) { im.setMatrixAt(k, mk(it)); }); im.instanceMatrix.needsUpdate = true; im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; g.add(im); return im; }
+      var tm = function (t) { return M(snapPos(t[0]), 0, snapPos(t[1]), 0, t[3], 0, t[2], t[2], t[2]); };
+      var wtr = YARD_WIDE ? wideTrees() : { round: [], cone: [] };   /* 11-18 넓은 바깥: 마당 밖 숲 (같은 인스턴스 메시에 덧붙인다 — 드로우콜 그대로) */
+      var imR = inst(treeIM.geometry, EXT_TREES.round.concat(YARD_TREES.round, wtr.round), tm), imC = inst(coneIM.geometry, EXT_TREES.cone.concat(YARD_TREES.cone, wtr.cone), tm);
+      if (YARD_WIDE) WIDE_IM = [{ im: imR, base: EXT_TREES.round.length + YARD_TREES.round.length, list: wtr.round, mats: wtr.round.map(tm) }, { im: imC, base: EXT_TREES.cone.length + YARD_TREES.cone.length, list: wtr.cone, mats: wtr.cone.map(tm) }];
+      var fl = EXT_FENCE.map(function (f) { return [f[0], f[1], -0.05]; }), FE = L - 0.3, FS = 0.64, NF = Math.floor(2 * FE / FS);
+      for (i = 0; i < NF; i++) {   /* 둘레 울타리 (네 변, 가로대가 다음 기둥까지) */
+        var t0 = -FE + i * FS, gap = YARD_WIDE && t0 + FS > WIDE.gate + 0.01;   /* 11-18 넓은 바깥: 앞쪽 두 변은 문 자리 (모서리까지) 를 비운다 */
+        fl.push([t0, -FE, 0], [-FE, t0 + FS, Math.PI / 2]); if (!gap) fl.push([t0, FE, 0], [FE, t0 + FS, Math.PI / 2]);
+      }
+      if (YARD_WIDE) for (i = 0; i < 12; i++) { var eq = wideXZ(19, i < 6 ? 3.5 + i * FS : -3.5 - (i - 5) * FS); fl.push([eq[0], eq[1], Math.PI / 4]); }   /* 11-21 7차: 마을 문 (아치) 양옆의 울타리 여섯 칸씩 — 길은 열려 있다 */
+      inst(fenceIM.geometry, fl, function (f) { return M(snapPos(f[0]), 0, snapPos(f[1]), 0, f[2], 0); });
+      /* 계절 장식 (바깥 것 그대로 — 지금 계절 것만) · 창 2 (재질을 같이 써서 시각대 · 등불 빛이 같다) · 현관문 (닫힌 채) */
+      /* 11-15 합침 (검증 V4 S1 · S2): 겨울 장식은 집에 붙은 것 (지붕 · 굴뚝 · 창 서리 — 집 터 위 · 바닥보다 높은 부품) 과 땅의 것을 나눈다. 집에 붙은 것 · 창 둘 · 현관문은
+         돌려 볼 때 집이 무릎 높이로 잘리면 같이 숨는다 (CUT_DYN.yard) — 예전엔 잘린 집 위에 지붕 눈 · 문짝 · 빛나는 창이 떠 있었다 */
+      var wpAll = winterParts(), onHouse = function (q) { var e = q.m.elements, x = e[12], y = e[13], z = e[14]; return y > EXT.PL + 0.3 && x > EXT.HX0 - 0.4 && x < EXT.HX1 + 0.4 && z > EXT.HZ0 - 0.4 && z < EXT.HZ1 + 0.4; };
+      var dm = {}; SEASONS.forEach(function (s2) { var m = new T.Mesh(s2 === 'winter' ? keep(mergeParts(wpAll.filter(function (q) { return !onHouse(q); }))) : deco[s2], lambert); m.receiveShadow = true; m.castShadow = s2 === 'winter'; m.visible = s2 === SEASON.cur; g.add(m); dm[s2] = m; });
+      var dh = new T.Mesh(keep(mergeParts(wpAll.filter(onHouse))), lambert); dh.receiveShadow = true; dh.castShadow = true; dh.visible = SEASON.cur === 'winter'; g.add(dh);
+      var wins = [];
+      [[winA, winAEm], [winG, winGEm]].forEach(function (w) { var m = new T.Mesh(w[0].geometry, w[0].material); m.position.copy(w[0].position); m.rotation.copy(w[0].rotation); g.add(m); wins.push(m); var e = new T.Mesh(w[1].geometry, w[1].material); e.layers.set(1); e.castShadow = false; m.add(e); });
+      var dp = new T.Group(); dp.position.copy(doorPivot.position); g.add(dp); var dr = new T.Mesh(extDoor.geometry, lambert); dr.castShadow = true; dr.receiveShadow = true; dp.add(dr);
+      /* 밭 */
+      g.add(plotG);
+      YROOM = { g: g, stat: stat, house: house, deco: dm, decoHouse: dh, wins: wins, door: dp,
+        doorBox: new T.Box3(new T.Vector3(EXT.HX1, 0, EXT.HZC - 0.55), new T.Vector3(EXT.HX1 + 1.12, EXT.PL + 1.1, EXT.HZC + 0.55)),   /* 현관문 + 계단 (단추 칸) */
+        boxes: [[EXT.HX0 - 0.1, EXT.HX1, EXT.HZ0 - 0.1, EXT.HZ1 + 0.1], [EXT.HX1, EXT.HX1 + 1.12, EXT.HZ0 - 0.1, EXT.HZC - 0.6], [EXT.HX1, EXT.HX1 + 1.12, EXT.HZC + 0.6, EXT.HZ1 + 0.1], [EXT_MAILBOX[0] - 0.17, EXT_MAILBOX[0] + 0.17, EXT_MAILBOX[1] - 0.11, EXT_MAILBOX[1] + 0.11], [YARD_LAMP[0] - 0.05, YARD_LAMP[0] + 0.2, YARD_LAMP[1] - 0.05, YARD_LAMP[1] + 0.05],
+          [EXT_FENCE[0][0] - 0.04, EXT_FENCE_END[0] + 0.04, 2.5, 2.66]].concat(YARD_WIDE ? [[L - 0.34, L - 0.26, -(L - 0.3), WIDE.gate], [-(L - 0.3), WIDE.gate, L - 0.34, L - 0.26]] : []),   /* (넓은 바깥: 앞쪽 두 변의 울타리 — 문 자리만 열려 있다) */   /* 집 몸통 · 현관 양옆 (11-18: 현관 마루와 계단 세 칸은 걸어 오르내린다 — 난간 사이 통로 z HZC ± 0.6 만 열어 둔다) · 우체통 · 등 · 바깥에서 가져온 울타리 토막 */
+        circles: YARD_TREES.round.concat(YARD_TREES.cone, EXT_TREES.round, EXT_TREES.cone).map(function (t) { return [t[0], t[1], 0.22 * t[2] + 0.05]; })
+          .concat([[0.5, -0.05, 0.4], [-2.55, 0.05, 0.35], [2.5, -1.5, 0.25], [-0.55, 1.95, 0.2]]) };   /* 나무 줄기 · 덤불 · 돌 (반지름은 내 캐릭터 몸을 더하기 전) */
+      if (YARD_WIDE) wideBuild(g);   /* 11-21 7차: 마을 · 해변 구간 메시 + 등록부 (갈래 V 가 채운 것) — YROOM 이 선 뒤 */
+      applySeasonYard(); yardPlots(true);
+      if (typeof cutAdd === 'function') YARD_CUTS.forEach(function (c, i) { cutAdd('yard', c.full, c.low, c.nx, c.nz, c.cx, c.cz).key = i ? 'yard' + i : 'house'; });   /* 11-15: 갈래 A 의 자르기 (첫째 = 집) */
+      CUT_DYN.yard = function () { var H = cutOf('yard', 'house'), out = [[YROOM.door, H], [YROOM.decoHouse, H]]; YROOM.wins.forEach(function (m) { out.push([m, H]); }); return out; };   /* 집에 붙은 것들 (보임은 계절 · 빛 코드 몫이라 layers 로 숨긴다) */
+      dither.still = 0;
+    }
+    /* [7-W] 다섯째 바퀴 (리드 · 갈래 V): 숲길 양쪽 (s 11.5 ~ 19.4 · |t| 3.2 ~ 10.6) 과 광장 양쪽 (s 37.4 ~ 46 · |t| 9.4 ~ 14.6) 은 문어 집 넷 · 미용실 터 — 숲을 비운다.
+       → 1 = 터 밖 (그대로) · 0 = 비움 · 0.58 = 낮은 나무만 (키 ≈ 1.3 m — 터의 뒤 (s 가 작은 쪽, 화면 위) · 바깥 옆 (길에서 먼 쪽) 띠, 집 터 가장자리에서 0.8 m 넘게).
+       집 몸 · 길 쪽 문 앞 · 집 앞쪽 (s 가 큰 쪽 — 화면에서 집을 가린다) 은 늘 비운다. WIDE.AREAS (걷는 곳) 는 그대로 */
+    var WIDE_HOME_ZONES = [[11.5, 19.4, 3.2, 10.6], [37.4, 46, 9.4, 14.6]];
+    function wideHomeBand(sd, td) {
+      var at = Math.abs(td), z = null;
+      for (var i = 0; i < WIDE_HOME_ZONES.length; i++) { var Z = WIDE_HOME_ZONES[i]; if (sd > Z[0] && sd < Z[1] && at > Z[2] && at < Z[3]) { z = Z; break; } }
+      if (!z) return 1;
+      var L = null, lots = typeof VILLAGE !== 'undefined' && VILLAGE && VILLAGE.HOME_LOTS ? VILLAGE.HOME_LOTS : [];
+      for (i = 0; i < lots.length; i++) { var q = lots[i]; if (q.s1 > z[0] && q.s0 < z[1] && (q.c[1] < 0) === (td < 0)) { L = q; break; } }
+      if (!L) return 0;
+      var far = Math.max(Math.abs(L.t0), Math.abs(L.t1));
+      return sd < L.s0 - 0.8 || at > far + 0.8 ? 0.58 : 0;
+    }
+    function wideTrees() {   /* 11-18 넓은 바깥의 숲: 대각 좌표에 시드로 흩는다 (마당 네모 둘레 · 걷는 곳 · 가게 터는 비운다 · 서로 1.75 m 넘게) → { round, cone } 의 [x, z, 배율, 요].
+                                 11-21 7차: 마을 뒤 (s 45) 까지 · 반폭 30 m. 걷는 곳 가까운 나무는 낮춘다 — 키 ≤ 거리 × tan 32° + 0.45 m: 어느 각으로 돌려 봐도 (90° · 270° 포함) 길가의 캐릭터가 발목까지만 가린다. 0.45 배 아래면 심지 않는다 */
+      var out = { round: [], cone: [] }, all = [], grid = {};
+      for (var i = 0; i < 5200 && all.length < 560; i++) {
+        var r = hash('wtree' + i), sd = -24 + (r % 1000) / 1000 * 69, td = -30 + ((r >>> 10) % 1000) / 1000 * 60, q = wideXZ(sd, td), at = Math.abs(td);
+        if (Math.abs(q[0]) < YARD_L + 0.7 && Math.abs(q[1]) < YARD_L + 0.7) continue;
+        if (at > 16 && (r >>> 5) % 3 === 0) continue;   /* 먼 숲은 조금 성기게 */
+        if ((sd > 19.2 && sd < 38.6 && at < 11.2) || (sd >= 37.4 && at < 9.4) || (sd > 18 && sd < 20 && at < 7.6)) continue;   /* 가게 터 · 광장 · 마을 문 울타리 */
+        var hl = wideHomeBand(sd, td); if (hl === 0) continue;   /* [7-W] 다섯째 바퀴: 갈래 V 의 문어 집 넷 · 미용실 터 (집 몸 · 길 쪽 문 앞 · 집 앞쪽은 비우고, 뒤 · 바깥 가장자리엔 낮은 나무만) */
+        var wd = wideDist(sd, td); if (wd < 0.8) continue;
+        var sc = Math.min(0.85 + ((r >>> 20) % 5) * 0.09, (wd * 0.62 + 0.45) / 2.2, hl); if (sc < 0.45) continue;
+        var gx = Math.floor(q[0] / 1.75), gz = Math.floor(q[1] / 1.75), ok = true;
+        for (var a = -1; a <= 1 && ok; a++) for (var b = -1; b <= 1 && ok; b++) { var cell = grid[(gx + a) + ',' + (gz + b)]; if (cell) for (var k = 0; k < cell.length && ok; k++) if (Math.hypot(cell[k][0] - q[0], cell[k][1] - q[1]) < 1.75) ok = false; }
+        if (!ok) continue;
+        var it = [q[0], q[1], sc, ((r >>> 23) % 8) * 0.4]; all.push(it); (grid[gx + ',' + gz] || (grid[gx + ',' + gz] = [])).push(it); out[(r >>> 27) % 20 < 9 ? 'round' : 'cone'].push(it);   /* 둥근 나무 45% (한 그루 ≈ 770 삼각형 — 뾰족 나무는 ≈ 120) */
+      }
+      return out;
+    }
+    function yardTreeNear(x, z, r) { return YARD_TREES.round.concat(YARD_TREES.cone).some(function (t) { return Math.hypot(x - t[0], z - t[1]) < r; }); }
+    function yardPlotNear(x, z, m) { for (var i = 0; i < 6; i++) { var q = plotXZ(i); if (Math.abs(x - q[0]) < YPLOT.w / 2 + m && Math.abs(z - q[1]) < YPLOT.w / 2 + m) return true; } return false; }
+    function applySeasonYard() {   /* 마당 정적 메시의 땅 · 풀 · 길 · 덤불 · 물 (나무 · 울타리 · 장식은 바깥 지오메트리를 같이 쓴다) */
+      if (!YROOM) return; var c = SEASON_C[SEASON.cur], g2 = YROOM.stat.geometry;
+      recolor(g2, 10, c.ground); recolor(g2, 11, c.tuft); recolor(g2, 12, c.path); recolor(g2, 17, EXT_WATER[SEASON.cur]);
+      recolor(g2, 13, c.leaf[0]); recolor(g2, 14, c.leaf[1]); recolor(g2, 15, c.leaf[2]); recolor(g2, 16, SEASON.cur === 'spring' ? c.bloom : c.leaf[1]);
+      SEASONS.forEach(function (s2) { YROOM.deco[s2].visible = s2 === SEASON.cur; }); YROOM.decoHouse.visible = SEASON.cur === 'winter';
+      if (YARD_WIDE) wideSeason();
+    }
+    /* 마당이 보이는 동안: 바깥의 비 · 눈 · 꽃잎 · 낙엽 · 반딧불 입자와 1층 창 불빛(점광)을 마당 그룹으로 옮긴다 · 바깥이 보이면 돌려준다 (둘이 같이 보이는 프레임은 없다) */
+    var EXT_LAMP_AT = extLamp.position.clone();
+    function yardBorrow(on) {
+      var to = on && YROOM ? YROOM.g : extG;
+      Object.keys(XCOUNT).forEach(function (k) { if (XP[k].obj.parent !== to) to.add(XP[k].obj); });
+      if (extLamp.parent !== to) { to.add(extLamp); if (on) extLamp.position.set(YARD_LAMP[0] + 0.12, 0.7, YARD_LAMP[1] + 0.15); else extLamp.position.copy(EXT_LAMP_AT); }
+    }
+    function yardPlots(force) {   /* 밭 흙 테 (연 칸 수만큼) + 심은 것 — 마당이 지어진 뒤에만 */
+      if (!YROOM) return;
+      var nOpen = plotState.length, key = JSON.stringify(plotState); if (!force && key === plotKey) return; plotKey = key;
+      [plotBase, plotPlants].forEach(function (m) { if (!m) return; plotG.remove(m); var k = disposables.indexOf(m.geometry); if (k >= 0) disposables.splice(k, 1); m.geometry.dispose(); });   /* keep 목록에서도 뺀다 */
+      plotBase = plotPlants = null; plotBoxes = [];
+      var bp = [], pp = [];
+      for (var i = 0; i < nOpen; i++) {
+        var q = plotXZ(i), x = q[0], z = q[1];
+        bp.push({ g: box(YPLOT.w, 0.07, YPLOT.w), m: M(x, 0.035, z), c: W[0] });
+        [-1, 1].forEach(function (d) { bp.push({ g: box(YPLOT.w + 0.08, 0.1, 0.05), m: M(x, 0.05, z + d * (YPLOT.w / 2 + 0.01)), c: W[3] }); bp.push({ g: box(0.05, 0.1, YPLOT.w + 0.08), m: M(x + d * (YPLOT.w / 2 + 0.01), 0.05, z), c: W[3] }); });
+        plotBoxes.push(new T.Box3(new T.Vector3(x - YPLOT.w / 2 - 0.05, 0, z - YPLOT.w / 2 - 0.05), new T.Vector3(x + YPLOT.w / 2 + 0.05, 0.75, z + YPLOT.w / 2 + 0.05)));
+        var gs = plotState[i]; if (!gs) continue;
+        if (gs.water === 0) {   /* 씨앗: 밝은 흙 둔덕 + 팻말 막대 (11-11 — 어두운 흙 위 4×3 px 점이라 심은 게 안 보였다) */
+          pp.push({ g: new T.SphereGeometry(0.17, 7, 4), m: M(x, 0.07, z, 0, 0, 0, 1, 0.45, 1), c: W[3] }); pp.push({ g: box(0.05, 0.05, 0.05), m: M(x, 0.15, z), c: PAL.moss[3] || PAL.moss[2] });
+          pp.push({ g: box(0.035, 0.32, 0.035), m: M(x + 0.16, 0.2, z - 0.16), c: W[2] }); pp.push({ g: box(0.17, 0.11, 0.025), m: M(x + 0.17, 0.34, z - 0.15, 0, Math.PI / 4, 0), c: PAL.paper[3] }); continue;
+        }
+        var hgt = gs.water === 1 ? 0.22 : 0.46;
         pp.push({ g: box(0.05, hgt, 0.05), m: M(x, 0.07 + hgt / 2, z), c: PAL.moss[2] });
         [-1, 1].forEach(function (d) { pp.push({ g: box(0.16, 0.04, 0.09), m: M(x + d * 0.09, 0.07 + hgt * 0.55, z, 0, 0, d * 0.5), c: PAL.moss[2] }); });
-        if (g.water >= 2) { pp.push({ g: new T.SphereGeometry(0.15, 7, 5), m: M(x, 0.07 + hgt + 0.1, z), c: g.color }); pp.push({ g: new T.SphereGeometry(0.06, 5, 4), m: M(x + 0.05, 0.07 + hgt + 0.14, z + 0.1), c: PAL.amber[4] }); }
-      });
+        if (gs.water >= 2) { pp.push({ g: new T.SphereGeometry(0.15, 7, 5), m: M(x, 0.07 + hgt + 0.1, z), c: gs.color }); pp.push({ g: new T.SphereGeometry(0.06, 5, 4), m: M(x + 0.05, 0.07 + hgt + 0.14, z + 0.1), c: PAL.amber[4] }); }
+      }
+      if (bp.length) { plotBase = new T.Mesh(keep(mergeParts(bp)), lambert); plotBase.castShadow = true; plotBase.receiveShadow = true; plotG.add(plotBase); }
       if (pp.length) { plotPlants = new T.Mesh(keep(mergeParts(pp)), lambert); plotPlants.castShadow = true; plotPlants.receiveShadow = true; plotG.add(plotPlants); }
       dither.still = 0;
+    }
+    function setGarden(list) {   /* [{ color: '#hex', water: 0|1|2 } | null] × 연 칸 수 (3 ~ 6 — 목록에 없는 칸은 잠긴 칸: 그리지 않는다) */
+      var n = Math.max(0, Math.min(6, Array.isArray(list) ? list.length : 0)), st2 = [];
+      for (var i = 0; i < n; i++) { var gi = list[i]; st2.push(gi ? { color: String(gi.color || '#e8a93a'), water: Math.max(0, Math.min(2, gi.water | 0)) } : null); }
+      plotState = st2; yardPlots(false);   /* 11-11: 같은 밭이면 다시 짓지 않는다 (앱이 renderAll 마다 부른다) */
     }
     if (!LROOM) buildLoft();   /* 미용실 코너가 위층에 살아서, 위층은 처음부터 지어 둔다 (보이지 않는 그룹 — 그리는 비용 0) */
     extReady = true;
@@ -4111,7 +5941,7 @@ var SCENE3D = (function () {
     var NEAR_PX = 16, NEAR_GAP = 4;
     function octTappable() { return octG.visible && st.octState !== 'away' && (!isRoomP(PLACE.vis) || octUp()); }   /* 놀이방: 문어는 다락에 숨어 있다 (레이캐스트는 숨은 그룹도 맞히므로 막는다) */
     function bodyMeshes() { var out = []; bodyG.traverseVisible(function (o) { if (o.isMesh && o !== hit && o.material && o.material.visible !== false) out.push(o); }); return out; }
-    function tapItems() { return posterMeshes.filter(function (m) { return m.visible; }).concat(souvMeshes.filter(function (m) { return m.visible; })); }
+    function tapItems() { return posterMeshes.filter(function (m) { return m.visible && m.layers.mask; }).concat(souvMeshes.filter(function (m) { return m.visible && m.layers.mask; })); }   /* 11-15: 잘린 벽(돌려 보기)에 붙은 것은 톡 · 가까운 것 보정에서 뺀다 */
     function tapId(o) { var u = o.userData; return u.kind === 'poster' ? u.id : u.kind === 'souvenir' ? (u.sv && u.sv.id) : u.kind === 'spot' ? u.spot : u.kind; }
     function screenRect(objs, r) {   /* 월드 AABB 꼭짓점 8개 투영 → 캔버스 CSS px 사각형 {l,t,r,b} */
       var l = Infinity, t = Infinity, rr = -Infinity, b = -Infinity;
@@ -4133,28 +5963,2260 @@ var SCENE3D = (function () {
       });
       return best && d1 <= NEAR_PX && d2 - d1 >= NEAR_GAP ? best : null;
     }
+    function playSurface() {   /* 놀이방: 광선이 처음 맞는 보이는 면 → 'machine' | 'counter' | 'table' | null (식탁 위 요리 · 앉은 두 캐릭터도 식탁) */
+      if (!PROOM) return null;
+      var ms = []; PROOM.g.traverseVisible(function (o) { if (o.isMesh && (o.material === lambert || o === TB.mesh || o.material === basicV)) ms.push(o); });
+      var bod = []; if (octG.parent === PROOM.g && octG.visible) bod = bod.concat(bodyMeshes()); if (plG.parent === PROOM.g && PL.tbl) plMeshes.forEach(function (m) { bod.push(m); });
+      var hs = ray.intersectObjects(ms.concat(bod), false); if (!hs.length) return null;
+      if (bod.indexOf(hs[0].object) >= 0 || hs[0].object === TB.mesh) return 'table';
+      var lp = PROOM.g.worldToLocal(hs[0].point.clone()), e = 0.02;
+      if (PROOM.boothBox.clone().expandByScalar(e).containsPoint(lp)) return 'table';
+      if (PROOM.machineBox.clone().expandByScalar(e).containsPoint(lp)) return 'machine';
+      if (PROOM.counterBox.clone().expandByScalar(e).containsPoint(lp) || PROOM.legBox.clone().expandByScalar(e).containsPoint(lp)) return 'counter';
+      return null;
+    }
+    /* ───────── 7차 갈래 자리 (11-21): 갈래마다 제 표시 줄 바로 아래에만 새 함수를 쓴다. 표시 줄과 빈 줄은 건드리지 않는다 ───────── */
+    /* [7-T] 식탁 · 들고 가기 · 새 효과 */
+    /* ── 11-21 7차 식탁 위 요리 그림: 갈래 A 의 작은 그림 COOK_SPR 'table.<id>' (16×12) 을 Points 하나로 — 그림 한 칸 = 점 하나 (크기 1) = 방 그림 한 칸.
+       화면 정수 열/행 · 픽셀 중심에 스냅 (효과 알갱이와 같은 길 · 같은 재질 변형이라 새 셰이더 없음) · 밤엔 방처럼 한 칸 어둡게. 그림이 없으면 (파일 없음 · 옛 요리) 예전 메시 그대로.
+       한 입 = 그릇 줄 위쪽의 가로 4분의 1 (MEAL.biteMask — 큰 그림과 같은 규칙) ── */
+    var DISH_SPR_N = 16 * 16;
+    function dishPicOf(p) { return p && typeof p === 'object' && typeof p.id === 'string' && /^[a-z]{1,12}$/.test(p.id) ? { id: p.id, frame: p.frame > 0 ? Math.min(8, p.frame | 0) : 0 } : null; }
+    function dishSprGet() {
+      var d = TB.dish, CS = typeof window !== 'undefined' ? window.COOK_SPR : null;
+      if (!d || !d.pic || !CS || typeof CS.get !== 'function') return null;
+      try {
+        var id = 'table.' + d.pic.id, sp = CS.get(id, d.pic.frame), inf = typeof CS.info === 'function' ? CS.info(id) : null;
+        if (!sp || !(sp.w > 0) || !(sp.h > 0) || sp.w * sp.h > DISH_SPR_N || !sp.d || sp.d.length < sp.w * sp.h * 4) return null;
+        var MR = window.MEAL, px = sp.d;
+        if (TB.eaten.length && MR && typeof MR.biteFood === 'function') px = MR.biteFood(sp, TB.eaten.filter(function (q) { return q >= 0 && q < 4; }), d.pic.id, 0, CS.get('empty.table.' + d.pic.id, 0)) || sp.d;   /* 11-22: 음식만 줄인다 (접시 · 도구는 그대로) */
+        return { w: sp.w, h: sp.h, d: px, ax: inf && isFinite(inf.ax) ? inf.ax : sp.w / 2, ay: inf && isFinite(inf.ay) ? inf.ay : sp.h - 2 };
+      } catch (e) { return null; }
+    }
+    var dishSprMat = keep(new T.PointsMaterial({ color: 0xffffff, vertexColors: true, size: 1, sizeAttenuation: false }));
+    function dishSprLayout(x, y, z, squash) {
+      var sp = TB.sprOn ? TB.spr : null, o = TB.sprObj;
+      if (!sp || !PROOM) { if (o) o.visible = false; return; }
+      if (!o) {
+        var g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array(DISH_SPR_N * 3), 3)); g.setAttribute('color', new T.BufferAttribute(new Float32Array(DISH_SPR_N * 3), 3));
+        o = TB.sprObj = new T.Points(keep(g), dishSprMat); o.frustumCulled = false; o.name = 'tableDishSpr'; PROOM.g.add(o);
+      }
+      o.visible = true;
+      _tbv.set(x, y, z); PROOM.g.localToWorld(_tbv); snapC(_tbv);
+      var dim = 1 - 0.3 * nightK(), key = _tbv.x.toFixed(4) + ',' + _tbv.y.toFixed(4) + ',' + _tbv.z.toFixed(4) + '|' + S.pw + '|' + (squash ? 1 : 0) + '|' + dim.toFixed(2) + '|' + carryNear().toFixed(3);
+      o.renderOrder = TB.carry ? 6 : 0;   /* 11-22 (독립 점검): 들고 가는 동안엔 몸 다음에 그린다 */
+      if (key === TB.sprKey) return; TB.sprKey = key;
+      var base = _tbv.clone(), up = pxUp(), pw = S.pw, pa = o.geometry.attributes.position.array, ca = o.geometry.attributes.color.array, n = 0, w = sp.w, h = sp.h, d = sp.d, col = new T.Color();
+      camera.getWorldDirection(_tbw); var V = _tbw.clone(), ax = Math.floor(sp.ax), near = carryNear();
+      for (var r = 0; r < h; r++) for (var c = 0; c < w; c++) {
+        var k = (r * w + c) * 4; if (d[k + 3] < 128 || n >= DISH_SPR_N) continue;
+        var row = h - 1 - r; if (squash) row = Math.floor(row * 0.75);   /* 내려놓는 칸: 한 번 눌린다 */
+        _tbw.copy(base).addScaledVector(_r, (c - ax) * pw); _tbw.y += row * up; _tbw.addScaledVector(V, -near);   /* 맨 아랫줄이 식탁 위에 · 카메라 쪽으로 조금 (상판과 겹치지 않게) — 들고 있으면 몸 앞으로 (11-22) */
+        PROOM.g.worldToLocal(_tbw);
+        pa[n * 3] = _tbw.x; pa[n * 3 + 1] = _tbw.y; pa[n * 3 + 2] = _tbw.z;
+        col.setRGB(d[k] / 255, d[k + 1] / 255, d[k + 2] / 255).convertSRGBToLinear().multiplyScalar(dim); ca[n * 3] = col.r; ca[n * 3 + 1] = col.g; ca[n * 3 + 2] = col.b; n++;
+      }
+      o.geometry.setDrawRange(0, n); o.geometry.attributes.position.needsUpdate = true; o.geometry.attributes.color.needsUpdate = true; TB.sprN = n; dither.still = 0;
+    }
+    /* ── 11-21 7차 들고 가기 (주인: "요리 → 식탁 → 먹기가 이어지게"): 부엌이 닫히면 내 캐릭터가 조리대 앞에 서서 요리를 들고 → 식탁 통로까지 걷고 (화면이 따라온다) →
+       내려놓고 (눌림 한 번) → sit 이면 폴짝 앉는다. 박자: 들기 0.35 s · 걷기 (1.8 m/s) · 내려놓기 0.25 s (3칸) · 앉기 0.34 s.
+       요리는 이미 저장된 사실이라 무엇이 끊든 (스틱 · 방 옮김 · 숨은 탭 · 컨텍스트 잃음 · 가구 모드 · playerCarryCut) 그 자리에서 끝 상태 = 요리는 식탁에, 캐릭터는 선 자리.
+       → Promise<'seated' | 'placed' | 'cut' | 'no'> ('no' = 거절: 아무것도 안 했다). 팔 · 몸은 stepPlayer 뒤에 덮어쓴다 (stepMeBite 와 같은 길 — 갈래 P 의 몸 · 걸음은 안 고친다) ── */
+    /* ── 11-21 7차 계약 C12: 다른 갈래 (카페 · 가게 · 콘테스트) 가 쓰는 픽셀 그림 둘 — 식탁 위 요리 그림과 같은 길 (COOK_SPR 그림 한 칸 = 점 하나 = 방 그림 한 칸 · 픽셀 중심 스냅 ·
+       같은 재질 변형 · 밤엔 한 칸 어둡게). 그림이 없으면 (모르는 id · 파일 없음) 아무것도 안 그리고 false.
+       playerCarry(spriteId | null, frame): 내 캐릭터가 그 그림을 두 손에 든다 (걷든 서 있든 · 방을 옮겨도 · 앉으면 숨는다). null = 내려놓음. 식탁으로 들고 가는 동안엔 안 보인다.
+       spriteProp(name, pos | null, spriteId, frame): 한 자리에 카메라를 보는 그림. pos = { x, y, z, place? } (place = 'attic' | 'play' | 'loft' | 'yard' | 'exterior' — 없으면 지금 보이는 곳 ·
+       그 장소 그룹의 좌표 · y = 그림 맨 아랫줄이 놓일 높이 · 가로는 그림의 ax 가 그 자리). null = 치움. 같은 name 으로 다시 부르면 바뀐다 ── */
+    var SPR_MAX = 96 * 64, PCAR = null, SPROPS = {};
+    function sprFetch(id, frame) {
+      var CS = typeof window !== 'undefined' ? window.COOK_SPR : null;
+      if (!CS || typeof CS.get !== 'function' || typeof id !== 'string') return null;
+      try {
+        var sp = CS.get(id, frame | 0), inf = typeof CS.info === 'function' ? CS.info(id) : null;
+        if (!sp || !(sp.w > 0) || !(sp.h > 0) || sp.w * sp.h > SPR_MAX || !sp.d || sp.d.length < sp.w * sp.h * 4) return null;
+        var n = 0; for (var i = 3; i < sp.w * sp.h * 4; i += 4) if (sp.d[i] >= 128) n++;
+        return n ? { w: sp.w, h: sp.h, d: sp.d, ax: inf && isFinite(inf.ax) ? Math.floor(inf.ax) : sp.w >> 1, n: n } : null;
+      } catch (e) { return null; }
+    }
+    function sprHolder(sp, name) {
+      var g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array(sp.n * 3), 3)); g.setAttribute('color', new T.BufferAttribute(new Float32Array(sp.n * 3), 3));
+      var o = new T.Points(g, dishSprMat); o.frustumCulled = false; o.name = name; o.visible = false;
+      return { obj: o, sp: sp, key: '' };
+    }
+    function sprDrop(H) { if (!H) return; if (H.obj.parent) H.obj.parent.remove(H.obj); H.obj.geometry.dispose(); }
+    function sprLay(H, parent, x, y, z) {   /* 부모 좌표 (x, y, z) 에 맨 아랫줄 · ax 열 */
+      var o = H.obj, sp = H.sp;
+      if (!parent || !parent.visible) { o.visible = false; return; }
+      if (o.parent !== parent) { parent.add(o); H.key = ''; }
+      o.visible = true; o.renderOrder = H === PCAR ? 6 : 0;
+      _tbv.set(x, y, z); parent.localToWorld(_tbv); snapC(_tbv);
+      var dim = 1 - 0.3 * nightK(), key = _tbv.x.toFixed(4) + ',' + _tbv.y.toFixed(4) + ',' + _tbv.z.toFixed(4) + '|' + S.pw + '|' + dim.toFixed(2);
+      if (key === H.key) return; H.key = key;
+      var base = _tbv.clone(), up = pxUp(), pw = S.pw, pa = o.geometry.attributes.position.array, ca = o.geometry.attributes.color.array, n = 0, w = sp.w, h = sp.h, d = sp.d, col = new T.Color();
+      camera.getWorldDirection(_tbw); var V = _tbw.clone();
+      for (var r = 0; r < h; r++) for (var c = 0; c < w; c++) {
+        var k = (r * w + c) * 4; if (d[k + 3] < 128 || n >= sp.n) continue;
+        _tbw.copy(base).addScaledVector(_r, (c - sp.ax) * pw); _tbw.y += (h - 1 - r) * up; _tbw.addScaledVector(V, H === PCAR ? -0.55 : -0.06);   /* 든 그림은 몸 앞 (화면 자리는 그대로 — 정사영) */
+        parent.worldToLocal(_tbw);
+        pa[n * 3] = _tbw.x; pa[n * 3 + 1] = _tbw.y; pa[n * 3 + 2] = _tbw.z;
+        col.setRGB(d[k] / 255, d[k + 1] / 255, d[k + 2] / 255).convertSRGBToLinear().multiplyScalar(dim); ca[n * 3] = col.r; ca[n * 3 + 1] = col.g; ca[n * 3 + 2] = col.b; n++;
+      }
+      o.geometry.setDrawRange(0, n); o.geometry.attributes.position.needsUpdate = true; o.geometry.attributes.color.needsUpdate = true; dither.still = 0;
+    }
+    function playerCarry(id, frame) {
+      if (PCAR) { sprDrop(PCAR); PCAR = null; dither.still = 0; }
+      if (id == null) return true;
+      var sp = sprFetch(id, frame); if (!sp) return false;
+      PCAR = sprHolder(sp, 'playerCarrySpr'); PCAR.id = id; PCAR.frame = frame | 0;
+      return true;
+    }
+    function spriteProp(name, pos, id, frame) {
+      name = String(name);
+      if (Object.prototype.hasOwnProperty.call(SPROPS, name)) { sprDrop(SPROPS[name]); delete SPROPS[name]; dither.still = 0; }
+      if (!pos || typeof pos !== 'object') return true;
+      var sp = sprFetch(id, frame); if (!sp || !isFinite(pos.x) || !isFinite(pos.z)) return false;
+      var H = sprHolder(sp, 'spriteProp-' + name);
+      H.place = typeof pos.place === 'string' ? pos.place : PLACE.vis; H.at = [+pos.x, isFinite(pos.y) ? +pos.y : 0, +pos.z]; H.id = id; H.frame = frame | 0;
+      SPROPS[name] = H; return true;
+    }
+    function stepSprProps() {
+      if (PCAR) {
+        var par = plG.parent, show = !!par && plG.visible && !CARRY && !PL.sit && !PL.hop && !(FM && FM.on);
+        if (!show) PCAR.obj.visible = false;
+        else {
+          var yw = plG.rotation.y;
+          sprLay(PCAR, par, plG.position.x + Math.sin(yw) * 0.26, plG.position.y + 0.50, plG.position.z + Math.cos(yw) * 0.26);
+          plArmL.rotation.x = -1.15; plArmR.rotation.x = -1.15; plArmL.rotation.z = -0.1; plArmR.rotation.z = 0.1;   /* 두 팔을 앞으로 (stepPlayer 뒤에 덮어쓴다) */
+        }
+      }
+      for (var k in SPROPS) if (Object.prototype.hasOwnProperty.call(SPROPS, k)) { var H = SPROPS[k]; sprLay(H, groupOf(H.place), H.at[0], H.at[1], H.at[2]); }
+    }
+    function sprInfo() {   /* 시험용 */
+      var out = { carry: PCAR ? { id: PCAR.id, frame: PCAR.frame, visible: PCAR.obj.visible, n: PCAR.sp.n, parent: PCAR.obj.parent ? PCAR.obj.parent.name : '' } : null, props: {} };
+      for (var k in SPROPS) if (Object.prototype.hasOwnProperty.call(SPROPS, k)) { var H = SPROPS[k]; out.props[k] = { id: H.id, frame: H.frame, place: H.place, at: H.at.slice(), visible: H.obj.visible, n: H.sp.n }; }
+      return out;
+    }
+    var CARRY = null, CARRY_AT = [1.30, -1.80], CARRY_HOLD = 0.35, CARRY_PUT = 0.25;
+    function carryLeg(to, face) { var p = plWalkTo(to, face), w = PL.walking; return !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); }); }   /* 끊기면 null (plWalkTo 는 끊긴 걸음을 풀지 않는다) */
+    function carryNear() {   /* 11-22 (독립 점검: 들고 가는 내내 접시가 몸 뒤에 가렸다): 들고 있으면 카메라 쪽으로 0.55 m (정사영이라 화면 자리는 그대로, 깊이만 몸 앞) · 내려놓는 3칸 동안 줄어든다 */
+      var c = CARRY; if (!c || !TB.carry) return 0.06;
+      return 0.55;   /* 내려놓는 세 칸 동안에도 몸 앞 (둘째 칸에 몸 뒤로 숨었다) — 식탁 깊이로는 내려놓은 뒤 (carryEnd) */
+    }
+    function dishAt() {   /* 요리 자리 (놀이방 좌표): 식탁 · 들고 있으면 두 손 앞 · 내려놓는 동안은 그 사이 3칸 */
+      var c = CARRY;
+      if (!c || !TB.carry) return BOOTH_DISH;
+      camera.getWorldDirection(_tbw); var cx = -_tbw.x, cz = -_tbw.z, cl = Math.hypot(cx, cz) || 1, yw = plG.rotation.y;   /* 11-22: 몸이 어느 쪽을 보든 접시는 몸의 카메라 쪽 앞 (가슴 높이) — 걸어가는 쪽이 화면 안쪽이어도 보이게 */
+      var hx = PL.pos.x + cx / cl * 0.24 + Math.sin(yw) * 0.06, hz = PL.pos.z + cz / cl * 0.24 + Math.cos(yw) * 0.06, hy = c.stage === 'hold' && c.t < 0.12 ? 0.62 : 0.46;   /* 첫 칸은 조리대 높이에서 */
+      if (c.stage !== 'put') return [hx, hy, hz];
+      var k = Math.min(1, (Math.floor(c.t * 12) + 1) / 3);
+      return [hx + (BOOTH_DISH[0] - hx) * k, hy + (BOOTH_DISH[1] + 0.06 * (1 - k) - hy) * k, hz + (BOOTH_DISH[2] - hz) * k];
+    }
+    function carryEnd(r) {
+      var c = CARRY; if (!c) return;
+      CARRY = null; TB.carry = false; if (c.gap) PL.camGap = 0;
+      if (r !== 'cut' && !st.reduced) { TB.appear = 2 / 12; }   /* 눌림 칸부터 (떨어지는 두 칸은 손이 했다) */
+      TB.sprKey = ''; spotLast.table = null; dither.still = 0;
+      c.res(r);
+    }
+    function carryStop(c) { if (c.w && PL.walking === c.w) plStop(); c.w = null; }   /* 내 걸음만 멈춘다 — 그새 시작된 남의 걸음 (문까지 걷기) 은 건드리지 않는다: 끊긴 걸음은 풀리지 않아 문 작업이 걸린 채 남는다 (독립 점검) */
+    function playerCarryCut() { var c = CARRY; if (!c) return false; carryStop(c); carryEnd('cut'); return true; }
+    function playerCarryDish(dish, o) {
+      o = o || {};
+      if (CARRY || !dish || !PROOM || PL.place !== 'play' || PLACE.vis !== 'play' || PL.hop || (PL.sit && !PL.tbl) || !playerInputAllowed() || TB.busy()) return Promise.resolve('no');
+      var instant = !!o.instant || st.reduced || st.hidden || ctxLost();
+      if (PL.tbl && PL.sit) { setTableDish(dish, { appear: !instant }); return Promise.resolve('seated'); }   /* 앉은 채 요리했다: 걷지 않는다 */
+      if (instant) {
+        setTableDish(dish, {});
+        return o.sit ? playerSitTable().then(function (ok) { return ok ? 'seated' : 'placed'; }) : Promise.resolve('placed');
+      }
+      plStop(); PL.pos.set(CARRY_AT[0], 0, CARRY_AT[1]); PL.faceCam = false; PL.yaw = PL.wantYaw = Math.PI; PL.moving = false; PL.pending = ''; plSnap();   /* 조리대 앞 (걸어가는 길은 없다 — 부엌이 방을 덮고 있었다) */
+      setTableDish(dish, {}); TB.carry = true; TB.appear = -1; TB.sprKey = '';
+      return new Promise(function (res) { CARRY = { stage: 'hold', t: 0, res: res, sit: !!o.sit, gap: false }; });
+    }
+    function stepCarry(dt) {
+      var c = CARRY; if (!c) return;
+      if (st.hidden || ctxLost() || PL.place !== 'play' || PLACE.vis !== 'play' || PLACE.trans || (FM && FM.on) || !TB.dish) { carryStop(c); carryEnd('cut'); return; }
+      if (c.stage !== 'sit' && (!playerInputAllowed() || (PL.walking && PL.walking !== c.w))) { carryStop(c); carryEnd('cut'); return; }   /* 문 작업이 잡혔거나 다른 걸음 (문 · 계단 톡) 이 시작됐다 → 그 걸음을 덮어쓰지 않고 바로 끝 상태로 */
+      c.t += dt / st.speed;
+      if (c.stage !== 'walk' && c.stage !== 'sit' && PL_IN.v) { carryEnd('cut'); return; }   /* 스틱을 밀면 그 자리에서 끝 (걷는 중엔 stepPlayer 가 걸음을 끊는다 → carryLeg null) */
+      if (c.stage === 'hold' && c.t >= CARRY_HOLD) {
+        var B = BOOTH.me, to = new T.Vector3(B.aisle[0], 0, B.aisle[1]);
+        c.stage = 'walk'; c.t = 0; c.gap = true; PL.camGap = 0.5;
+        var leg = carryLeg(to, Math.atan2(BOOTH_DISH[0] - to.x, BOOTH_DISH[2] - to.z)); c.w = PL.walking;
+        leg.then(function (r) {
+          if (CARRY !== c) return;
+          c.w = null;
+          if (r === null || PL_IN.v || Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z) > 0.2) { carryEnd('cut'); return; }
+          c.stage = 'put'; c.t = 0; c.gap = false; PL.camGap = 0;
+        });
+      } else if (c.stage === 'put' && c.t >= CARRY_PUT) {
+        if (!c.sit) { carryEnd('placed'); return; }
+        c.stage = 'sit'; c.t = 0; TB.carry = false; TB.appear = st.reduced ? -1 : 2 / 12; TB.sprKey = '';
+        playerSitTable().then(function (ok) { if (CARRY === c) { c.stage = 'done'; carryEnd(ok ? 'seated' : 'placed'); TB.appear = -1; } });
+        return;
+      }
+      if (c.stage === 'hold' || c.stage === 'walk' || c.stage === 'put') {   /* 두 팔을 앞으로 (들기) — 내려놓을 땐 조금 더 뻗는다 */
+        var ax = c.stage === 'put' ? -1.45 : -1.15;
+        plArmL.rotation.x = ax; plArmR.rotation.x = ax; plArmL.rotation.z = -0.1; plArmR.rotation.z = 0.1;
+      }
+    }
+
+
+    /* [7-P] 내 캐릭터 · 뛰기 · 마네킹 */
+    /* 11-21 뛰기 (주인 "오래 누르고 있으면 자동으로 뛰었으면"): 손잡이 · 방향키를 반 넘게 민 채 PL_DASH_HOLD 초가 지나면 뛴다. 놓거나 반 아래로 늦추면 바로 걷기. 매 프레임 stepPlayer 가 부른다 (v = 입력 벡터 또는 null) */
+    function plDashHeld(v, dt) {
+      if (v && Math.hypot(v.x, v.y) >= 0.5) PL.dashT = (PL.dashT || 0) + dt; else PL.dashT = 0;
+      PL.dash = PL.dashT >= PL_DASH_HOLD;
+      return PL.dash;
+    }
+    function playerSpeeds() { return { walk: PL_RUN, run: PL_DASH }; }
+    /* 11-24 (검토): 옷장 꼬리표의 색 갈래 (c-…) 가 그려진 색과 어긋나지 않게. 모습 (머리 색 등) 에 따라 색이 바뀌는 물건 (베레모: 밤갈색 머리면 초록) 은 꼬리표도 그 모습에서 그려지는 색을 따른다.
+       plMainHex(cat, id, look) = 그 모습에서 실제로 그려지는 바탕색 (물들이기 전 · 빌더가 만든 조각 가운데 바탕색 표 …_MAIN 에 있는 첫 색). itemTags(cat, id, look) = 목록 꼬리표에서 색 갈래만 그 색의 갈래로 (모습에 따라 색이 안 바뀌는 물건은 목록 그대로) */
+    /* 모습에 따라 그려지는 색이 바뀌는 물건의 색 갈래 (그 물건 빌더와 같은 색 값으로 적는다 — 빌더의 색을 바꾸면 여기도). 표에 없는데 색이 바뀌는 물건이 생기면 tools/test-player-parts-live.js 가 잡는다 */
+    var PL_ITEM_FAMILY = { 'acc:beret': [[PLC.red, 'c-red'], [PAL.moss[1], 'c-green']], 'acc:catears': [[PAL.slate[0], 'c-black'], [PAL.slate[2], 'c-black']] };
+    function plFamilyOf(cat, id, hex) { var t = PL_ITEM_FAMILY[cat + ':' + id]; if (!t || !hex) return null; for (var i = 0; i < t.length; i++) if (String(t[i][0]).toLowerCase() === hex) return t[i][1]; return null; }
+    function plMainHex(cat, id, look) {
+      var cfg = normalizePlayer(Object.assign({}, look || PL.look, (function () { var o = {}; o[cat] = id; return o; })())), L = [], mains = cat === 'outfit' ? OUTFIT_MAIN[id] : cat === 'shoes' ? SHOES_MAIN[id] : cat === 'acc' ? ACC_MAIN[id] : null;
+      if (!mains || !mains.length) return null;
+      var skin0 = PLC.skin; plSkin(cfg);
+      try {
+        if (cat === 'outfit') { PL_PARTS.outfit[id].torso(L); PL_PARTS.outfit[id].arm(L); }
+        else if (cat === 'shoes') PL_PARTS.shoes[id].parts(L);
+        else PL_PARTS.acc[id](L, cfg);
+      } finally { L.forEach(function (q) { if (q.g && q.g.dispose) q.g.dispose(); }); plSkin(PL.look); if (!PL.look) PLC.skin = skin0; }
+      var ms = mains.map(function (c) { return String(c).toLowerCase(); });
+      for (var i = 0; i < L.length; i++) if (ms.indexOf(String(L[i].c).toLowerCase()) >= 0) return String(L[i].c).toLowerCase();
+      return null;
+    }
+    var PL_TAG_VARY = {};   /* '갈래:id' → true: 머리 색 · 피부색에 따라 그려지는 바탕색이 바뀌는 물건 (처음 물을 때 한 번 센다) */
+    function plTagVaries(cat, id) {
+      var k = cat + ':' + id; if (k in PL_TAG_VARY) return PL_TAG_VARY[k];
+      var seen = {}; PLAYER_PARTS.hairColor.forEach(function (h) { PLAYER_PARTS.skin.forEach(function (sk) { seen[plMainHex(cat, id, Object.assign({}, PL.look, { hairColor: h.id, skin: sk.id }))] = 1; }); });
+      return (PL_TAG_VARY[k] = Object.keys(seen).length > 1);
+    }
+    function itemTags(cat, id, look) {
+      var x = plPart(cat, id); if (!x) return null;
+      var tags = Array.isArray(x.tags) ? x.tags.slice() : [];
+      if (!plTagVaries(cat, id)) return tags;
+      var fam = plFamilyOf(cat, id, plMainHex(cat, id, look)); if (!fam) return tags;
+      return tags.filter(function (t) { return t.indexOf('c-') !== 0; }).concat([fam]);
+    }
+    /* ── 11-21 C11 (주인 "마네킹에 입혀진 거를 입어보고 살 수 있는 그런 느낌"): 옷을 입는 몸 둘 — 가게 마네킹 · 내 캐릭터의 몸짓 ── */
+    /* 마네킹: 얼굴 없는 몸 (위층 마네킹처럼 밝은 나무색) 이 옷 · 신발 · 장식 · 머리 가운데 받은 것만 입는다 (없는 갈래는 민몸). 내 캐릭터와 같은 부품 빌더 · 같은 재질 (toonP) → 셰이더 프로그램이 늘지 않는다.
+       mannequins(key, list): list = [{ slot, parts: { outfit?, shoes?, acc?, hair?, hairColor?, body? } | null, sold, pos?: [x, y, z, face] }] — 자리는 pos, 없으면 roomSlots(key).slots[slot] (V · W 갈래). 붙는 곳은 그 방의 그룹 (W 의 IN.groups[key].g), 없으면 지금 보이는 장소. 다시 부르면 그 방의 마네킹을 다 바꾼다 · 빈 목록 = 다 치움 */
+    var MQ = {}, MQ_SKIN = PAL.amber[3], MQ_DARK = PAL.amber[2];   /* 위층 마네킹과 같은 나무색 칸 */
+    function mqGroup(key) {
+      try { if (typeof IN !== 'undefined' && IN && IN.groups && IN.groups[key] && IN.groups[key].g) return IN.groups[key].g; } catch (e) {}
+      try { if (typeof inBuild === 'function') { var r = inBuild(key); if (r && r.g) return r.g; } } catch (e) {}
+      return groupOf(PLACE.vis) || atticG;
+    }
+    function mqSlot(key, q) {
+      if (Array.isArray(q.pos) && q.pos.length >= 3) return q.pos;
+      try { var rs = typeof inSlots === 'function' ? inSlots(key) : typeof roomSlots === 'function' ? roomSlots(key) : null, sl =   /* W 의 방 자리 (장면 안 이름은 inSlots — 검증 S 11-22) */
+        rs && rs.slots && rs.slots[q.slot]; if (Array.isArray(sl)) return sl; } catch (e) {}
+      return null;
+    }
+    function mqGeo(parts) {   /* 마네킹 한 몸의 부품 → 합친 지오메트리 하나 (머리 · 몸통 · 팔 둘 · 다리 둘을 제자리에 놓아 합친다) */
+      parts = parts || {};
+      var look = normalizePlayer({ hair: parts.hair || 'bob', hairColor: parts.hairColor || 'brown', outfit: parts.outfit || 'dress', shoes: parts.shoes || 'flat', acc: parts.acc || 'none', body: parts.body || 'a', bangs: 'side' });
+      var skin0 = PLC.skin, L = [];
+      PLC.skin = MQ_SKIN;   /* 빌더가 맨살로 그리는 곳 (반소매 팔 · 맨다리 · 손) 을 마네킹 나무색으로 */
+      function put(list, off) { list.forEach(function (q) { q.m = off.clone().multiply(q.m || new T.Matrix4()); L.push(q); }); }
+      try {
+        var head = [{ g: Sph(PL_HEAD_R, 14, 10), m: M(0, PL_HEAD_Y, 0, 0, 0, 0, 1, 0.98, 0.94), c: MQ_SKIN }];
+        if (parts.hair) { PL_BANG = look.bangs; PL_PARTS.hair[look.hair](head, look, plPart('hairColor', look.hairColor).hex); }
+        if (parts.acc && parts.acc !== 'none') PL_PARTS.acc[look.acc](head, look);
+        put(head, new T.Matrix4());
+        var torso = [];
+        if (parts.outfit) PL_PARTS.outfit[look.outfit].torso(torso); else torso.push({ g: Cyl(0.20, 0.23, 0.32), m: M(0, 0.40, 0), c: MQ_SKIN }, { g: Cyl(0.08, 0.09, 0.06), m: M(0, 0.57, 0), c: MQ_DARK });
+        if (look.body === 'b') torso.forEach(function (q) { q.m = M(0, 0, 0, 0, 0, 0, 1.06, 1, 1).multiply(q.m); });
+        put(torso, new T.Matrix4());
+        var sx = look.body === 'b' ? 0.262 : 0.24;
+        [-1, 1].forEach(function (sd) {
+          var arm = [];
+          if (parts.outfit) PL_PARTS.outfit[look.outfit].arm(arm); else plArmTube(arm, MQ_SKIN, -0.02, -0.185);
+          arm.push({ g: Sph(0.058, 8, 6), m: M(0, -0.22, 0), c: MQ_SKIN });
+          put(arm, M(sd * sx, 0.50, 0, 0, 0, sd * 0.30));
+          var o = parts.outfit ? PL_PARTS.outfit[look.outfit] : { leg: MQ_SKIN }, sh = PL_PARTS.shoes[look.shoes], len = parts.shoes ? sh.len : 0.2, r = o.legR || [0.07, 0.068], leg = [];
+          leg.push({ g: Cyl(r[0], r[1], len, 8), m: M(0, -len / 2, 0), c: o.leg === 'skin' ? MQ_SKIN : o.leg });
+          if (o.short) leg.push({ g: Cyl(0.082, 0.08, 0.07, 8), m: M(0, -0.035, 0), c: o.short });
+          if (parts.shoes) sh.parts(leg); else leg.push({ g: box(0.13, 0.04, 0.16), m: M(0, -0.22, 0.01), c: MQ_DARK });
+          put(leg, M(sd * 0.115, 0.24, 0));
+        });
+        var g = mergeParts(L); if (look.body === 'b') plBodyB(g); return g;   /* 몸 b 는 몸통만이 아니라 전체가 조금 넓어진다 — 마네킹은 하나로 합쳐져 있어 괜찮다 */
+      } finally { PLC.skin = skin0; }
+    }
+    function mannequins(key, list) {
+      var old = MQ[key] || [];
+      old.forEach(function (m) { if (m.parent) m.parent.remove(m); var k = disposables.indexOf(m.geometry); if (k >= 0) disposables.splice(k, 1); m.geometry.dispose(); });
+      MQ[key] = [];
+      if (!Array.isArray(list)) { dither.still = 0; return []; }
+      var g = mqGroup(key), out = [];
+      list.forEach(function (q) {
+        if (!q || typeof q !== 'object') return;
+        var at = mqSlot(key, q); if (!at) { out.push({ slot: q.slot, ok: false }); return; }
+        var parts = q.parts && typeof q.parts === 'object' ? {} : null;
+        if (parts) ['outfit', 'shoes', 'acc', 'hair', 'hairColor', 'body'].forEach(function (c) { if (typeof q.parts[c] === 'string' && plPart(c, q.parts[c])) parts[c] = q.parts[c]; });
+        var mesh = new T.Mesh(keep(mqGeo(parts)), toonP); mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = 'mq:' + key + ':' + q.slot;
+        mesh.position.set(+at[0] || 0, +at[1] || 0, +at[2] || 0); mesh.rotation.y = +at[3] || 0; snapScreen(mesh.position);
+        mesh.userData.mq = { key: key, slot: q.slot, parts: parts, sold: !!q.sold };
+        g.add(mesh); MQ[key].push(mesh); out.push({ slot: q.slot, ok: true });
+      });
+      dither.still = 0;
+      return out;
+    }
+    function mannequinInfo(key) { return (MQ[key] || []).map(function (m) { var d = m.userData.mq; return { slot: d.slot, parts: d.parts, sold: d.sold, at: [+m.position.x.toFixed(3), +m.position.y.toFixed(3), +m.position.z.toFixed(3)], group: m.parent ? m.parent.name : '' }; }); }
+
+    /* 몸짓: playerPose(name) → Promise (모션 감소 · 숨은 탭이면 바로). 걷기 그림 위에 덮어 그리고, 스틱을 밀면 바로 끝난다.
+       twirl 빙글 (8방향 한 바퀴 0.8 s) · pose 한 팔 들고 멈춤 0.9 s · bow 꾸벅 0.7 s · cheer 두 팔 들고 통통 두 번 0.9 s */
+    var PL_POSE = { twirl: 0.8, pose: 0.9, bow: 0.7, cheer: 0.9 };
+    function playerPose(name) {
+      if (!PL_POSE[name]) return Promise.resolve(false);
+      if (PL.pose && PL.pose.done) PL.pose.done(false);
+      if (st.reduced || st.hidden || !ready || PL.sit || PL.hop) return Promise.resolve(false);
+      return new Promise(function (res) { PL.pose = { name: name, t: 0, dur: PL_POSE[name] * st.speed, yaw: PL.dir8 || 0, done: res }; dither.still = 0; });
+    }
+    function plPoseStep(dt) {
+      var q = PL.pose; if (!q) return;
+      if (PL.moving || PL_IN.v) { PL.pose = null; q.done(false); return; }
+      q.t += dt; var k = Math.min(1, q.t / q.dur), up = pxUp();
+      if (q.name === 'twirl') { plG.rotation.y = (q.yaw + Math.floor(k * 8)) * (Math.PI / 4); }
+      else if (q.name === 'pose') { plArmR.rotation.z = 2.5; plArmR.rotation.x = 0; plArmL.rotation.z = -0.55; if (k < 0.5) plBody.position.y = snapUp(up); }
+      else if (q.name === 'bow') { plBody.rotation.x = k < 0.75 ? 0.42 : 0; }
+      else if (q.name === 'cheer') { plArmL.rotation.z = -2.6; plArmR.rotation.z = 2.6; plArmL.rotation.x = plArmR.rotation.x = 0; var ph = Math.floor(k * 4); plBody.position.y = snapUp(ph === 0 || ph === 2 ? up * 2 : 0); }
+      dither.still = 0;
+      if (k >= 1) { PL.pose = null; plG.rotation.y = PL.dir8 * (Math.PI / 4); plBody.rotation.x = 0; q.done(true); }
+    }
+    /* 가까이 보기: playerCloseup(true) = 화면이 내 캐릭터 쪽으로 2 배까지 들어가고 캐릭터가 화면을 본다 · false = 들어가기 전 배율로. → Promise (0.2 s 뒤) */
+    var PL_CU = null;
+    function playerCloseup(on) {
+      if (on) {
+        if (!PL_CU) PL_CU = { f: st.zoomF };
+        var sp = null; try { var p = plG.getWorldPosition(new T.Vector3()); p.y += 0.7; p.project(camera); var r = canvas.getBoundingClientRect(); sp = [r.left + (p.x + 1) / 2 * r.width, r.top + (1 - p.y) / 2 * r.height]; } catch (e) {}
+        zoomEase(2, sp ? sp[0] : null, sp ? sp[1] : null);
+        PL.faceCam = true; PL.wantYaw = camYaw(); PAN.arrive = true;
+      } else if (PL_CU) { var f = PL_CU.f; PL_CU = null; PL.faceCam = false; zoomEase(f); }
+      dither.still = 0;
+      return new Promise(function (res) { setTimeout(function () { res(!!on); }, st.reduced ? 0 : 200); });
+    }
+    /* 길 따라 걷기: points = [[x, z], …] (지금 장소의 좌표) · { speed } (m/s, 없으면 보통 걸음) → Promise<boolean> (끝까지 갔나). 걷는 동안 화면이 따라온다 */
+    function playerWalkPath(points, o) {
+      if (!Array.isArray(points) || !points.length) return Promise.resolve(false);
+      var spd = o && +o.speed > 0 ? Math.min(6, +o.speed) : 0, i = 0, ok = true;
+      PL.lift = 0; PL.camGap = 1.2;
+      function next() {
+        if (i >= points.length) { PL.walkSpeed = 0; return Promise.resolve(ok); }
+        var q = points[i++]; if (!Array.isArray(q) || q.length < 2) return next();
+        PL.walkSpeed = spd;
+        return plWalkTo(new T.Vector3(+q[0] || 0, 0, +q[1] || 0), i === points.length && o && o.face != null ? +o.face : null).then(function (w) { ok = ok && (w !== false || st.reduced); return next(); });
+      }
+      return next();
+    }
+    /* 자리 옮기기: playerPlace(x, z, y, face) — 단상처럼 걸어 올라갈 수 없는 곳 (y = 땅 위 높이, 그릴 때만 올린다). 다음에 걸으면 땅으로 */
+    function playerPlace(x, z, y, face) {
+      plStop(); PL.pending = ''; PL.pos.set(+x || 0, 0, +z || 0); PL.lift = Math.max(0, +y || 0); PL.moving = false;
+      if (face != null && isFinite(+face)) PL.yaw = PL.wantYaw = +face;
+      plSnap(); dither.still = 0; return plInfo();
+    }
+    /* 11-21 내 캐릭터 새 부품 (주인 "남캐도 자유롭게 · 눈매나 형태가 … 적합하지 않은 느낌"): 몸 둘 · 눈썹 · 눈 넷 · 머리 일곱 · 옷 여덟 · 신발 둘 · 장식 여섯.
+       예전 부품과 같은 규칙 (docs/PLAYER_PARTS.md): 머리칼은 r PL_HR 껍질 조각 + 가닥 · 눈은 4×4 칸 안 · 흰색 없음 · 메시 7 개 그대로 · 새 재질 없음. PL_PARTS 를 처음 쓰기 전에 한 번 불린다 */
+    function plHat(cfg) { return cfg.acc === 'beret' || cfg.acc === 'strawhat' || cfg.acc === 'cap' || cfg.acc === 'bandana'; }   /* 머리를 덮는 장식 — 정수리로 삐치는 가닥을 뺀다 */
+    function plShoulders(look) { var x = look && look.body === 'b' ? 0.262 : 0.24; plArmL.position.x = -x; plArmR.position.x = x; }   /* 몸 b = 어깨가 한쪽에 2 cm 씩 넓다 */
+    function plBodyB(g) {   /* 몸 b: 어느 옷이든 몸통을 위는 넓게 (× 1.12) 아래는 좁게 (× 0.92) — 어깨가 곧고 허리가 퍼지지 않는 몸. 정점 x 만 민다 (옷마다 따로 그리지 않는다) */
+      var a = g.attributes.position;
+      for (var i = 0; i < a.count; i++) { var k = Math.max(0, Math.min(1, (a.getY(i) - 0.24) / 0.30)); a.setX(i, a.getX(i) * (0.92 + 0.20 * k)); }
+      a.needsUpdate = true; g.computeBoundingSphere();
+    }
+    function plDollTee(pp, mx, mz) {   /* 위층 마네킹의 문어 티셔츠 (내 캐릭터의 '문어 티' 와 같은 옷): 짧은 소매 둘 · 밑단 한 줄 · 가슴의 빨간 문어 (머리 + 다리 셋 + 눈 두 점). 그림은 방 안쪽 (+x +z, 기본 화면 쪽) 을 본다 */
+      var q = Math.SQRT1_2, R = '#c04040';
+      [-1, 1].forEach(function (s) { pp.push({ g: new T.CylinderGeometry(0.062, 0.075, 0.12, 7), m: M(mx + s * 0.135 * q, 0.99, mz - s * 0.135 * q, s * 0.75 * q, 0, s * 0.75 * q), c: FIXED.white }); });
+      pp.push({ g: new T.CylinderGeometry(0.218, 0.218, 0.03, 9), m: M(mx, 0.65, mz), c: PAL.paper[1] });
+      function at(r, y, side) { return [mx + r * q + side * q, y, mz + r * q - side * q]; }   /* 가슴 면 위의 점: r = 몸 가운데에서 앞으로 · side = 옆으로 */
+      var h = at(0.172, 0.9, 0); pp.push({ g: new T.SphereGeometry(0.075, 8, 6), m: M(h[0], h[1], h[2], 0, Math.PI / 4, 0, 1, 0.85, 0.4), c: R });
+      [-0.052, 0, 0.052].forEach(function (d) { var l = at(0.186, 0.825, d); pp.push({ g: box(0.034, 0.055, 0.02), m: M(l[0], l[1], l[2], 0, Math.PI / 4, 0), c: R }); });
+      [-0.028, 0.028].forEach(function (d) { var e = at(0.204, 0.905, d); pp.push({ g: box(0.022, 0.026, 0.012), m: M(e[0], e[1], e[2], 0, Math.PI / 4, 0), c: FIXED.white }); });
+    }
+    function plParts7() {
+      var H = PL_PARTS.hair, WH = '#f1ede2', DN = '#3f5f8f', BK = '#343a48';
+      function side(L, hex) { [-1, 1].forEach(function (s) { plLock(L, [s * 0.31, 0.98, 0.14], [s * 0.33, 0.82, 0.16], 0.07, 0.035, hex); }); }   /* 귀 앞 짧은 가닥 */
+      function nape(L, hex, t0, t1) { L.push({ g: Sph(PL_HR - 0.012, 12, 4, 185, 170, t0 - 0.06, t1 - t0 + 0.06), m: HM(), c: hex }); }   /* 뒤통수 아래 (귀 뒤 ~ 목덜미) 만 덮는 안쪽 껍질 — 짧은 머리도 뒤에서 민머리로 안 보이게 */
+      function sweep(L, hex, n, lift) { for (var i = 0; i < n; i++) plLock(L, plHP(58 + i * 5, 0.34 + i * 0.05, PL_HR + 0.01), plHP(118 + i * 9, 0.86 + i * 0.07, PL_HR + lift), 0.085, 0.03, hex); }   /* 가르마에서 반대쪽으로 쓸어 넘긴 윗머리 가닥 */
+      H.crop = function (L, cfg, hex) {   /* 크롭컷: 귀 위에서 끝나는 짧은 윗머리 + 한 톤 어두운 짧은 옆 · 뒤 (바짝 친 머리) */
+        L.push({ g: Sph(PL_HR, 18, 11, 142, 256, 0, 1.43), m: HM(), c: hex }, { g: Sph(PL_HR - 0.012, 18, 4, 142, 256, 1.43, 0.52), m: HM(), c: mixHex(hex, FIXED.ink, 0.36) }); nape(L, mixHex(hex, FIXED.ink, 0.36), 1.95, 2.2); H._fringe(L, hex); H._pole(L, hex); };
+      H.dandy = function (L, cfg, hex) {   /* 댄디컷: 귀를 반쯤 덮는 단정한 머리 + 볼륨 있는 윗머리를 한쪽으로 넘김 */
+        L.push({ g: Sph(PL_HR, 18, 13, 142, 256, 0, 1.69), m: HM(), c: hex }); nape(L, hex, 1.69, 2.2); H._fringe(L, hex); H._pole(L, hex); side(L, hex);
+        if (!plHat(cfg)) { L.push({ g: Sph(PL_HR + 0.03, 14, 6, 0, 360, 0, 0.8), m: M(PL_HC[0] + 0.015, PL_HC[1] - 0.004, PL_HC[2]), c: hex }); sweep(L, hex, 4, 0.045); } };
+      H.tousle = function (L, cfg, hex) {   /* 부스스: 짧은 머리에 사방으로 뻗친 가닥 */
+        L.push({ g: Sph(PL_HR, 18, 14, 142, 256, 0, 1.82), m: HM(), c: hex }); nape(L, hex, 1.82, 2.2); H._fringe(L, hex); H._pole(L, hex); side(L, hex);
+        [[160, 0.5], [205, 0.78], [250, 0.45], [300, 0.8], [340, 0.52], [22, 0.62], [90, 0.3], [182, 1.15], [215, 1.4], [270, 1.55], [325, 1.4], [358, 1.15]].forEach(function (t) {
+          if (t[1] < 0.95 && plHat(cfg)) return;
+          plLock(L, plHP(t[0], t[1] + 0.1, PL_HR - 0.03), plHP(t[0] + 10, t[1] - 0.06, PL_HR + 0.072), 0.08, 0.026, hex); }); };
+      H.part = function (L, cfg, hex) {   /* 중단발: 턱선까지 내려오는 옆 · 뒷머리 + 얼굴 옆으로 흘러내리는 긴 앞 가닥 둘 */
+        H._cap(L, hex); L.push({ g: Sph(PL_HR, 18, 7, 142, 256, 1.30, 0.91), m: HM(), c: hex }); plHem(L, 0.70, 0.355, 0.39, 0.16, hex, 0.96);
+        [-1, 1].forEach(function (s) { if (!plHat(cfg)) plLock(L, [s * 0.05, 1.25, 0.15], [s * 0.285, 1.08, 0.235], 0.085, 0.07, hex); plLock(L, [s * 0.285, 1.08, 0.235], [s * 0.345, 0.72, 0.17], 0.07, 0.04, hex); }); };
+      H.curl = function (L, cfg, hex) {   /* 곱슬: 짧은 머리 위에 동글동글한 컬 */
+        L.push({ g: Sph(PL_HR, 18, 12, 142, 256, 0, 1.56), m: HM(), c: hex }); nape(L, hex, 1.56, 2.15); H._fringe(L, hex); H._pole(L, hex);
+        var C = [];
+        if (!plHat(cfg)) { for (var i = 0; i < 6; i++) C.push([20 + i * 60, 0.5]); [56, 90, 124].forEach(function (p) { C.push([p, 0.86]); }); }
+        for (var j = 0; j < 8; j++) C.push([152 + j * 33.7, 1.0]);
+        for (var k = 0; k < 9; k++) C.push([148 + k * 30.5, 1.5]);
+        for (var n = 0; n < 5; n++) C.push([196 + n * 37, 1.98]);
+        C.forEach(function (t) { var q = plHP(t[0], t[1], PL_HR + 0.012); L.push({ g: Sph(0.078, 8, 6), m: M(q[0], q[1], q[2]), c: hex }); }); };
+      H.twoblock = function (L, cfg, hex) {   /* 투블럭: 윗머리 덩어리가 처마처럼 덮고 그 아래 옆 · 뒤는 한 톤 어둡게 바짝 */
+        L.push({ g: Sph(PL_HR, 18, 9, 142, 256, 0, 1.17), m: HM(), c: hex }, { g: Sph(PL_HR - 0.015, 18, 6, 142, 256, 1.17, 0.78), m: HM(), c: mixHex(hex, FIXED.ink, 0.36) }); nape(L, mixHex(hex, FIXED.ink, 0.36), 1.95, 2.2);
+        plHem(L, 1.05, 0.372, 0.392, 0.085, hex); H._fringe(L, hex); H._pole(L, hex); if (!plHat(cfg)) sweep(L, hex, 3, 0.035); };
+      H.lowtail = function (L, cfg, hex) {   /* 꽁지머리: 귀까지 덮는 머리를 목덜미에서 짧게 묶음 */
+        H._cap(L, hex); L.push({ g: Sph(PL_HR, 18, 5, 142, 256, 1.30, 0.65), m: HM(), c: hex }, { g: Sph(0.062, 8, 6), m: M(0, 0.70, -0.37), c: hex }); side(L, hex);
+        plTaper(L, [0, 0.69, -0.385], [0.02, 0.50, -0.40], 0.062, 0.034, hex, 8); L.push({ g: Sph(0.034, 6, 4), m: M(0.02, 0.50, -0.40), c: hex }, { g: Sph(0.042, 6, 5), m: M(0, 0.72, -0.405), c: PAL.navy[2] }); };
+
+      var E = PL_PARTS.eyes;
+      E.calm = [['K K', 'I I'],
+        ['K K K K', 'I * P I', 'I P P I', '. I I .'],
+        ['. K K K K K K .', 'K K K K K K K K', 'S S * * P P S S', 'I S P P P P S I', 'I I P P P P I I', 'I I I P P I I I', '. I I I I I I .', '. . I I I I . .']];   /* 차분: 윗선이 반듯한 눈 (위 모서리까지 꺼풀 그늘) */
+      E.upturn = [['K K', 'I I'],
+        ['K K . .', 'I K K K', 'I P P I', '. I I .'],
+        ['K K . . . . . .', 'K K K K . . . .', '. K K K K K K .', 'I * * P P K K K', 'I I P P P P I I', 'I I I P P I I I', '. I I I I I I .', '. . I I I I . .']]; E.upturn.mir = true;   /* 날렵: 눈꼬리 (바깥쪽) 가 올라간 눈 — 그림은 왼눈, 오른눈은 뒤집는다 */
+      E.droop = [['K K', 'I I'],
+        ['. . K K', 'K K P I', 'I P P I', '. I I .'],
+        ['. . . . K K K .', '. . K K K K K K', 'K K K K P P S S', 'K S * * P P S I', 'I I P P P P I I', 'I I I P P I I I', '. I I I I I I .', '. . I I I I . .']]; E.droop.mir = true;   /* 순한: 눈꼬리가 내려간 눈 */
+      E.narrow = [['K K', 'I I'],
+        ['. . . .', '. K K .', 'K I I K', '. . . .'],
+        ['. . . . . . . .', '. . . . . . . .', '. . K K K K . .', '. K K K K K K .', 'K K I P P I K K', 'K I I P P I I K', '. . . . . . . .', '. . . . . . . .']];   /* 눈웃음: 가늘게 뜬 눈 — 호 아래로 눈 색이 조금 보인다 */
+      PL_PARTS.brow = { none: null,
+        soft: FA(['b'], ['. B B .', '. . . .'], ['. . B B B B . .', 'b B . . . . B .', '. . . . . . . .', '. . . . . . . .'], 21, 2),   /* 둥근: 옅고 짧은 호 */
+        flat: FA(['B'], ['B B B B', '. . . .'], ['. B B B B B B .', 'B B B B B B B B', '. . . . . . . .', '. . . . . . . .'], 21, 2),   /* 일자 */
+        bold: FA(['B'], ['B B B B', '. . B B'], ['B B B B B B B .', 'B B B B B B B B', '. . . B B B B B', '. . . . . B B B'], 21, 2) };   /* 짙은: 안쪽이 두꺼운 눈썹 (그림은 왼쪽 — 바깥이 왼쪽 열) */
+
+      var O = PL_PARTS.outfit;
+      function hips(L, hex) { L.push({ g: Cyl(0.227, 0.236, 0.07), m: M(0, 0.272, 0), c: hex }); }   /* 바지 허리 (몸통 아래 2 px) */
+      O.octee = { torso: function (L) {   /* 문어 티: 흰 티셔츠 가슴에 작은 빨간 문어 (머리 + 다리 셋 + 눈 두 점) + 청바지 — 새 기본 옷 · 위층 마네킹과 같은 옷 */
+          L.push({ g: Cyl(0.205, 0.232, 0.26), m: M(0, 0.43, 0), c: WH }, { g: Cyl(0.172, 0.172, 0.03), m: M(0, 0.562, 0), c: '#d9d2c0' },
+            { g: Sph(0.058, 8, 6), m: M(0, 0.458, 0.2, 0, 0, 0, 1, 0.85, 0.5), c: PLC.red },
+            { g: box(0.028, 0.04, 0.02), m: M(-0.042, 0.402, 0.222), c: PLC.red }, { g: box(0.028, 0.046, 0.02), m: M(0, 0.399, 0.226), c: PLC.red }, { g: box(0.028, 0.04, 0.02), m: M(0.042, 0.402, 0.222), c: PLC.red },
+            { g: box(0.018, 0.02, 0.01), m: M(-0.022, 0.462, 0.2275), c: WH }, { g: box(0.018, 0.02, 0.01), m: M(0.022, 0.462, 0.2275), c: WH }); hips(L, DN); },
+        arm: function (L) { plPuff(L, WH); plArmTube(L, PLC.skin, -0.05, -0.185); }, leg: DN, legR: [0.075, 0.07] };
+      O.shirt = { torso: function (L) {   /* 셔츠: 하늘색 단추 셔츠 (흰 깃 · 여밈 줄) + 허리띠 + 짙은 바지 */
+          var SB = '#8fb8de', SD = '#6d94bd';
+          L.push({ g: Cyl(0.205, 0.23, 0.25), m: M(0, 0.435, 0), c: SB }, { g: box(0.022, 0.22, 0.02), m: M(0, 0.43, 0.228), c: SD },
+            { g: box(0.035, 0.1, 0.03), m: M(-0.04, 0.53, 0.2, 0, 0, -0.55), c: WH }, { g: box(0.035, 0.1, 0.03), m: M(0.04, 0.53, 0.2, 0, 0, 0.55), c: WH }, { g: Cyl(0.18, 0.18, 0.03), m: M(0, 0.565, 0), c: WH },
+            { g: Cyl(0.233, 0.235, 0.026), m: M(0, 0.312, 0), c: PAL.wood[1] }); hips(L, PAL.slate[1]); },
+        arm: function (L) { plSleeve(L, '#8fb8de', '#6d94bd'); }, leg: PAL.slate[1], legR: [0.074, 0.07] };
+      O.jersey = { torso: function (L) {   /* 운동복: 초록 위아래 + 흰 깃 · 지퍼 줄 + 짙은 밑단 */
+          var G = '#3f9a6c', GD = '#2f7a54';
+          L.push({ g: Cyl(0.212, 0.234, 0.25), m: M(0, 0.435, 0), c: G }, { g: Cyl(0.18, 0.186, 0.045), m: M(0, 0.56, 0), c: WH }, { g: box(0.022, 0.24, 0.02), m: M(0, 0.435, 0.232), c: WH },
+            { g: Cyl(0.238, 0.238, 0.03), m: M(0, 0.315, 0), c: GD }); hips(L, G); },
+        arm: function (L) { plSleeve(L, '#3f9a6c', WH); }, leg: '#3f9a6c', legR: [0.076, 0.07] };
+      O.sailor = { torso: function (L) {   /* 세일러: 흰 윗도리 + 남색 넓은 깃 (앞은 V · 뒤는 네모 자락) + 빨간 매듭 + 남색 반바지 */
+          var NV = PAL.navy[3];
+          L.push({ g: Cyl(0.205, 0.23, 0.22), m: M(0, 0.45, 0), c: WH }, { g: Cyl(0.2, 0.216, 0.04), m: M(0, 0.548, 0), c: NV }, { g: box(0.27, 0.12, 0.03), m: M(0, 0.495, -0.212), c: NV },
+            { g: box(0.042, 0.13, 0.03), m: M(-0.052, 0.5, 0.208, 0, 0, -0.45), c: NV }, { g: box(0.042, 0.13, 0.03), m: M(0.052, 0.5, 0.208, 0, 0, 0.45), c: NV }, { g: Sph(0.036, 6, 5), m: M(0, 0.45, 0.228), c: PLC.red },
+            { g: Cyl(0.232, 0.246, 0.11), m: M(0, 0.29, 0), c: NV }); },
+        arm: function (L) { plPuff(L, WH); L.push({ g: Cyl(0.052, 0.052, 0.026, 10), m: M(0, -0.078, 0), c: PAL.navy[3] }); plArmTube(L, PLC.skin, -0.05, -0.185); }, leg: 'skin', short: PAL.navy[3] };
+      O.fisher = { torso: function (L) {   /* 어부 니트: 도톰한 크림색 니트 (목 · 밑단 · 세로 꽈배기 줄은 한 톤 짙게) + 갈색 바지 */
+          var CR = '#ece4d0', CD = '#b8a680';
+          L.push({ g: Cyl(0.216, 0.24, 0.25), m: M(0, 0.435, 0), c: CR }, { g: Cyl(0.186, 0.196, 0.06), m: M(0, 0.553, 0), c: CD }, { g: Cyl(0.243, 0.243, 0.03), m: M(0, 0.315, 0), c: CD },
+            { g: box(0.026, 0.19, 0.02), m: M(-0.075, 0.435, 0.218), c: CD }, { g: box(0.026, 0.19, 0.02), m: M(0.075, 0.435, 0.218), c: CD }); hips(L, '#7a5236'); },
+        arm: function (L) { plSleeve(L, '#ece4d0', '#b8a680'); }, leg: '#7a5236', legR: [0.075, 0.07] };
+      O.windbreak = { torso: function (L) {   /* 바람막이: 노란 몸판 + 남색 어깨판 · 세운 깃 · 밑단 고무줄 + 흰 지퍼 + 회색 바지 */
+          var YL = '#e8b23a', NV = PAL.navy[3];
+          L.push({ g: Cyl(0.215, 0.238, 0.25), m: M(0, 0.435, 0), c: YL }, { g: Cyl(0.214, 0.227, 0.09), m: M(0, 0.517, 0), c: NV }, { g: Cyl(0.18, 0.19, 0.05), m: M(0, 0.567, 0), c: NV },
+            { g: box(0.022, 0.16, 0.02), m: M(0, 0.39, 0.236), c: WH }, { g: Cyl(0.241, 0.241, 0.03), m: M(0, 0.315, 0), c: NV }); hips(L, PAL.slate[1]); },
+        arm: function (L) { plPuff(L, PAL.navy[3]); plArmTube(L, '#e8b23a', -0.03, -0.185); L.push({ g: Cyl(0.052, 0.052, 0.03, 10), m: M(0, -0.172, 0), c: PAL.navy[3] }); }, leg: PAL.slate[1], legR: [0.075, 0.07] };
+      O.cardigan = { torso: function (L) {   /* 가디건: 흰 티 위에 앞이 열린 분홍 가디건 (여밈 단 · 단추 둘) + 카키 바지 */
+          var LV = '#d684b0', LD = '#a85a88';
+          L.push({ g: Cyl(0.2, 0.222, 0.3), m: M(0, 0.41, 0), c: WH }, { g: new T.CylinderGeometry(0.215, 0.24, 0.27, 14, 1, false, 22 * DEG, 316 * DEG), m: M(0, 0.425, 0), c: LV },
+            { g: box(0.028, 0.27, 0.02), m: M(-0.085, 0.425, 0.212), c: LD }, { g: box(0.028, 0.27, 0.02), m: M(0.085, 0.425, 0.212), c: LD },
+            { g: Sph(0.02, 5, 4), m: M(0.085, 0.41, 0.228), c: PAL.amber[3] }, { g: Sph(0.02, 5, 4), m: M(0.085, 0.34, 0.232), c: PAL.amber[3] }); hips(L, '#8a7a5a'); },
+        arm: function (L) { plSleeve(L, '#d684b0', '#a85a88'); }, leg: '#8a7a5a', legR: [0.075, 0.07] };
+      O.suit = { torso: function (L) {   /* 정장: 흰 셔츠 + 앞이 V 로 열린 짙은 재킷 (깃 둘) + 하늘색 넥타이 + 같은 색 바지 */
+          var LP = '#4a5162';
+          L.push({ g: Cyl(0.2, 0.222, 0.3), m: M(0, 0.41, 0), c: WH }, { g: new T.CylinderGeometry(0.218, 0.242, 0.29, 14, 1, false, 24 * DEG, 312 * DEG), m: M(0, 0.42, 0), c: BK },
+            { g: box(0.2, 0.1, 0.03), m: M(0, 0.33, 0.224), c: BK }, { g: box(0.045, 0.16, 0.026), m: M(-0.078, 0.47, 0.208, 0, 0, -0.3), c: LP }, { g: box(0.045, 0.16, 0.026), m: M(0.078, 0.47, 0.208, 0, 0, 0.3), c: LP },
+            { g: box(0.034, 0.15, 0.03), m: M(0, 0.455, 0.214), c: '#4f8fba' }, { g: Cyl(0.19, 0.18, 0.035), m: M(0, 0.558, 0), c: WH }); hips(L, BK); },
+        arm: function (L) { plSleeve(L, BK, WH); }, leg: BK, legR: [0.075, 0.07] };
+      Object.assign(OUTFIT_MAIN, { octee: [WH], shirt: ['#8fb8de', '#6d94bd'], jersey: ['#3f9a6c', '#2f7a54'], sailor: [PAL.navy[3]], fisher: ['#ece4d0', '#b8a680'], windbreak: ['#e8b23a'], cardigan: ['#d684b0', '#a85a88'], suit: [BK, '#4a5162'] });
+
+      var SH = PL_PARTS.shoes;
+      SH.hightop = { len: 0.08, parts: function (L) { L.push({ g: box(0.15, 0.11, 0.18), m: M(0, -0.14, 0.01), c: BK }, { g: box(0.16, 0.045, 0.19), m: M(0, -0.2175, 0.01), c: FIXED.white }, { g: box(0.14, 0.05, 0.05), m: M(0, -0.172, 0.085), c: FIXED.white }); } };   /* 하이탑: 발목까지 올라오는 짙은 운동화 + 흰 밑창 · 흰 앞코 */
+      SH.sandal = { len: 0.19, parts: function (L) { L.push({ g: box(0.13, 0.04, 0.17), m: M(0, -0.205, 0.015), c: PLC.skin }, { g: box(0.15, 0.03, 0.19), m: M(0, -0.225, 0.012), c: '#8a5a3c' }, { g: box(0.146, 0.046, 0.045), m: M(0, -0.2, 0.045), c: '#8a5a3c' }); } };   /* 샌들: 갈색 바닥 + 발등 끈 하나 · 맨발 */
+      Object.assign(SHOES_MAIN, { hightop: [BK], sandal: ['#8a5a3c'] });
+
+      var A = PL_PARTS.acc;
+      A.cap = function (L) { var c = '#3a6fb0';   /* 야구모자: 둥근 크라운 + 앞 챙 (짙은 챙을 앞으로 살짝 숙인다 · 앞 끝 z 0.50 — 그보다 길면 32° 내려다보는 화면에서 눈 윗줄을 가린다) + 꼭지 단추. 키 1.375 */
+        L.push({ g: Sph(0.4, 16, 8, 0, 360, 0, 1.15), m: M(0, 0.915, -0.03, 0, 0, 0, 1, 1.1, 1), c: c }, { g: Cyl(0.16, 0.16, 0.04, 12), m: M(0, 1.12, 0.34, 0.25, 0, 0, 1.3, 1, 1), c: '#2a5288' }, { g: Sph(0.03, 6, 4), m: M(0, 1.352, -0.03), c: c }); };
+      A.bandana = function (L) { var c = '#3f8fa8', d = '#2f7088';   /* 두건: 정수리를 덮는 천 + 이마 띠 + 뒤 매듭과 두 자락 */
+        L.push({ g: Sph(0.425, 16, 7, 0, 360, 0, 0.9), m: HM(), c: c }, { g: Cyl(0.336, 0.342, 0.05, 16), m: M(PL_HC[0], 1.155, PL_HC[2]), c: d }, { g: Sph(0.05, 7, 5), m: M(0.12, 1.06, -0.355), c: d });
+        plTaper(L, [0.12, 1.05, -0.37], [0.22, 0.93, -0.39], 0.036, 0.02, c, 6); plTaper(L, [0.12, 1.05, -0.37], [0.07, 0.91, -0.42], 0.036, 0.02, c, 6); };
+      A.headphones = function (L) { var c = PAL.slate[1];   /* 헤드폰: 정수리를 넘는 띠 + 두 귀의 둥근 통 (밝은 통 · 호박색 가운데) */
+        L.push({ g: new T.TorusGeometry(0.4, 0.028, 6, 20, Math.PI), m: M(PL_HC[0], PL_HC[1], PL_HC[2]), c: c });
+        [-1, 1].forEach(function (s) { L.push({ g: Cyl(0.09, 0.09, 0.08, 10), m: M(s * 0.41, 0.9, -0.03, 0, 0, Math.PI / 2), c: WH }, { g: Cyl(0.05, 0.05, 0.09, 8), m: M(s * 0.41, 0.9, -0.03, 0, 0, Math.PI / 2), c: PAL.amber[3] }); }); };
+      A.scarf = function (L) { var c = '#d8703a', d = '#b0522a';   /* 목도리: 목에 두른 고리 + 앞으로 늘어뜨린 자락 (끝에 짙은 줄) */
+        L.push({ g: Cyl(0.212, 0.232, 0.07, 14), m: M(0, 0.535, 0), c: c }, { g: box(0.07, 0.15, 0.03), m: M(0.09, 0.45, 0.232), c: c }, { g: box(0.072, 0.03, 0.032), m: M(0.09, 0.395, 0.233), c: d }); };
+      A.sqglasses = function (L) { var c = BK;   /* 네모안경: 동글안경과 같은 자리 · 같은 굵기 (1 px 선) 의 네모 테 */
+        [-1, 1].forEach(function (s) { [0.1, -0.1].forEach(function (dy) { L.push({ g: box(0.26, 0.018, 0.018), m: EM(s, 0, 0.045 + dy, 0.07), c: c }); }); [0.121, -0.121].forEach(function (dx) { L.push({ g: box(0.018, 0.218, 0.018), m: EM(s, dx, 0.045, 0.07), c: c }); }); });
+        L.push({ g: box(0.05, 0.03, 0.04), m: M(0, PL_EYE.y + 0.045, 0.37), c: c }); };
+      A.bag = function (L) { var c = '#9a5a3a', d = '#6a3a2a';   /* 작은 가방: 오른 어깨에서 왼 허리로 가로지르는 끈 (앞 · 뒤) + 허리 앞의 작은 가방 */
+        L.push({ g: box(0.03, 0.38, 0.02), m: M(-0.01, 0.43, 0.226, 0, 0, -0.75), c: d }, { g: box(0.03, 0.38, 0.02), m: M(-0.01, 0.43, -0.226, 0, 0, -0.75), c: d },
+          { g: box(0.13, 0.11, 0.06), m: M(-0.15, 0.295, 0.245), c: c }, { g: box(0.135, 0.05, 0.065), m: M(-0.15, 0.33, 0.247), c: d }, { g: Sph(0.018, 5, 4), m: M(-0.15, 0.3, 0.28), c: PAL.amber[3] }); };
+      A.paper_crown = function (L) { var c = '#e8a93a', d = '#c47d1c';   /* 11-24 종이 왕관 (주간 상): 정수리에 얹은 노란 종이 띠 + 뾰족한 끝 다섯 + 앞 끝에 빨간 보석 하나. 문어 것과 같은 색 */
+        L.push({ g: new T.CylinderGeometry(0.255, 0.27, 0.11, 14, 1, true), m: M(PL_HC[0], 1.235, PL_HC[2]), c: c }, { g: new T.CylinderGeometry(0.272, 0.272, 0.025, 14, 1, true), m: M(PL_HC[0], 1.19, PL_HC[2]), c: d });
+        for (var i = 0; i < 5; i++) { var a = i / 5 * Math.PI * 2; L.push({ g: new T.ConeGeometry(0.06, 0.12, 4), m: M(PL_HC[0] + Math.sin(a) * 0.255, 1.345, PL_HC[2] + Math.cos(a) * 0.255), c: c }); }
+        L.push({ g: Sph(0.03, 6, 4), m: M(PL_HC[0], 1.235, PL_HC[2] + 0.275), c: '#c83a3a' }); };
+      A.emperor_cape = function (L) { var c = '#a8232e', d = '#7e1a24', g = '#f0c040';   /* 11-24 황제 망토 (주간 상): 어깨에서 무릎께까지 등을 덮는 반원 자락 (안감 짙은 빨강) + 목의 금빛 깃 + 앞 여밈 단추 */
+        L.push({ g: new T.CylinderGeometry(0.25, 0.38, 0.5, 16, 1, true, Math.PI * 0.3, Math.PI * 1.4), m: M(0, 0.32, -0.015), c: c },
+          { g: new T.CylinderGeometry(0.24, 0.37, 0.48, 16, 1, true, Math.PI * 0.34, Math.PI * 1.32), m: M(0, 0.32, -0.01), c: d },
+          { g: Cyl(0.215, 0.245, 0.07, 14), m: M(0, 0.565, 0), c: g }, { g: Sph(0.032, 6, 4), m: M(-0.07, 0.53, 0.235), c: g }, { g: Sph(0.032, 6, 4), m: M(0.07, 0.53, 0.235), c: g }); };
+      Object.assign(ACC_MAIN, { cap: ['#3a6fb0', '#2a5288'], bandana: ['#3f8fa8', '#2f7088'], headphones: [WH], scarf: ['#d8703a', '#b0522a'], sqglasses: [BK], bag: ['#9a5a3a', '#6a3a2a'], paper_crown: ['#e8a93a', '#c47d1c'], emperor_cape: ['#a8232e', '#7e1a24'] });
+    }   /* 따라가는 화면 (바깥 갈래) 이 읽는다: 걷기 2.2 · 뛰기 3.74 m/s */
+
+
+    /* [7-W] 바깥 한 장 · 해안가 · 이동 */
+    var WIDE_PARTS = { village: [], beach: [] }, WIDE_SPOT = {}, WIDE_SPOT_KEYS = [];
+    var WSTATE = { own: false, spotN: 0, cols: null, colKey: '', beach: null, wave: null, waveF: -1, shells: null, shellOn: [], jump: null, vmax: 3, lastX: 0, lastZ: 0, xoff: [0, 0], la: [0, 0] };
+    var WIDE_C = { pave: ['#a39c90', '#a8a195', '#ada69a'], joint: '#8d867b', edge: '#8f8a86', wallTop: '#989185', wall: '#746d63',
+      sand: { spring: '#d0ac88', summer: '#d4b08a', autumn: '#caa684', winter: '#c8c6c0' }, wet: { spring: '#ac8a6a', summer: '#b08e6c', autumn: '#a68466', winter: '#a6a8aa' }, grain: { spring: '#be9c7a', summer: '#c2a07c', autumn: '#b89676', winter: '#b6b6b2' },
+      sea: { spring: ['#78b4c8', '#4a8cae', '#3a6f9a'], summer: ['#6cb8c8', '#3f8fb0', '#2f6c9c'], autumn: ['#76a8ba', '#4a7f9e', '#3a658c'], winter: ['#8ab0c0', '#5a849c', '#46687f'] },
+      dune: { spring: '#b8c070', summer: '#a8b860', autumn: '#c8a858', winter: '#c8cdc0' } };
+    var WAVE_F = [0, 0.11, 0.22, 0.33, 0.22, 0.11];   /* 물가 거품 줄이 모래 위로 올라오는 거리 (m) — 초당 5 칸, 여섯 칸 한 바퀴. 모션 감소면 첫 칸에 선다 */
+    /* 대각 좌표의 납작한 판 · 상자 (s = 집에서 바다 쪽 · t = 화면 오른쪽). 판은 s 가 가로 · t 가 세로가 되게 −45° 돌린다 */
+    function stPlane(s0, s1, t0, t1, y, step, c, tag) {
+      var g = new T.PlaneGeometry(s1 - s0, t1 - t0, Math.max(1, Math.round((s1 - s0) / step)), Math.max(1, Math.round((t1 - t0) / step))); g.rotateX(-Math.PI / 2);
+      var q = wideXZ((s0 + s1) / 2, (t0 + t1) / 2); return { g: g, m: M(q[0], y, q[1], 0, -Math.PI / 4, 0), c: c, tag: tag || 0 };
+    }
+    function stBox(sc, tc, y, ls, h, lt, c, tag) { var q = wideXZ(sc, tc); return { g: box(ls, h, lt), m: M(snapPos(q[0]), y, snapPos(q[1]), 0, -Math.PI / 4, 0), c: c, tag: tag || 0 }; }
+    function wideDist(sd, td) { var b = 1e9; WIDE.AREAS.forEach(function (a) { var d = Math.hypot(Math.max(a[0] - sd, 0, sd - a[1]), Math.max(a[2] - td, 0, td - a[3])); if (d < b) b = d; }); return b; }   /* 걷는 곳 (길 · 마루 · 광장 · 계단 · 모래 · 부두) 까지의 거리 — 안이면 0 */
+    function wideGroundY(x, z) {   /* 땅 높이 (m): 풀 땅 0 · 계단 네 칸 (0.12 m 씩) · 모래 −0.6 · 부두 마루 −0.42 (발치에 한 칸) */
+      var sd = (x + z) * Math.SQRT1_2, td = (x - z) * Math.SQRT1_2, P = WIDE.AREAS[6];
+      if (sd < WIDE.STEP_S) return 0;
+      if (td >= P[2] - 0.2 && td <= P[3] + 0.2) { if (sd >= 56.2) return WIDE.PIER_Y; if (sd >= 55.8) return -0.51; }
+      return Math.max(WIDE.BEACH_Y, -0.12 * (Math.floor((sd - WIDE.STEP_S) / WIDE.STEP_D) + 1));
+    }
+    function wideSignParts(out, i) {   /* 표지판: 기둥 + 화살 판 둘 (바다 쪽 · 집 쪽) — 글자 없음 */
+      var sg = WIDE.SIGNS[i], q = wideXZ(sg[0], sg[1]), y0 = wideGroundY(q[0], q[1]);
+      out.push({ g: box(0.1, 1.34, 0.1), m: M(snapPos(q[0]), y0 + 0.67, snapPos(q[1])), c: EXT_C.trunk }, { g: box(0.14, 0.04, 0.14), m: M(snapPos(q[0]), y0 + 1.36, snapPos(q[1])), c: EXT_C.fence });
+      out.push(stBox(sg[0] + 0.06, sg[1] + 0.2, y0 + 1.12, 0.04, 0.2, 0.62, PAL.paper[1]), stBox(sg[0] + 0.06, sg[1] + 0.55, y0 + 1.12, 0.04, 0.1, 0.08, PAL.paper[1]));
+      out.push(stBox(sg[0] + 0.06, sg[1] - 0.2, y0 + 0.84, 0.04, 0.2, 0.62, PAL.paper[2] || PAL.paper[1]), stBox(sg[0] + 0.06, sg[1] - 0.55, y0 + 0.84, 0.04, 0.1, 0.08, PAL.paper[2] || PAL.paper[1]));
+    }
+    /* 11-21 주인: "꽃 안 같아 징그러워 — 에셋 재활용 말고 꽃 만들어줘". 둥근 잎 뭉치 (나무 우듬지 조각) 를 쓰지 않고 꽃을 따로 빚는다 — 정원 일에서도 쓴다.
+       wideFlower(out, x, y, z, kind, sz): 한 송이. 노란 꽃술 하나 + 꽃잎 여섯 (위 · 아래 · 좌 · 우 · 앞 · 뒤 — 어느 각에서 봐도 열십자 꽃 모양). kind = 꽃잎 색 (분홍 · 흰 · 연보라 · 노랑 · 진분홍), sz = 꽃잎 한 장 (m).
+       wideLeaf(out, x, y, z, k): 납작한 잎 한 쌍 (초록 — 계절과 무관하게 잎은 잎 색). */
+    var FLOWER_C = ['#f2a6c0', '#fbf6ea', '#c8a8e8', '#ffd866', '#e86a92'], LEAF_C = ['#5f8a3a', '#7aa04c', '#4c7a36'];
+    function wideFlower(out, x, y, z, kind, sz) {
+      var c = FLOWER_C[kind % FLOWER_C.length], p = sz || 0.09, d = p * 0.95;
+      out.push({ g: box(p, p, p), m: M(x, y, z), c: kind % FLOWER_C.length === 3 ? '#e8963c' : '#ffd866' });
+      [[d, 0, 0], [-d, 0, 0], [0, d, 0], [0, -d, 0], [0, 0, d], [0, 0, -d]].forEach(function (o) { out.push({ g: box(p, p, p), m: M(x + o[0], y + o[1], z + o[2]), c: c }); });
+    }
+    function wideLeaf(out, x, y, z, k) {
+      var ry = k * 1.3;
+      out.push({ g: box(0.17, 0.035, 0.09), m: M(x + Math.cos(ry) * 0.08, y, z - Math.sin(ry) * 0.08, 0, ry, 0.35), c: LEAF_C[k % 3] }, { g: box(0.15, 0.035, 0.08), m: M(x - Math.cos(ry) * 0.08, y + 0.03, z + Math.sin(ry) * 0.08, 0, ry, -0.35), c: LEAF_C[(k + 1) % 3] });
+    }
+    function wideRoadDress(out) {   /* 숲길 (s 7 ~ 18) 가의 낮은 것들: 꽃 무더기 · 버섯 · 작은 덤불 · 그루터기 · 쓰러진 통나무. 폰 화면 폭 (6.7 m) 이 걷는 띠와 거의 같아 숲이 화면 밖이라 길이 비어 보였다.
+                                    다 무릎 아래라 캐릭터를 가리지 않는다. 가운데 (|t| < 1.3) 는 비워 둔다. 덤불 · 그루터기 · 통나무는 부딪힌다 */
+      var sc = SEASON_C[SEASON.cur], bl = [PAL.rose[2] || PAL.rose[1], PAL.amber[4], FIXED.white, PAL.dusk[2]];
+      /* [7-W] 다섯째 바퀴: 길가 집의 문 앞 통로 (서는 자리 s ± 1.0 m · 그 쪽 길가) 는 비운다 — 숲길 집 1 문 바로 앞에 그루터기가 있어 걸음이 문 2 m 앞에서 막혔다 (갈래 V 알림) */
+      var doorS = typeof VILLAGE !== 'undefined' && VILLAGE && VILLAGE.DOORS ? VILLAGE.DOORS.filter(function (d) { return d && d.stand && d.stand[0] > 6 && d.stand[0] < 19; }).map(function (d) { return d.stand; }) : [];
+      for (var i = 0; i < 18; i++) {
+        var h = hash('wdress' + i), sd = 7.2 + i * 0.62 + (h % 10) * 0.03, side = i % 2 ? 1 : -1, kind = (h >>> 9) % 6, td = side * (kind < 3 ? 1.55 + ((h >>> 4) % 12) * 0.11 : 1.5 + ((h >>> 4) % 6) * 0.1), q = wideXZ(sd, td), x = snapPos(q[0]), z = snapPos(q[1]), k;
+        if (doorS.some(function (d) { return Math.abs(sd - d[0]) < 1.0 && (d[1] < 0) === (side < 0); })) continue;   /* 부딪히는 것 (덤불 · 그루터기 · 통나무) 은 |t| ≤ 2.0 — 가장자리 (3.0) 와의 사이로 몸이 지나간다 (좁은 틈에 끼어 서지 않게) */
+        if (kind < 2) { for (k = 0; k < 4; k++) { var fx = x + ((h >>> (12 + k * 3)) % 5 - 2) * 0.08, fz = z + ((h >>> (13 + k * 3)) % 5 - 2) * 0.08; out.push({ g: box(0.035, 0.16, 0.035), m: M(fx, 0.08, fz), c: LEAF_C[k % 3] }); wideFlower(out, fx, 0.2, fz, (h >>> (20 + k)) % 5, 0.05); } }
+        else if (kind === 2) { for (k = 0; k < 2; k++) { var mx = x + k * 0.16, mz = z + k * 0.07, mh = 0.1 + k * 0.05; out.push({ g: box(0.05, mh, 0.05), m: M(mx, mh / 2, mz), c: PAL.paper[2] || PAL.paper[1] }, { g: box(0.15, 0.06, 0.15), m: M(mx, mh + 0.03, mz), c: PAL.rose[1] }, { g: box(0.04, 0.02, 0.04), m: M(mx + 0.03, mh + 0.065, mz), c: FIXED.white }); } }
+        else if (kind === 3) { var br = 0.24 + (h >>> 14) % 3 * 0.03; out.push({ g: new T.SphereGeometry(br, 7, 5), m: M(x, br * 0.6, z, 0, 0, 0, 1, 0.8, 1), c: sc.leaf[i % 3], tag: 13 + i % 3 }); WIDE_REG.circles.push([x, z, br * 0.7]); }
+        else if (kind === 4) { out.push({ g: new T.CylinderGeometry(0.15, 0.18, 0.2, 8), m: M(x, 0.1, z), c: EXT_C.trunk }, { g: new T.CylinderGeometry(0.13, 0.13, 0.02, 8), m: M(x, 0.21, z), c: W[4] }); WIDE_REG.circles.push([x, z, 0.16]); }
+        else { out.push(stBox(sd, td, 0.1, 0.2, 0.2, 0.9, EXT_C.trunk), stBox(sd, td + 0.455, 0.1, 0.16, 0.16, 0.02, W[4]), stBox(sd, td - 0.455, 0.1, 0.16, 0.16, 0.02, W[4]), { g: box(0.09, 0.05, 0.09), m: M(x + 0.05, 0.22, z - 0.1), c: sc.tuft, tag: 11 });
+          [-0.3, 0, 0.3].forEach(function (d) { var lq = wideXZ(sd, td + d); WIDE_REG.circles.push([lq[0], lq[1], 0.12]); }); }
+      }
+    }
+    function wideBeachProps(B) {   /* 모래 위의 조용한 것들 (리드 11-21 "모래가 비어 보인다") — 다 해변 메시 한 장 안 (드로우콜 그대로). 사람 · 동물 없음. 걷는 길 가운데와 조개 자리는 비운다 */
+      var BY = WIDE.BEACH_Y, sn = SEASON.cur, i, h, q;
+      function loc(sd, td, ry) { var o = wideXZ(sd, td), c = Math.cos(ry), sn2 = Math.sin(ry); return function (lx, y, lz, l, hh, w, col, r2, tag) { return { g: box(l, hh, w), m: M(o[0] + lx * c + lz * sn2, BY + y, o[1] - lx * sn2 + lz * c, 0, ry + (r2 || 0), 0), c: col, tag: tag || 0 }; }; }
+      function hit(sd, td, r) { var o = wideXZ(sd, td); WIDE_REG.circles.push([o[0], o[1], r]); }
+      /* 뭍에 올려 둔 나룻배 (길이 2.4 m): 흰 뱃전에 하늘빛 띠 · 앉을 널 둘 · 걸쳐 둔 노 */
+      var bt = loc(53.4, -4.6, 0.45), wh = FIXED.white, bl = PAL.sky[1];
+      B.push(bt(0, 0.06, 0, 1.9, 0.12, 0.7, W[1]), bt(1.1, 0.06, 0, 0.5, 0.12, 0.42, W[1]), bt(-1.0, 0.22, 0, 0.08, 0.3, 0.86, wh));
+      [-1, 1].forEach(function (d) { B.push(bt(0, 0.2, d * 0.39, 2.0, 0.26, 0.08, wh), bt(0, 0.33, d * 0.395, 2.02, 0.07, 0.09, bl), bt(1.2, 0.2, d * 0.21, 0.52, 0.26, 0.08, wh, -d * 0.72), bt(1.2, 0.33, d * 0.215, 0.54, 0.07, 0.09, bl, -d * 0.72)); });
+      B.push(bt(1.42, 0.24, 0, 0.1, 0.34, 0.12, W[2]), bt(-0.35, 0.28, 0, 0.22, 0.04, 0.72, W[4]), bt(0.45, 0.28, 0, 0.22, 0.04, 0.72, W[4]), bt(0.05, 0.38, 0.05, 1.7, 0.04, 0.05, W[5], 0.3), bt(0.82, 0.38, -0.2, 0.3, 0.03, 0.14, W[5], 0.3));
+      [[-0.75, 0], [0, 0], [0.75, 0]].forEach(function (c) { var o = wideXZ(53.4, -4.6); WIDE_REG.circles.push([o[0] + c[0] * Math.cos(0.45), o[1] - c[0] * Math.sin(0.45), 0.44]); });
+      /* 떠밀려 온 나무 셋 */
+      [[51.0, -9.6, 0.9, 1.2], [57.2, 1.2, -0.4, 0.9], [50.6, 5.2, 2.2, 1.0]].forEach(function (d, k) { var dw = loc(d[0], d[1], d[2]); B.push(dw(0, 0.07, 0, d[3], 0.13, 0.14, W[5]), dw(d[3] * 0.2, 0.12, 0.14, 0.3, 0.07, 0.07, W[5], 0.8), dw(-d[3] / 2 - 0.01, 0.07, 0, 0.02, 0.1, 0.11, W[3])); });
+      /* 물웅덩이를 낀 바위 무더기 둘 (젖은 모래 가) */
+      [[57.9, -8.4], [58.0, 3.4]].forEach(function (c, k) {
+        q = wideXZ(c[0], c[1]); B.push({ g: new T.CylinderGeometry(0.62, 0.62, 0.02, 10), m: M(snapPos(q[0]), BY + 0.012, snapPos(q[1]), 0, 0, 0, 1.25, 1, 0.8), c: WIDE_C.sea[sn][0], tag: 20 }, { g: new T.CylinderGeometry(0.3, 0.3, 0.02, 8), m: M(snapPos(q[0] + 0.1), BY + 0.016, snapPos(q[1])), c: WIDE_C.sea[sn][1], tag: 21 });
+        [[-0.75, 0.1, 0.36, 0.3], [0.2, -0.62, 0.3, 0.26], [0.72, 0.25, 0.27, 0.2], [-0.2, 0.66, 0.22, 0.16], [0.9, -0.3, 0.16, 0.12]].forEach(function (r, ri) { var rq = wideXZ(c[0] + r[0], c[1] + r[1]); B.push({ g: new T.SphereGeometry(r[2], 7, 5), m: M(snapPos(rq[0]), BY, snapPos(rq[1]), 0, ri * 0.9 + k, 0, 1, r[3] / r[2], 0.88), c: EXT_C.rock[(ri + k) % 2] }); WIDE_REG.circles.push([rq[0], rq[1], r[2] * 0.9]); });
+      });
+      /* 접어 둔 파라솔과 깔아 둔 수건 */
+      q = wideXZ(52.6, 8.2); B.push({ g: box(0.05, 1.5, 0.05), m: M(snapPos(q[0]), BY + 0.75, snapPos(q[1])), c: W[5] });
+      [[0.62, 0.17, PAL.rose[1]], [0.92, 0.13, FIXED.white], [1.2, 0.09, PAL.rose[1]]].forEach(function (c) { B.push({ g: new T.ConeGeometry(c[1], 0.42, 6), m: M(snapPos(q[0]), BY + c[0] + 0.21, snapPos(q[1])), c: c[2] }); });
+      B.push({ g: box(0.07, 0.07, 0.07), m: M(snapPos(q[0]), BY + 1.53, snapPos(q[1])), c: W[5] }); hit(52.6, 8.2, 0.1);
+      for (i = 0; i < 5; i++) B.push(stBox(53.5, 8.3 + (i - 2) * 0.16, BY + 0.012, 1.3, 0.016, 0.16, i % 2 ? FIXED.white : bl));
+      /* 불가사리 넷 · 꾸밈 조개 (줍는 조개 아님 — 아주 작다) */
+      [[56.9, -6.2], [58.5, 0.4], [55.2, 9.6], [58.9, -11.0]].forEach(function (c, k) { var sf = loc(c[0], c[1], k * 0.5); for (var a = 0; a < 5; a++) B.push(sf(Math.cos(a * 1.2566) * 0.07, 0.014, Math.sin(a * 1.2566) * 0.07, 0.15, 0.022, 0.05, PAL.dusk[1], -a * 1.2566)); B.push(sf(0, 0.02, 0, 0.07, 0.03, 0.07, PAL.dusk[2])); });
+      for (i = 0; i < 12; i++) { h = hash('wdshell' + i); q = wideXZ(50.2 + (h % 880) / 100, -11.5 + ((h >>> 10) % 230) / 10); if (Math.abs((q[0] - q[1]) * Math.SQRT1_2) < 1.4) continue; B.push({ g: box(0.08, 0.035, 0.06), m: M(snapPos(q[0]), BY + 0.018, snapPos(q[1]), 0, (h >>> 20) % 6, 0), c: WIDE_C.wet[sn], tag: 19 }); }
+      /* 축대 아래 모래 풀 (촘촘히) · 거품 앞의 축축한 모래 (들쭉날쭉한 띠) */
+      for (i = 0; i < 70; i++) { h = hash('wdune2' + i); var dt3 = -15 + ((h >>> 10) % 300) / 10, ds3 = 46.35 + (h % 100) / 100 * 1.1; if (Math.abs(dt3) < 3.9) continue; q = wideXZ(ds3, dt3);
+        for (var k = 0; k < 3; k++) B.push({ g: box(0.04, 0.2 + ((h >>> (20 + k * 2)) % 3) * 0.07, 0.04), m: M(snapPos(q[0] + (k - 1) * 0.07), BY + 0.1 + ((h >>> (20 + k * 2)) % 3) * 0.035, snapPos(q[1] + (k % 2) * 0.07)), c: WIDE_C.dune[sn], tag: 24 }); }
+      for (i = 0; i < Math.round(2 * WIDE.GT / 0.6); i++) { h = hash('wdamp' + i); var dl = 0.5 + (h % 5) * 0.14; B.push(stBox(WIDE.SEA - 1 - dl / 2, -WIDE.GT + 0.3 + i * 0.6, BY + 0.003, dl, 0.006, 0.6, WIDE_C.grain[sn], 23)); }
+    }
+    function wideBuild(g) {
+      var V = WIDE_PARTS.village, B = WIDE_PARTS.beach, sc = SEASON_C[SEASON.cur], sn = SEASON.cur, GT = WIDE.GT, BY = WIDE.BEACH_Y, i, k, h, q, y;
+      /* ── 마을 구간 (s 18 ~ 46): 마을 문 (아치) · 포장한 길 · 광장 · 가게 터 뒤 낮은 담과 덤불 · 표지판 ── */
+      /* 마을 문 (11-21 주인: 신사 같은 문 X → 덩굴 아치도 아직 이상 → "꽃덩굴이 얽힌 구조물"): 깊이가 있는 나무 덩굴 시렁 —
+         기둥 넷 (앞뒤 0.7 m) · 앞뒤 두 줄의 둥근 살 · 그 사이 가로살 · 기둥 사이 X 살. 잎 뭉치가 살을 덮고 기둥을 타고 오르며, 꽃 송이와 아래로 늘어진 덩굴 */
+      var arcN = 13, arcBl = [PAL.rose[2] || PAL.rose[1], FIXED.white, PAL.amber[4], PAL.dusk[2]], AS = [18.65, 19.35];
+      function vine(sd, td, y, r, k) { var lq = wideXZ(sd, td); wideLeaf(V, snapPos(lq[0]), y, snapPos(lq[1]), k); wideLeaf(V, snapPos(lq[0]) + 0.06, y + 0.09, snapPos(lq[1]) - 0.05, k + 2); }   /* 잎 두 쌍 */
+      function bloom(sd, td, y, k) { var lq = wideXZ(sd, td); wideFlower(V, snapPos(lq[0]), y, snapPos(lq[1]), k, 0.085); }
+      [-3.45, 3.45].forEach(function (t, ti) {
+        V.push(stBox(19, t, 0.12, 1.0, 0.24, 0.4, EXT_C.stone[1]));
+        AS.forEach(function (as) { V.push(stBox(as, t, 1.12, 0.12, 1.8, 0.12, W[3])); });
+        [0.6, 1.2, 1.8].forEach(function (y, k) { V.push(stBox(19, t, y, 0.7, 0.06, 0.06, W[4])); });
+        for (var c = 0; c < 9; c++) { var ch = hash('wclimb' + ti + c); vine(AS[c % 2] + ((ch % 5) - 2) * 0.05, t + ((ch >>> 4) % 5 - 2) * 0.05, 0.35 + c * 0.2, 0.17 + (ch >>> 8) % 3 * 0.03, c + ti); if (c % 3 === 1) bloom(AS[c % 2] + 0.12, t + (ti ? -0.12 : 0.12), 0.45 + c * 0.2, c + ti); }
+      });
+      for (i = 0; i < arcN; i++) {
+        var aa = Math.PI * (i + 0.5) / arcN, at2 = -3.45 * Math.cos(aa), ay = 2.0 + 1.3 * Math.sin(aa), ah = hash('warch' + i);
+        AS.forEach(function (as) { V.push(stBox(as, at2, ay, 0.1, 0.1, 0.9, W[3])); });
+        V.push(stBox(19, at2, ay + 0.06, 0.82, 0.06, 0.07, W[4]));
+        vine(18.65 + (ah % 3) * 0.05, at2 - 0.2, ay + 0.14, 0.24 + (ah >>> 3) % 3 * 0.04, i); vine(19.35 - ((ah >>> 5) % 3) * 0.05, at2 + 0.2, ay + 0.12, 0.23 + (ah >>> 7) % 3 * 0.04, i + 1); vine(19, at2, ay + 0.2, 0.2, i + 2);
+        bloom(19.44, at2 + ((ah >>> 9) % 5 - 2) * 0.08, ay + 0.04 + (ah >>> 12) % 3 * 0.08, i); bloom(19.2, at2 + 0.22, ay + 0.3, i + 3); bloom(18.6, at2 - 0.18, ay + 0.28, i + 2); if (i % 2) bloom(19.44, at2 - 0.25, ay - 0.1, i + 1);
+        if (i % 3 === 1 && i !== 6) { var hl = 2 + (ah >>> 14) % 3; for (k = 0; k < hl; k++) { q = wideXZ(19.38, at2 + ((k % 2) ? 0.04 : -0.03)); V.push({ g: box(0.03, 0.13, 0.03), m: M(snapPos(q[0]), ay - 0.12 - k * 0.13, snapPos(q[1])), c: LEAF_C[0] }); wideLeaf(V, snapPos(q[0]), ay - 0.14 - k * 0.13, snapPos(q[1]), i + k); } bloom(19.4, at2, ay - 0.16 - hl * 0.13, i + 1); }
+      }
+      /* 포장 (리드 11-21): 줄눈은 판석보다 한 톤 어두운 돌 (풀빛 줄 없음) — 줄마다 깔린 바닥 띠 위에 판석. 마을 길은 |t| ≤ 2.5 안팎의 들쭉날쭉한 가장자리 (그 밖은 풀 어깨),
+         광장은 가운데 둥근 고리와 십자를 둘째 돌빛으로. 이끼는 몇 포기만 */
+      for (i = 0; i < 29; i++) {
+        var ps = 20.3 + i * 0.62, k0 = -4 + (hash('wpl' + i) % 3 === 0 ? 1 : 0), k1 = 3 - ((hash('wpr' + i) >>> 3) % 3 === 0 ? 1 : 0);
+        V.push(stBox(ps, (k0 + k1 + 1) * 0.31, 0.006, 0.64, 0.012, (k1 - k0 + 1) * 0.62 + 0.04, WIDE_C.joint));
+        for (k = k0; k <= k1; k++) { h = hash('wpave' + i + '_' + k); V.push(stBox(ps, (k + 0.5) * 0.62 + ((h >>> 5) % 3 - 1) * 0.015, 0.016, 0.56, 0.012, 0.56, WIDE_C.pave[(h >>> 8) % 3])); }
+      }
+      V.push(stBox(42.0, 0, 0.006, 8.1, 0.012, 16.8, WIDE_C.joint));
+      for (i = 0; i < 13; i++) for (k = -13; k <= 13; k++) {
+        h = hash('wplz' + i + '_' + k); var zs = 38.28 + i * 0.62, zt = k * 0.62, zr = Math.hypot(zs - 42.0, zt), two = i === 0 || i === 12 || Math.abs(k) === 13 || (zr > 2.5 && zr < 3.3) || ((i === 6 || k === 0) && zr >= 3.3) || zr < 0.5;
+        V.push(stBox(zs, zt, 0.016, 0.56, 0.012, 0.56, two ? WIDE_C.edge : WIDE_C.pave[(h >>> 8) % 3]));
+      }
+      for (i = 0; i < 16; i++) { h = hash('wmoss' + i); q = wideXZ(i < 7 ? 20.6 + (h % 170) / 10 : 38.4 + (h % 74) / 10, i < 7 ? -2.3 + ((h >>> 9) % 46) / 10 : -7.8 + ((h >>> 9) % 156) / 10); V.push({ g: box(0.09, 0.05, 0.09), m: M(snapPos(q[0]), 0.045, snapPos(q[1])), c: sc.tuft, tag: 11 }); }
+      [-10.6, 10.6].forEach(function (t) {
+        V.push(stBox(29, t, 0.16, 17.2, 0.32, 0.22, WIDE_C.wall), stBox(29, t, 0.34, 17.3, 0.04, 0.3, WIDE_C.wallTop));
+        for (var b = 0; b < 7; b++) { var hb = hash('wbush' + t + b), bq = wideXZ(21.4 + b * 2.5 + (hb % 10) * 0.08, t + (t > 0 ? 0.75 : -0.75) + ((hb >>> 6) % 5) * 0.05 * (t > 0 ? 1 : -1)), br = 0.3 + (hb >>> 10) % 4 * 0.04;
+          V.push({ g: new T.SphereGeometry(br, 7, 5), m: M(snapPos(bq[0]), br * 0.62, snapPos(bq[1]), 0, 0, 0, 1, 0.8, 1), c: sc.leaf[b % 3], tag: 13 + b % 3 }); }
+      });
+      wideSignParts(V, 1);
+      /* ── 해변 구간 (s 46 ~): 축대와 계단 · 모래 · 젖은 모래 · 바다 세 띠 · 모래 알 · 모래 풀 · 바위 · 부두 · 표지판 ── */
+      [-1, 1].forEach(function (d) { var len = GT - 3.4, tc = d * (3.4 + len / 2); B.push(stBox(46.1, tc, BY / 2, 0.2, -BY, len, WIDE_C.wall), stBox(46.08, tc, -0.02, 0.26, 0.04, len, WIDE_C.wallTop)); });
+      B.push(stBox(45.98, 0, BY / 2, 0.04, -BY, 6.8, WIDE_C.wall));   /* 계단 뒤 벽 (풀 땅 끝과 첫 칸 사이의 0.12 m — 없으면 그 틈으로 허공이 보인다) */
+      for (k = 0; k < 4; k++) { y = -0.12 * (k + 1); B.push(stBox(46.3 + 0.6 * k, 0, (BY + y) / 2, 0.6, y - BY, 6.8, WIDE_C.pave[k % 2 ? 2 : 0])); }
+      B.push(stPlane(WIDE.LAND, WIDE.SEA + 0.6, -GT, GT, BY, 4, WIDE_C.sand[sn], 18), stPlane(WIDE.SEA - 1, WIDE.SEA + 0.6, -GT, GT, BY + 0.004, 8, WIDE_C.wet[sn], 19));
+      B.push(stPlane(WIDE.SEA + 0.2, WIDE.SEA + 3.5, -GT, GT, BY - 0.04, 8, WIDE_C.sea[sn][0], 20), stPlane(WIDE.SEA + 3.5, WIDE.SEA + 12, -GT, GT, BY - 0.04, 8, WIDE_C.sea[sn][1], 21), stPlane(WIDE.SEA + 12, WIDE.SEA1, -GT, GT, BY - 0.04, 8, WIDE_C.sea[sn][2], 22));
+      for (i = 0; i < 300; i++) { h = hash('wgrain' + i); q = wideXZ(46.5 + (h % 1000) / 1000 * 12.3, -24 + ((h >>> 10) % 1000) / 1000 * 48); B.push({ g: box(0.07, 0.012, 0.07), m: M(snapPos(q[0]), BY + 0.006, snapPos(q[1])), c: WIDE_C.grain[sn], tag: 23 }); }
+      for (i = 0; i < 130; i++) {   /* 모래 풀: 축대 아래 · 축대 위 가장자리 (계단 앞과 광장은 비운다) */
+        h = hash('wdune' + i); var ds = 44.8 + (h % 1000) / 1000 * 3.9, dt2 = -24 + ((h >>> 10) % 1000) / 1000 * 48, top = ds < 46;
+        if (ds > 45.9 && ds < 46.4) continue; if (top ? Math.abs(dt2) < 8.7 : Math.abs(dt2) < 3.9) continue;
+        q = wideXZ(ds, dt2);
+        for (k = 0; k < 3; k++) B.push({ g: box(0.04, 0.2 + ((h >>> (20 + k * 2)) % 3) * 0.06, 0.04), m: M(snapPos(q[0] + (k - 1) * 0.07), (top ? 0 : BY) + 0.1 + ((h >>> (20 + k * 2)) % 3) * 0.03, snapPos(q[1] + (k % 2) * 0.07)), c: WIDE_C.dune[sn], tag: 24 });
+      }
+      WIDE.ROCKS.forEach(function (r, ri) {
+        var rq = wideXZ(r[0], r[1]);
+        if (!ri) { B.push({ g: new T.CylinderGeometry(r[2] * 0.8, r[2], r[3], 8), m: M(snapPos(rq[0]), BY + r[3] / 2, snapPos(rq[1])), c: EXT_C.rock[0] }, { g: new T.CylinderGeometry(r[2] * 0.74, r[2] * 0.8, 0.04, 8), m: M(snapPos(rq[0]), BY + r[3] + 0.02, snapPos(rq[1])), c: EXT_C.rock[1] }); }
+        else { B.push({ g: new T.SphereGeometry(r[2], 7, 5), m: M(snapPos(rq[0]), BY, snapPos(rq[1]), 0, ri * 0.7, 0, 1, r[3] / r[2], 0.85), c: EXT_C.rock[ri % 2] }); }
+        WIDE_REG.circles.push([rq[0], rq[1], r[2]]);
+      });
+      wideBeachProps(B);
+      var P = WIDE.AREAS[6], PY = WIDE.PIER_Y, pt = (P[2] + P[3]) / 2;   /* 부두: 모래 (s 56) 에서 물 위로 10 m · 폭 1.6 m · 난간 없음 (캐릭터를 가리지 않는다) */
+      B.push(stBox(61, pt, PY - 0.03, 10, 0.06, 1.6, W[3]), stBox(55.9, pt, (BY - 0.51) / 2, 0.36, 0.09, 1.6, W[2]));
+      for (i = 0; i <= 20; i++) B.push(stBox(56 + i * 0.5, pt, PY - 0.029, 0.04, 0.062, 1.6, W[1]));
+      for (i = 0; i <= 5; i++) [-0.8, 0.8].forEach(function (d) { var end = i === 5, pq = wideXZ(56 + i * 2, pt + d);
+        B.push(stBox(56 + i * 2, pt + d, -0.5 + (end ? 0.2 : 0), 0.12, 1.2 + (end ? 0.4 : 0), 0.12, W[1]), stBox(56 + i * 2, pt + d, PY + 0.13 + (end ? 0.4 : 0), 0.16, 0.04, 0.16, W[4]));
+        if (i < 2) WIDE_REG.circles.push([pq[0], pq[1], 0.07]); });
+      wideSignParts(B, 2);
+      var vm = new T.Mesh(keep(mergeParts(V)), lambert); vm.castShadow = true; vm.receiveShadow = true; vm.name = 'wideVillage'; g.add(vm);
+      var bg = new T.Group(); bg.name = 'wideBeach'; g.add(bg);
+      var bm = new T.Mesh(keep(mergeParts(B)), lambert); bm.castShadow = true; bm.receiveShadow = true; bg.add(bm);
+      var wp = [];   /* 물가 거품 줄 (모래 위 0.6 m 토막 · 들쭉날쭉) + 바다 쪽 성긴 둘째 줄 */
+      for (i = 0; i < Math.round(2 * GT / 0.6); i++) { h = hash('wfoam' + i); var ft = -GT + 0.3 + i * 0.6;
+        wp.push(stBox(WIDE.SEA + ((h % 3) - 1) * 0.07, ft, BY + 0.011, 0.15, 0.012, 0.6, FIXED.white));
+        if ((h >>> 4) % 3) wp.push(stBox(WIDE.SEA + 1.5 + ((h >>> 8) % 3) * 0.11, ft, BY - 0.03, 0.08, 0.012, 0.6, FIXED.white)); }
+      for (i = 0; i < 220; i++) {   /* 11-22 (검증: 바다가 한 색 판) — 물결 줄 (얕은 데는 밝게 · 먼 데는 짧고 성기게) 과 반짝이 점 · 물결 메시에 합쳐 드로우콜 그대로 · 거품과 같이 일렁인다 */
+        h = hash('wripple' + i); var rs = WIDE.SEA + 2.2 + (h % 1000) / 1000 * 30, rt = -30 + ((h >>> 10) % 1000) / 1000 * 60, far = rs > WIDE.SEA + 12, rl = far ? 0.3 + (h >>> 20) % 3 * 0.12 : 0.55 + (h >>> 20) % 4 * 0.18;
+        if (Math.abs(rt - 7) < 1.2 && rs < 66.5) continue;   /* 부두 밑은 비운다 */
+        wp.push(stBox(rs, rt, BY - 0.028, 0.06, 0.008, rl, (h >>> 24) % 5 ? (far ? WIDE_C.sea[sn][1] : WIDE_C.sea[sn][0]) : FIXED.white, (h >>> 24) % 5 ? (far ? 21 : 20) : 0));
+        if ((h >>> 27) % 4 === 0) wp.push(stBox(rs + 0.2, rt + rl * 0.3, BY - 0.026, 0.05, 0.008, 0.05, FIXED.white));
+      }
+      for (i = 0; i < Math.round(2 * GT / 1.2); i++) { h = hash('wdeep' + i); wp.push(stBox(WIDE.SEA + 11.6 + (h % 5) * 0.12, -GT + 0.6 + i * 1.2, BY - 0.032, 0.12, 0.008, 1.2, WIDE_C.sea[sn][2], 22)); }   /* 깊은 띠로 넘어가는 들쭉날쭉한 가장자리 */
+      var wv = new T.Mesh(keep(mergeParts(wp)), lambert); wv.receiveShadow = true; wv.name = 'wideWave'; bg.add(wv);
+      WSTATE.village = vm; WSTATE.beach = bg; WSTATE.sand = bm; WSTATE.wave = wv;
+      WIDE_REG.segments.push({ s0: 17, s1: 47.5, obj: vm }, { s0: 43.5, s1: 1e3, obj: bg });
+      /* 걷는 곳 가의 서 있는 것: 표지판 셋 (아치 기둥은 걷는 곳 밖) · 톡 자리: 표지판 셋 · 조개 다섯 (조개는 beachShells 가 켠다) */
+      WIDE.SIGNS.forEach(function (sg, si) { var sq = wideXZ(sg[0], sg[1]); WIDE_REG.circles.push([sq[0], sq[1], 0.1]); WIDE_REG.spots.push({ key: 'wsign' + si, btn: 'btn-sign-' + si, x: sq[0], y: wideGroundY(sq[0], sq[1]) + 0.8, z: sq[1], r: 0.5 }); });
+      WIDE.SHELLS.forEach(function (sh, si) { var sq = wideXZ(sh[0], sh[1]); WIDE_REG.spots.push({ key: 'wshell' + si, btn: 'btn-beach-shell-' + si, x: sq[0], y: BY + 0.1, z: sq[1], r: 0.26, on: false }); });
+      WIDE_REG.builders.forEach(function (fn) { try { fn(g); } catch (e) { console.error('[scene3d] WIDE_REG.builders', e); } });
+      wideRegSync(); wideShells(WSTATE.shellOn);
+    }
+    function wideSeason() {   /* 계절: 내 구간 메시의 풀 · 덤불 · 모래 · 바다 (applySeasonYard 가 부른다) */
+      if (!WSTATE.village) return; var c = SEASON_C[SEASON.cur], sn = SEASON.cur, vg = WSTATE.village.geometry, bg = WSTATE.sand.geometry;
+      recolor(vg, 11, c.tuft); recolor(vg, 13, c.leaf[0]); recolor(vg, 14, c.leaf[1]); recolor(vg, 15, c.leaf[2]);
+      if (WSTATE.wave) { recolor(WSTATE.wave.geometry, 20, WIDE_C.sea[sn][0]); recolor(WSTATE.wave.geometry, 21, WIDE_C.sea[sn][1]); recolor(WSTATE.wave.geometry, 22, WIDE_C.sea[sn][2]); }
+      recolor(bg, 18, WIDE_C.sand[sn]); recolor(bg, 19, WIDE_C.wet[sn]); recolor(bg, 20, WIDE_C.sea[sn][0]); recolor(bg, 21, WIDE_C.sea[sn][1]); recolor(bg, 22, WIDE_C.sea[sn][2]); recolor(bg, 23, WIDE_C.grain[sn]); recolor(bg, 24, WIDE_C.dune[sn]);
+    }
+    /* 등록부 (WIDE_REG): 새로 들어온 자리를 단추 칸으로 · 부딪힘 상자 [x0, z0, x1, z1] 를 마당 형식 [x0, x1, z0, z1] 으로 (늘면 다시) */
+    function wideRegSync() {
+      var sp = WIDE_REG.spots, n0 = WIDE_SPOT_KEYS.length;
+      for (; WSTATE.spotN < sp.length; WSTATE.spotN++) { var s1 = sp[WSTATE.spotN]; if (!s1 || !s1.key || !s1.btn || WIDE_SPOT[s1.key] || SPOT_KEYS.indexOf(s1.key) >= 0) continue; WIDE_SPOT[s1.key] = { sp: s1, box: new T.Box3() }; WIDE_SPOT_KEYS.push(s1.key); SPOT_KEYS.push(s1.key); }
+      if (WIDE_SPOT_KEYS.length !== n0) wideSpotsBind();
+    }
+    function wideSpotsBind() { WIDE_SPOT_KEYS.forEach(function (k) { if (SPOTS[k]) return; var el = document.getElementById(WIDE_SPOT[k].sp.btn); if (el) SPOTS[k] = el; }); }
+    function wideCols() {
+      var key = WIDE_REG.boxes.length + '|' + WIDE_REG.circles.length; if (WSTATE.cols && WSTATE.colKey === key) return WSTATE.cols;
+      WSTATE.colKey = key;
+      return (WSTATE.cols = { boxes: WIDE_REG.boxes.map(function (b) { return [Math.min(b[0], b[2]), Math.max(b[0], b[2]), Math.min(b[1], b[3]), Math.max(b[1], b[3])]; }), circles: WIDE_REG.circles.map(function (c) { return [c[0], c[1], c[2]]; }) });
+    }
+    function wideSpotInfo(id) {   /* spotInfo 의 등록부 갈래: 자리 (x, y, z) 둘레 r 의 상자를 화면에 → 보이는 만큼만 · 44 px 아래면 넓힌다 */
+      var w = WIDE_SPOT[id], sp = w.sp, inR = !!w.room;
+      if (inR ? (PLACE.vis !== 'inside' || IN.key !== w.room || !IN.g || sp.on === false || WSTATE.jump || PLACE.trans || INTRO.on) : PLACE.vis !== 'yard' || !YROOM || sp.on === false || DQ.active || DQ.pending || PLACE.trans || INTRO.on || yardDoorBusy() || WSTATE.jump) return null;
+      var r = sp.r || 0.4, y = sp.y || 0; w.box.min.set(sp.x - r, y - r, sp.z - r); w.box.max.set(sp.x + r, y + r, sp.z + r);
+      var q = boxScreen(w.box, inR ? IN.g : YROOM.g); if (!isFinite(q.l)) return null;
+      if (inR) { var qcx = (q.l + q.r) / 2, qcy = (q.t + q.b) / 2; if (qcx < 0 || qcx > S.W || qcy < 0 || qcy > S.H) return null; }   /* 11-22 (갈래 V 검증): 방 안의 자리는 가운데가 화면 밖이면 숨긴다 — 넓힌 44 px 칸이 화면 가장자리의 엉뚱한 물건 위에 걸렸다 (거울 · 음반대 · 선반 5) */
+      var vl = Math.max(0, q.l), vt = Math.max(0, q.t), vr = Math.min(S.W, q.r), vb = Math.min(S.H, q.b);
+      if (vr - vl < SPOT_MIN_VIS || vb - vt < SPOT_MIN_VIS) return null;
+      var ww = Math.min(S.W, Math.round(Math.max(44, vr - vl))), hh = Math.min(S.H, Math.round(Math.max(44, vb - vt)));
+      return { id: id, mode: 'over', x: clamp(Math.round((vl + vr) / 2 - ww / 2), 0, Math.max(0, S.W - ww)), y: clamp(Math.round((vt + vb) / 2 - hh / 2), 0, Math.max(0, S.H - hh)), w: ww, h: hh, art: { l: Math.round(q.l), t: Math.round(q.t), r: Math.round(q.r), b: Math.round(q.b) } };
+    }
+    function wideCentreOn() {   /* 화면 가운데를 내 캐릭터로 (빠른 이동 뒤 — 페이드에 덮인 프레임에) */
+      var tgt = camTargetNow(); _fw.copy(PL.pos).setY(0.6 + plGroundY(PL.pos.x, PL.pos.z)).sub(tgt);
+      PAN.x = Math.round(_fw.dot(_r) * S.N) / S.N; PAN.y = Math.round(_fw.dot(_u) * S.N) / S.N; PAN.vx = PAN.vy = 0; PAN.mode = ''; _wideKeep.on = false; clampPan(); dither.still = 0;
+    }
+    function wideJumpGo(x, z, yaw) {   /* 빠른 이동 한 번: 화면을 0.15 s 덮고 (전환과 같은 디더) 자리를 옮긴 뒤 0.15 s 에 연다 → Promise. 모션 감소 · 숨은 탭 = 바로 */
+      plStop(); PL.pending = '';
+      var put = function () { PL.pos.set(x, 0, z); PL.moving = false; if (yaw != null) { PL.faceCam = false; PL.wantYaw = PL.yaw = yaw; } plSnap(); wideCentreOn(); };
+      if (WSTATE.jump) { var o = WSTATE.jump; WSTATE.jump = null; PLACE.fade = 0; o.res(false); }
+      if (st.reduced || !ready || (typeof document !== 'undefined' && document.hidden) || PLACE.vis !== 'yard') { put(); return Promise.resolve(true); }
+      return new Promise(function (res) { WSTATE.jump = { t: 0, put: put, done: false, res: res }; });
+    }
+    function wideGo(place) {   /* 'home' | 'village' | 'beach' → Promise<boolean> (마당이 보이고 한가할 때만) */
+      var a = WIDE.ARRIVE[place];
+      if (!YARD_WIDE || !a || !YROOM || PLACE.vis !== 'yard' || PL.place !== 'yard' || DQ.active || DQ.pending || PLACE.trans || INTRO.on || WSTATE.jump || yardDoorBusy()) return Promise.resolve(false);
+      var q = wideXZ(a[0], a[1]); return wideJumpGo(q[0], q[1], a[2] > 0 ? Math.PI / 4 : -3 * Math.PI / 4);
+    }
+    function wideArea() {   /* 내 캐릭터가 선 곳: 'yard' | 'road' | 'village' | 'plaza' | 'beach' (마당에 없으면 null) */
+      if (PL.place !== 'yard') return null;
+      var sd = (PL.pos.x + PL.pos.z) * Math.SQRT1_2;
+      return !YARD_WIDE || !yardOut(PL.pos.x, PL.pos.z) ? 'yard' : sd < 20 ? 'road' : sd < 38 ? 'village' : sd < 46 ? 'plaza' : 'beach';
+    }
+    function wideShells(list) {   /* 보일 조개 번호들 → 작은 조개 메시 하나 (해변 그룹 안) + 그 자리만 톡 */
+      var on = [], ps = [], i;
+      for (i = 0; i < WIDE.SHELLS.length; i++) on.push(!!list && list.indexOf(i) >= 0);
+      WSTATE.shellOn = on.map(function (v, k) { return v ? k : -1; }).filter(function (k) { return k >= 0; });
+      if (!WSTATE.beach) return WSTATE.shellOn.slice();
+      if (WSTATE.shells) { WSTATE.beach.remove(WSTATE.shells); var di = disposables.indexOf(WSTATE.shells.geometry); if (di >= 0) disposables.splice(di, 1); WSTATE.shells.geometry.dispose(); WSTATE.shells = null; }
+      WIDE.SHELLS.forEach(function (sh, k) {
+        if (WIDE_SPOT['wshell' + k]) WIDE_SPOT['wshell' + k].sp.on = on[k]; if (!on[k]) return;
+        var h = hash('wshell' + k), c = (h % 2) ? PAL.dusk[1] : PAL.rose[1], y = WIDE.BEACH_Y;   /* 부채꼴 조개: 넓은 날 (바다 쪽) → 좁은 꼭지 (집 쪽) · 골 셋 */
+        ps.push(stBox(sh[0] + 0.04, sh[1], y + 0.05, 0.2, 0.1, 0.42, PAL.rose[2] || PAL.rose[1]), stBox(sh[0] - 0.1, sh[1], y + 0.045, 0.1, 0.09, 0.28, PAL.rose[2] || PAL.rose[1]), stBox(sh[0] - 0.19, sh[1], y + 0.04, 0.08, 0.08, 0.12, c));   /* 11-21 (독립 검증): 모래의 흰 점과 헷갈리지 않게 크고 붉은 몸에 흰 골 */
+        [-0.14, 0, 0.14].forEach(function (d) { ps.push(stBox(sh[0] + 0.02, sh[1] + d, y + 0.103, 0.22, 0.012, 0.05, FIXED.white)); });
+      });
+      if (ps.length) { var m = new T.Mesh(keep(mergeParts(ps)), lambert); m.castShadow = true; m.receiveShadow = true; m.name = 'wideShells'; WSTATE.beach.add(m); WSTATE.shells = m; }
+      dither.still = 0; return WSTATE.shellOn.slice();
+    }
+    function wideShellNear(i) { var sh = WIDE.SHELLS[i]; if (!sh || PL.place !== 'yard') return false; var q = wideXZ(sh[0], sh[1]); return Math.hypot(PL.pos.x - q[0], PL.pos.z - q[1]) <= 1.5; }
+    function wideShellGo(i) {   /* 조개 곁 (0.7 m) 까지 걸어간다 → Promise<가까이 왔나>. 걷다 끊기면 풀리지 않는다 (plWalkTo 와 같다) */
+      var sh = WIDE.SHELLS[i]; if (!sh || !YARD_WIDE || PL.place !== 'yard' || PLACE.vis !== 'yard' || DQ.active || DQ.pending || PLACE.trans) return Promise.resolve(false);
+      if (wideShellNear(i)) return Promise.resolve(true);
+      var q = wideXZ(sh[0], sh[1]), dx = PL.pos.x - q[0], dz = PL.pos.z - q[1], d = Math.hypot(dx, dz) || 1, to = yardClamp(q[0], q[1], q[0] + dx / d * 0.7, q[1] + dz / d * 0.7);
+      return plWalkTo(new T.Vector3(to[0], 0, to[1]), null).then(function () { return wideShellNear(i); });
+    }
+    /* ── 11-22 7차 계약 C9: 걸어 들어가는 방 (장소 'inside' · ROOM_REG) ──
+       방마다 그룹 하나를 처음 들어갈 때 짓는다 (바닥 · 뒤 두 벽 · 받침 · 문 깔개 · 따뜻한 등 둘 — 다락과 같은 수라 셰이더 변형이 늘지 않는다 + 등록부의 build).
+       드나들기: 문 밖 자리까지 걷고 → on.door → 화면을 덮고 (빠른 이동과 같은 0.3 s 디더) 장소를 바꾼다. 방 안은 방 배율 (m 당 27 아트px) · 기본 구도 고정 (돌려 보기 없음 — 벽 자르기를 방마다 만들지 않는다) */
+    var IN = { key: null, g: null, groups: {}, target: new T.Vector3(0, 1, 0), shade: [[-4, 4], [-0.6, 3], [-4, 4]], back: null, busy: false };
+    function coverStep(dt) {   /* 덮기 한 프레임 (빠른 이동 · 방 드나들기) — 어느 장소가 보이든 돈다 */
+      var J = WSTATE.jump; if (!J) return;
+      J.t += dt; var k = J.t / 0.3; if (k >= 0.5 && !J.done) { J.done = true; J.put(); }
+      PLACE.fade = k >= 1 ? 0 : k < 0.5 ? k * 2 : 2 - k * 2; if (k >= 1) { WSTATE.jump = null; J.res(true); }
+    }
+    var _jumpAt = { x: 1e9, z: 1e9, place: '' };
+    function jumpFollow(dt) {   /* 11-24 (검증): 모션 감소 · 즉시 옮기기 (들고 가 앉기 · 즉시 자리 걷기) 는 걸음이 없어 따라가기가 안 돌았다 → 한 프레임에 0.3 m 넘게 옮겨졌으면 캐릭터가 화면 안 (가장자리 0.5 m) 에 들게 바로 민다 */
+      var jdt = _jumpAt.dt || 0; _jumpAt.dt = dt || 0;
+      if (typeof PL === 'undefined' || !PL || PL.place !== PLACE.vis || (PLACE.vis !== 'inside' && PLACE.vis !== 'yard')) { _jumpAt.place = ''; return; }
+      var moved = _jumpAt.place === PL.place && Math.hypot(PL.pos.x - _jumpAt.x, PL.pos.z - _jumpAt.z) > 0.3 + 9 * Math.max(jdt, dt || 0);   /* [7-W] 다섯째 바퀴: 버벅인 프레임 (dt 0.1 s) 에 뛰어간 한 걸음 (≈ 0.4 ~ 0.6 m) 은 옮겨진 게 아니다 — 예전엔 화면이 가운데로 덜컥 되돌아갔다 */
+      _jumpAt.x = PL.pos.x; _jumpAt.z = PL.pos.z; _jumpAt.place = PL.place;
+      if (!moved || GEST.mode || WSTATE.jump || panLocked() || !panOn()) return;
+      var f = plFollow(true); if (!f && PLACE.vis !== 'inside') return; viewHome(); if (st.reduced) placeCamera();   /* 방 안에서는 늘 캐릭터를 가운데 쪽으로 (앉은 자리 앞의 접시까지 보이게) · 바깥은 화면 밖일 때만 */
+    }
+    function viewHome() {   /* 화면을 내 캐릭터 쪽으로 되돌린다 (카드 · 결과를 닫은 뒤 — 캐릭터와 둘레의 자리가 다시 보이게) → 됐나 */
+      if (!S || !S.N || panLocked() || !panOn() || typeof PL === 'undefined' || PL.place !== PLACE.vis) return false;
+      var g = groupOf(PLACE.vis); _fw.set(PL.pos.x, 0.6 + (PL.place === 'yard' ? plGroundY(PL.pos.x, PL.pos.z) : 0), PL.pos.z); if (g) _fw.add(g.position); _fw.sub(camTargetNow());
+      var b = panBox(); panTo(clamp(Math.round(_fw.dot(_r) * S.N) / S.N, b[0], b[1]), clamp(Math.round(_fw.dot(_u) * S.N) / S.N, b[2], b[3]), 0.3, 'tween'); if (PLACE.vis === 'yard') _wideKeep.on = false; dither.still = 0; return true;
+    }
+    function inFrame(dt) { var R = PLACE.vis === 'inside' ? ROOM_REG[IN.key] : null; if (R && typeof R.frame === 'function') { try { R.frame(dt, time); } catch (e) { if (!IN.frameErr) { IN.frameErr = true; console.error('[scene3d] ROOM_REG.frame', e); } } } }
+    function coverRun(put) {   /* → Promise: 덮인 가운데 프레임에 put() */
+      if (WSTATE.jump) { var o = WSTATE.jump; WSTATE.jump = null; PLACE.fade = 0; if (!o.done) o.put(); o.res(false); }
+      if (st.reduced || !ready || (typeof document !== 'undefined' && document.hidden)) { put(); return Promise.resolve(true); }
+      return new Promise(function (res) { WSTATE.jump = { t: 0, put: put, done: false, res: res }; });
+    }
+    function inRegSync(key) {   /* 방의 자리를 단추 칸으로 (넓은 바깥의 자리와 같은 표 · room 표시) */
+      var R = ROOM_REG[key], n0 = WIDE_SPOT_KEYS.length; if (!R) return;
+      (R.spots || []).forEach(function (s1) { if (!s1 || !s1.key || !s1.btn || WIDE_SPOT[s1.key] || SPOT_KEYS.indexOf(s1.key) >= 0) return; WIDE_SPOT[s1.key] = { sp: s1, box: new T.Box3(), room: key }; WIDE_SPOT_KEYS.push(s1.key); SPOT_KEYS.push(s1.key); });
+      if (WIDE_SPOT_KEYS.length !== n0) wideSpotsBind();
+    }
+    function inBuild(key) {
+      var R = ROOM_REG[key]; if (!R) return null; if (IN.groups[key]) { inRegSync(key); return IN.groups[key]; }
+      var hx = R.half[0], hz = R.half[1], H = R.wallH || 2.3, g = new T.Group(), ps = [], i; g.name = 'inside:' + key; g.visible = false; scene.add(g);
+      if (R.shell !== false) {   /* 바닥 널 · 받침 · 뒤 두 벽 (−x · −z) 과 걸레받이 · 문 깔개 */
+        var nb = Math.max(1, Math.round(2 * hz / 0.42)), bw = 2 * hz / nb;
+        for (i = 0; i < nb; i++) ps.push({ g: box(2 * hx, 0.04, bw - 0.02), m: M(0, -0.02, -hz + bw * (i + 0.5)), c: i % 2 ? MAT.floorA : MAT.floorB });
+        ps.push({ g: box(2 * hx + 0.44, 0.06, 2 * hz + 0.44), m: M(0, -0.07, 0), c: MAT.floorSeam }, { g: box(2 * hx + 0.44, 0.3, 2 * hz + 0.44), m: M(0, -0.25, 0), c: MAT.slabBase });
+        ps.push({ g: box(0.16, H, 2 * hz + 0.16), m: M(-hx - 0.08, H / 2, -0.08), c: MAT.wallA }, { g: box(2 * hx, H, 0.16), m: M(0, H / 2, -hz - 0.08), c: MAT.wallB });
+        ps.push({ g: box(0.03, 0.14, 2 * hz), m: M(-hx + 0.015, 0.07, 0), c: MAT.stud }, { g: box(2 * hx, 0.14, 0.03), m: M(0, 0.07, -hz + 0.015), c: MAT.stud }, { g: box(0.2, 0.06, 2 * hz + 0.2), m: M(-hx - 0.08, H + 0.03, -0.08), c: MAT.stud }, { g: box(2 * hx + 0.04, 0.06, 0.2), m: M(0, H + 0.03, -hz - 0.08), c: MAT.stud });
+        if (R.door) { var dx0 = clamp(R.door[0], -hx + 0.5, hx - 0.5), dz0 = clamp(R.door[1], -hz + 0.5, hz - 0.5), onX = Math.abs(R.door[0]) / hx >= Math.abs(R.door[1]) / hz;
+          [-0.62, 0.62].forEach(function (dd) { ps.push({ g: box(0.12, 0.62, 0.12), m: M(onX ? hx + 0.06 : dx0 + dd, 0.31, onX ? dz0 + dd : hz + 0.06), c: MAT.stud }, { g: box(0.16, 0.05, 0.16), m: M(onX ? hx + 0.06 : dx0 + dd, 0.645, onX ? dz0 + dd : hz + 0.06), c: W[4] }); });   /* 문 자리의 낮은 문설주 둘 (앞이 열린 구도라 문짝은 없다 — 깔개와 문설주가 '여기가 문') */
+          ps.push({ g: box(onX ? 0.5 : 0.9, 0.02, onX ? 0.9 : 0.5), m: M(onX ? hx - 0.3 : dx0, 0.012, onX ? dz0 : hz - 0.3), c: PAL.rose[1] }, { g: box(onX ? 0.4 : 0.8, 0.022, onX ? 0.8 : 0.4), m: M(onX ? hx - 0.3 : dx0, 0.014, onX ? dz0 : hz - 0.3), c: PAL.paper[1] }); }
+        var shell = new T.Mesh(keep(mergeParts(ps)), lambert); shell.castShadow = true; shell.receiveShadow = true; shell.name = 'insideShell'; g.add(shell);
+      }
+      var L = R.lights && R.lights.length >= 2 ? R.lights : [[-hx * 0.35, Math.min(1.7, H - 0.5), -hz + 0.5], [-hx + 0.5, Math.min(1.7, H - 0.5), hz * 0.3]];
+      var lA = new T.PointLight(C('#ffb066').getHex(), 0, 4.8, 2); lA.position.set(L[0][0], L[0][1], L[0][2]); g.add(lA);
+      var lB = new T.PointLight(C('#ffb066').getHex(), 0, 4.4, 2); lB.position.set(L[1][0], L[1][1], L[1][2]); g.add(lB);
+      var kit = { T: T, box: box, M: M, mergeParts: mergeParts, keep: keep, lambert: lambert, toon: toon, PAL: PAL, MAT: MAT, W: W, C: C, snapPos: snapPos, hash: hash, flower: wideFlower, leaf: wideLeaf,
+        mesh: function (parts, o) { var m = new T.Mesh(keep(mergeParts(parts)), (o && o.material) || lambert); m.castShadow = !(o && o.cast === false); m.receiveShadow = true; g.add(m); return m; } };
+      if (typeof R.build === 'function') { try { var br = R.build(g, kit);
+        /* 방은 기본 구도 고정 (돌려 보기 없음) → build 가 돌려준 cuts [{ full, low, nx, nz }] 가운데 카메라 쪽 벽 (바깥 법선이 +x 나 +z) 은 늘 무릎 높이 쌍둥이로 */
+        if (br && br.cuts) br.cuts.forEach(function (c) { if (!c || !c.full) return; var front = (c.nx || 0) + (c.nz || 0) > 0.01; c.full.visible = !front; if (c.low) c.low.visible = front; });
+      } catch (e) { console.error('[scene3d] ROOM_REG.' + key + '.build', e); } }
+      IN.groups[key] = { g: g, lA: lA, lB: lB, R: R };
+      inRegSync(key); return IN.groups[key];
+    }
+    function inApplyLight() {   /* 등 둘: 낮에도 약하게 · 노을 · 밤에 세게 (놀이방과 같은 셈) */
+      var G = IN.groups[IN.key]; if (!G) return;
+      var em = light.em == null ? 1 : light.em, nk = clamp((em - 0.25) / 0.75, 0, 1), up = roomNightUp();
+      G.lA.intensity = (0.5 + 0.8 * nk) * up; G.lB.intensity = (0.4 + 0.65 * nk) * up; G.lA.distance = 4.8 * up; G.lB.distance = 4.4 * up;
+    }
+    function inShow(key) {   /* 덮인 프레임: 그 방을 보이는 장소로 */
+      var G = inBuild(key), R = G.R, hx = R.half[0], hz = R.half[1], H = R.wallH || 2.3;
+      IN.key = key; IN.g = G.g;
+      /* 구도: 놀이방과 같은 셈 (방의 화면 세로 가운데 — 위 끝 = 뒤 모서리 벽 꼭대기 · 아래 끝 = 앞 모서리 받침 밑). 높은 화면에선 앞 모서리를 화면 높이의 FRAME_Y 로 */
+      var yc = (0.848 * H - 0.75 * 6 / 27 - 0.407 - 0.375 * (hx + hz - 2 * Math.min(hx, hz)) * 0) / 2 / 0.848;
+      IN.target.set(0, snapPos(yc), 0); IN.target.y = snapPos(yc - liftOf(0, yc, 0, [[hx, 0, hz], [-hx, H, -hz]]));
+      PLACE_BOX.inside = [[-hx - 6 / 27, hx + 6 / 27], [-0.48, H], [-hz - 6 / 27, hz + 6 / 27]];
+      IN.shade = [[-hx - 0.6, hx + 0.6], [-0.6, H + 0.2], [-hz - 0.6, hz + 0.6]];
+      if (IN.zoom0 == null) IN.zoom0 = st.zoomF; ZT = null; st.zoomF = ZOOM_STEPS[3];   /* 11-22 리드 (주인: 화면이 비는 느낌): 방 안 기본은 한 칸 반 가까이 (√2 배 — m 당 38 아트px). 방이 화면 세로를 거의 채우고 화면이 내 캐릭터를 따라간다 (방 상자 안에서만). 두 손가락으로 줄이면 방 전체 (1 배) */
+      showPlace('inside'); PLACE.room = 'inside'; container.dataset.room = 'inside'; container.dataset.inside = key; applyZoom(); touchMode();
+      if (plG.parent !== G.g) G.g.add(plG); fpClear(G.g);
+      var d = R.door || [hx - 0.4, 0], px = clamp(d[0], -hx + PL_MARGIN, hx - PL_MARGIN), pz = clamp(d[1], -hz + PL_MARGIN, hz - PL_MARGIN);
+      PL.sit = false; PL.hop = null; PL.tbl = false; plStop(); PL.place = 'inside'; PL.pos.set(px, 0, pz); PL.faceCam = false; PL.yaw = PL.wantYaw = typeof R.face === 'number' ? R.face : Math.atan2(-px, -pz); PL.moving = false; PL.pending = ''; plSnap();
+      inApplyLight(); fitShadow(); dither.still = 0;
+    }
+    function inHide() {   /* 덮인 프레임: 다시 넓은 바깥의 문 앞으로 */
+      var b = IN.back || wideXZ(WIDE.ARRIVE.village[0], WIDE.ARRIVE.village[1]);
+      delete container.dataset.inside; IN.key = null; IN.g = null; ZT = null; st.zoomF = IN.zoom0 == null ? 1 : IN.zoom0; IN.zoom0 = null;   /* 바깥 배율은 들어가기 전 그대로 */
+      showPlace('yard'); applyZoom(); touchMode(); PLACE.room = 'yard'; container.dataset.room = 'yard';
+      if (plG.parent !== YROOM.g) YROOM.g.add(plG); fpClear(YROOM.g);
+      plStop(); PL.place = 'yard'; PL.pos.set(b[0], 0, b[1]); PL.faceCam = false; PL.yaw = PL.wantYaw = b[2] == null ? Math.PI / 4 : b[2]; PL.moving = false; PL.pending = ''; plSnap();
+      placeCamera(); wideCentreOn(); fitShadow(); dither.still = 0;
+    }
+    function inOutside(R) {   /* 방의 문 밖 자리 (넓은 바깥 좌표 [x, z]) */
+      var o = R.outside, q = null;
+      if (typeof o === 'string') { var sp = (WIDE_SPOT[o] && WIDE_SPOT[o].sp) || WIDE_REG.spots.filter(function (s1) { return s1 && s1.key === o; })[0]; if (sp) { var k = Math.SQRT1_2, sd = (sp.x + sp.z) * k, td = (sp.x - sp.z) * k; q = yardClamp(sp.x, sp.z, sp.x, sp.z); if (!wideIn((q[0] + q[1]) * k, (q[0] - q[1]) * k)) q = wideXZ(clamp(sd, 20.4, 37.6), clamp(td, -2.1, 2.1)); } }
+      else if (o && o.length >= 2) q = wideXZ(o[0], o[1]);
+      return q || wideXZ(WIDE.ARRIVE.village[0], WIDE.ARRIVE.village[1]);
+    }
+    function inEvent(key) { emit('room', key); try { document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: key } })); } catch (e) { /* 옛 브라우저 */ } }
+    function enterRoom(key) {   /* → Promise<{ ok, reason? }>: 넓은 바깥에서 그 방으로 */
+      var R = ROOM_REG[key], no = function (why) { return Promise.resolve({ ok: false, reason: why, key: IN.key }); };
+      if (!YARD_WIDE || !R || !R.half) return no('none');
+      if (IN.key === key && PLACE.vis === 'inside') return no('here');
+      if (IN.busy || DQ.active || DQ.pending || PLACE.trans || INTRO.on || WSTATE.jump) return no('busy');
+      if (PLACE.vis !== 'yard' || PL.place !== 'yard' || !YROOM) return no('far');
+      if (yardDoorBusy()) return no('ceremony');
+      var q = inOutside(R), to = new T.Vector3(q[0], 0, q[1]), dist = Math.hypot(PL.pos.x - q[0], PL.pos.z - q[1]); IN.busy = true;
+      var walk = dist < 0.15 || dist > 9 ? Promise.resolve(true) : (function () { var p = plWalkTo(to, null), w = PL.walking; return !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); }); })();   /* 멀면 걷지 않는다 (덮고 바로) · 걷다 끊기면 그만둔다 */
+      return walk.then(function (r) {
+        if (r === null || PLACE.vis !== 'yard' || PL.place !== 'yard') { IN.busy = false; return { ok: false, reason: 'walk', key: null }; }
+        IN.back = [q[0], q[1], Math.atan2(PL.pos.x - q[0] || 1e-6, PL.pos.z - q[1] || 1e-6)];
+        var sd = (q[0] + q[1]) * Math.SQRT1_2, td = (q[0] - q[1]) * Math.SQRT1_2; IN.back[2] = td < 0 ? 3 * Math.PI / 4 : -Math.PI / 4;   /* 나오면 길 쪽을 본다 (왼쪽 가게 → 오른쪽을 · 오른쪽 가게 → 왼쪽을) */
+        emit('door', { act: 'open', room: 'inside', door: key, from: 'yard' });
+        return coverRun(function () { inShow(key); }).then(function () { IN.busy = false; if (IN.key !== key) return { ok: false, reason: 'cut', key: IN.key }; emit('door', { act: 'close', room: 'inside', door: key, from: 'yard' }); inEvent(key); return { ok: true, key: key }; });
+      });
+    }
+    function leaveRoom(here) {   /* → Promise<{ ok }>: 방에서 넓은 바깥의 문 앞으로 (here = 문 자리로 걷지 않고 바로 — 스틱으로 문 밖을 밀 때) */
+      if (PLACE.vis !== 'inside' || !IN.key) return Promise.resolve({ ok: false, reason: 'here', key: null });
+      if (IN.busy || WSTATE.jump || PLACE.trans) return Promise.resolve({ ok: false, reason: 'busy', key: IN.key });
+      var key = IN.key, R = ROOM_REG[key], d = R.door || [R.half[0] - 0.4, 0], to = new T.Vector3(clamp(d[0], -R.half[0] + PL_MARGIN, R.half[0] - PL_MARGIN), 0, clamp(d[1], -R.half[1] + PL_MARGIN, R.half[1] - PL_MARGIN)); IN.busy = true;
+      var walk = here === true || Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z) < 0.15 ? Promise.resolve(true) : (function () { var p = plWalkTo(to, null), w = PL.walking; return !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); }); })();
+      return walk.then(function (r) {
+        if (r === null || PLACE.vis !== 'inside') { IN.busy = false; return { ok: false, reason: 'walk', key: IN.key }; }
+        emit('door', { act: 'open', room: 'yard', door: key, from: 'inside' });
+        return coverRun(inHide).then(function () { IN.busy = false; emit('door', { act: 'close', room: 'yard', door: key, from: 'inside' }); inEvent(null); return { ok: true, key: null }; });
+      });
+    }
+    function inCols() { var R = ROOM_REG[IN.key] || {}; return { boxes: (R.boxes || []).map(function (b) { return [Math.min(b[0], b[2]) - PL_RAD, Math.max(b[0], b[2]) + PL_RAD, Math.min(b[1], b[3]) - PL_RAD, Math.max(b[1], b[3]) + PL_RAD]; }), circles: (R.circles || []).map(function (c) { return [c[0], c[1], c[2] + PL_RAD]; }) }; }
+    function inMove(dx, dz) {   /* 방 안 걸음: 네모 바닥 안 · 전체 → x 만 → z 만 (다락과 같은 미끄러짐) */
+      var R = ROOM_REG[IN.key]; if (!R) return false;
+      var hx = R.half[0] - PL_MARGIN, hz = R.half[1] - PL_MARGIN, co = inCols(), x0 = PL.pos.x, z0 = PL.pos.z, p0 = plPen(x0, z0, co.boxes, co.circles) + 1e-6;
+      var nx = clamp(x0 + dx, -hx, hx), nz = clamp(z0 + dz, -hz, hz);
+      var dr = R.door || [R.half[0] - 0.4, 0];
+      var dOnX = Math.abs(dr[0]) / R.half[0] >= Math.abs(dr[1]) / R.half[1];   /* 문이 +x 벽인가 (아니면 +z 벽) — 그 벽으로 밀 때만 나간다 (검증: 잡화점 옆벽으로 새어 나갔다) */
+      if (R.pushOut !== false && PL_IN.v && !PL.walking && !IN.busy && !WSTATE.jump && ((!dOnX && z0 + dz > hz + 1e-4 && z0 > hz - 0.05 && dr[1] > 0 && Math.abs(x0 - dr[0]) < 0.8) || (dOnX && x0 + dx > hx + 1e-4 && x0 > hx - 0.05 && dr[0] > 0 && Math.abs(z0 - dr[1]) < 0.8))) leaveRoom(true);   /* 11-22 (검증): 문 자리에서 스틱으로 문 밖 쪽으로 밀면 나간다 — '밖으로' 단추가 스틱 칸 밑에 깔리는 방 (공연장) 에서도 나갈 수 있게 */
+      if (plPen(nx, nz, co.boxes, co.circles) <= p0) PL.pos.set(nx, 0, nz);
+      else if (plPen(nx, z0, co.boxes, co.circles) <= p0) PL.pos.x = nx;
+      else if (plPen(x0, nz, co.boxes, co.circles) <= p0) PL.pos.z = nz;
+      return Math.abs(PL.pos.x - x0) + Math.abs(PL.pos.z - z0) > 1e-9;
+    }
+    function inSpotWalk(id, el) {   /* 방 안의 자리를 톡: 설 자리 (stand) 에서 0.25 m 넘게 떨어져 있으면 걸어간 뒤 누른다 → 걷기 시작했나 */
+      var sp = WIDE_SPOT[id].sp, st2 = sp.stand; if (!st2 || PL.place !== 'inside' || PL.sit || PL.tbl || PL.hop ||   /* 앉아 있으면 걸어가지 않고 바로 누른다 (검증: 앉은 채 자리를 톡하면 일어섰다 다시 앉았다) */ Math.hypot(PL.pos.x - st2[0], PL.pos.z - st2[1]) <= 0.25) return false;
+      var key = IN.key; plWalkTo(new T.Vector3(st2[0], 0, st2[1]), Math.atan2(sp.x - st2[0], sp.z - st2[1])).then(function () { if (IN.key !== key || PL.place !== 'inside') return; if (Math.hypot(PL.pos.x - st2[0], PL.pos.z - st2[1]) > 0.4) { console.warn('[scene3d] 방 자리 ' + id + ' 의 설 자리에 못 닿음 — 선 자리에서 누른다'); PL.faceCam = false; PL.wantYaw = Math.atan2(sp.x - PL.pos.x, sp.z - PL.pos.z); } el.click(); });   /* 11-22 (검증): 막혀서 못 닿아도 조용히 끝내지 않는다 — 그 물건 쪽을 보고 누른다 (메뉴 · 계산은 열린다) */
+      return true;
+    }
+    function viewFocus(x, z, y) {   /* 그 자리 (지금 보이는 장소의 좌표) 를 화면 가로 가운데 · 위에서 3분의 1 높이에 오게 화면을 민다 (경계 안에서 · 0.25 s) → 됐나. 카드가 뜰 때 그 대상이 카드 위로 보이게 */
+      if (!S || !S.N || panLocked() || !panOn()) return false;
+      var g = groupOf(PLACE.vis); _fw.set(+x || 0, y == null ? 1.0 : +y, +z || 0); if (g) _fw.add(g.position); _fw.sub(camTargetNow());
+      var b = panBox(), tx = clamp(Math.round(_fw.dot(_r) * S.N) / S.N, b[0], b[1]), ty = clamp(Math.round((_fw.dot(_u) - S.rh / 6 / S.N) * S.N) / S.N, b[2], b[3]);
+      if (YARD_WIDE && PLACE.vis === 'yard') _wideKeep.on = false;
+      panTo(tx, ty, 0.25, 'tween'); dither.still = 0; return true;
+    }
+    function inSlots(key) {   /* 방의 치수 · 문 · 자리 (방 안 좌표) — 갈래 S · C · P · N 이 읽는다 */
+      var R = ROOM_REG[key]; if (!R) return null; var sp = {};
+      (R.spots || []).forEach(function (q) { if (q && q.key) sp[q.key] = { btn: q.btn, x: q.x, y: q.y || 0, z: q.z, stand: q.stand ? q.stand.slice() : null }; });
+      return { key: key, half: R.half.slice(), wallH: R.wallH || 2.3, door: (R.door || [R.half[0] - 0.4, 0]).slice(), spots: sp, slots: R.slots || null, built: !!IN.groups[key] };
+    }
+    function inStub(key, o) {   /* 시험 · 다른 갈래가 오기 전: 빈 상자 방 하나를 등록부에 (이미 있으면 그대로) */
+      o = o || {}; var def = { clothes: [[3.0, 2.6], [24.8, -2.1]], goods: [[2.6, 2.4], [24.8, 2.1]], cafe: [[3.2, 2.6], [33.4, 2.1]], hall: [[3.5, 3.0], [44.5, 5.0]] }[key] || [[3.0, 2.6], [30, 0]];
+      if (!ROOM_REG[key]) ROOM_REG[key] = { half: o.half || def[0], wallH: o.wallH || 2.3, door: o.door || [def[0][0] - 0.4, 0.8], outside: o.outside || def[1], boxes: o.boxes || [], circles: o.circles || [], spots: o.spots || [] };
+      return inSlots(key);
+    }
+    function wideStep(dt) {   /* 넓은 바깥이 보이는 프레임마다 (카메라를 놓은 바로 뒤) */
+      var i, o, v;
+      wideRegSync();
+      if (wideCentre(_svc)) {   /* 구간 가리기: 화면이 닿는 대각 s 범위 (어느 각에서나 · 그림자와 키 큰 것 몫 7 m) 밖의 구간은 그리지 않는다 */
+        var R = Math.hypot(S.rw / 2 / S.N, S.rh / 2 / S.N / Math.sin(TILT)) + 7, cs = (_svc.x + _svc.z) * Math.SQRT1_2, sg = WIDE_REG.segments;
+        for (i = 0; i < sg.length; i++) { o = sg[i]; if (!o || !o.obj) continue; v = o.s1 >= cs - R && o.s0 <= cs + R; if (o.obj.visible !== v) { o.obj.visible = v; dither.still = 0; } }
+        WSTATE.xoff[0] = Math.round(_svc.x / 2) * 2; WSTATE.xoff[1] = Math.round(_svc.z / 2) * 2;   /* 비 · 눈이 새로 떨어질 자리의 가운데 (xSpawn — 2 m 눈금) */
+      }
+      var wf = st.reduced ? 0 : Math.floor(time * 5) % WAVE_F.length;
+      if (WSTATE.wave && wf !== WSTATE.waveF) { WSTATE.waveF = wf; var wo = -WAVE_F[wf] * Math.SQRT1_2; WSTATE.wave.position.set(wo, 0, wo); }
+      /* 따라가기 최고 속도: 걷는 속도를 재서 그 1.3 배 (달리기가 3.8 m/s 여도 화면이 뒤처지지 않는다 — 서 있으면 천천히 예전 값 3 으로) */
+      var mvx = dt > 1e-4 ? (PL.pos.x - WSTATE.lastX) / dt : 0, mvz = dt > 1e-4 ? (PL.pos.z - WSTATE.lastZ) / dt : 0, sp = Math.hypot(mvx, mvz); WSTATE.lastX = PL.pos.x; WSTATE.lastZ = PL.pos.z;
+      if (sp < 6) WSTATE.vmax = Math.max(3, sp * 1.3, WSTATE.vmax - dt * 2);   /* 6 m/s 넘는 건 걸음이 아니라 옮겨진 것 (빠른 이동 · 시험) — 이제 화면 따라가기는 이 값을 안 쓴다 (wideMap 보고용) */
+      /* 앞보기 ([7-W] 다섯째 바퀴): 스틱 방향이 아니라 실제로 움직인 속도 (화면 축) × 0.3 s, 길이 0.9 m 까지 — 0.6 s 에 걸쳐 옮긴다.
+         예전 (스틱 쪽 1.2 · 1.5 m, 0.45 s) 은 방향을 틀 때마다 화면이 2 m 넘게 반대로 휘둘렸고 (지그재그로 뛰면 출렁), 벽에 막혀 서 있어도 스틱을 밀면 화면만 미끄러졌다. 서면 그 자리에 둔다. 모션 감소면 없음 */
+      if (st.reduced) WSTATE.la[0] = WSTATE.la[1] = 0;
+      else if (PL.stick && sp > 0.3 && sp < 8) {
+        var tr = (mvx * _r.x + mvz * _r.z) * 0.3, tu = (mvx * _u.x + mvz * _u.z) * 0.3, tl = Math.hypot(tr, tu), lk = 1 - Math.exp(-dt / 0.6);
+        if (tl > 0.9) { tr *= 0.9 / tl; tu *= 0.9 / tl; }
+        WSTATE.la[0] += (tr - WSTATE.la[0]) * lk; WSTATE.la[1] += (tu - WSTATE.la[1]) * lk;
+      }
+      for (i = 0; i < WIDE_REG.frame.length; i++) { try { WIDE_REG.frame[i](dt, time); } catch (e) { if (!WSTATE.frameErr) { WSTATE.frameErr = true; console.error('[scene3d] WIDE_REG.frame', e); } } }
+    }
+
+
+    /* [7-V] 마을 건물 · NPC 그리기 */
+    /* 11-21 7차 갈래 V — 마을에 서 있는 것 (docs/VILLAGE.md): 옷가게 · 잡화점 · 카페 덱 · 빈 집 · 광장 · 길 소품 · NPC 문어 · 카페 자리.
+       자리 표는 js/village.js (VILLAGE) 가 쥔다 — 없으면 (장면만 따로 싣는 시험 도구) 아무것도 등록하지 않는다. 땅 · 걷는 곳 · 카메라는 갈래 W 몫: 여기선 등록부 WIDE_REG 만 채운다.
+       그리는 값: 줄(왼쪽 · 오른쪽)마다 합친 메시 하나 + 무릎 높이 쌍둥이 (돌려 봐서 카메라 쪽이 되면 자른다 — 마당 집과 같은 cutAdd), 길 소품 · 광장 각각 하나, 창 유리 (밤에 켜진다) 줄마다 하나.
+       새 재질 종류 없음 (lambert · MeshBasic · 내 캐릭터 툰) → 셰이더 프로그램 그대로. 점광도 늘리지 않는다 (밤 불빛 = 발광 쌍둥이 + 땅의 빛 원판) */
+    var VIL = { on: typeof VILLAGE !== 'undefined' && !!VILLAGE, built: false, stub: false, grp: {}, win: [], lampGlow: null, pools: null, snow: [], npcs: {}, want: [], marks: {}, cup: null,
+      cafe: { seated: false, inside: false }, npcAt: {}, dress: null, dressWant: false, t: 0, R: 0.40 };
+    function vilXZ(s, t) { var q = wideXZ(s, t); return [snapPos(q[0]), snapPos(q[1])]; }
+    var VC = { cream: '#efe3c8', paper: '#dfd5bf', wallA: '#c2b4a4', wallB: '#b0a292', seam: '#66605c', woodA: '#8a5a3c', woodB: '#7b4f35', woodD: '#5f3928', woodL: '#996643', dark: '#44241b',
+      red: '#b04a3c', roofR: '#a04838', roofRL: '#6a2c2c', blue: '#3f6690', blueL: '#5c86b0', blueD: '#2e3b58', sky: '#9fc7e8', moss: '#5f7a3a', mossD: '#3f6a3a', leaf: '#8cc05a', yellow: '#e8b04a',
+      rose: '#9a5058', pink: '#f2a6c0', dusk: '#e39a8c', slateA: '#8a8580', slateB: '#77737f', slateD: '#4e4448', stone: '#a8a29a', iron: '#2a2433', glass: '#8aa0b4', white: '#fbf6ea' };
+    /* 건물 좌표 틀: c = 몸 가운데 (s, t) · mir = 오른쪽 줄 (x 와 z 를 바꿔 놓는다 — 상자는 치수만 바꾸면 되므로 면 방향이 뒤집히지 않는다). lx = 앞쪽 (+ = 가게 앞) · lz = 옆 (− = 길 쪽) */
+    function vilFrame(c, mir) {
+      var o = vilXZ(c[0], c[1]);
+      var F = { o: o, mir: mir,
+        p: function (lx, lz) { return mir ? [o[0] + lz, o[1] + lx] : [o[0] + lx, o[1] + lz]; },
+        B: function (L, w, h, d, lx, y, lz, c2, tag) { var q = F.p(lx, lz); L.push({ g: mir ? box(d, h, w) : box(w, h, d), m: M(q[0], y, q[1]), c: c2, tag: tag || 0 }); },
+        T: function (L, w, h, d, lx, y, lz, tilt, c2) { var q = F.p(lx, lz); L.push({ g: mir ? box(d, h, w) : box(w, h, d), m: mir ? M(q[0], y, q[1], tilt, 0, 0) : M(q[0], y, q[1], 0, 0, -tilt), c: c2 }); },   /* 앞으로 숙인 판 (차양) */
+        Y: function (L, r0, r1, h, n, lx, y, lz, c2) { var q = F.p(lx, lz); L.push({ g: new T.CylinderGeometry(r0, r1, h, n), m: M(q[0], y, q[1]), c: c2 }); },
+        S: function (L, r, lx, y, lz, c2, sy) { var q = F.p(lx, lz); L.push({ g: new T.SphereGeometry(r, 7, 5), m: M(q[0], y, q[1], 0, 0, 0, 1, sy || 1, 1), c: c2 }); },
+        G: function (L, a, b, r, c2) { var qa = F.p(a[0], a[2]), qb = F.p(b[0], b[2]); seg(L, [qa[0], a[1], qa[1]], [qb[0], b[1], qb[1]], r, c2, 4); },
+        /* 박공 지붕 (35°): axis = 용마루가 누운 쪽 (건물 안 'x' | 'z'). SN = 겨울 눈 조각을 받을 목록 */
+        roof: function (L, hx, hz, eave, axis, c2, cl, wa, wb, SN) {
+          var wx = mir ? hz : hx, wz = mir ? hx : hz, ax = (axis === 'x') !== mir, A = 0.61, tn = Math.tan(A), cs = Math.cos(A), sn = Math.sin(A), ov = 0.2;
+          var half = (ax ? wz : wx) + ov, len = 2 * (ax ? wx : wz) + 0.36, ridge = eave + (half - ov) * tn, sl = half / cs, th = 0.1, py = ridge - half / 2 * tn + cs * th / 2;
+          [1, -1].forEach(function (sg) {
+            var off = sg * half / 2 + sg * sn * th / 2, px = o[0] + (ax ? 0 : off), pz = o[1] + (ax ? off : 0);
+            L.push({ g: ax ? box(len, th, sl, 3, 1, 3) : box(sl, th, len, 3, 1, 3), m: ax ? M(px, py, pz, sg * A, 0, 0) : M(px, py, pz, 0, 0, -sg * A), c: c2 });
+            if (SN) SN.push({ g: ax ? box(len - 0.06, 0.05, sl - 0.16) : box(sl - 0.16, 0.05, len - 0.06), m: ax ? M(px, py + 0.075, pz - sg * 0.05, sg * A, 0, 0) : M(px - sg * 0.05, py + 0.075, pz, 0, 0, -sg * A), c: EXT_C.snow });
+            for (var d = 0.34; d < sl - 0.12; d += 0.34) {
+              var q = sg * (d * cs + sn * (th + 0.005)), y = ridge - d * sn + cs * (th + 0.005);
+              L.push({ g: ax ? box(len + 0.01, 0.03, 0.035) : box(0.035, 0.03, len + 0.01), m: ax ? M(o[0], y, o[1] + q, sg * A, 0, 0) : M(o[0] + q, y, o[1], 0, 0, -sg * A), c: cl });
+            }
+          });
+          L.push({ g: ax ? box(len + 0.04, 0.1, 0.18) : box(0.18, 0.1, len + 0.04), m: M(o[0], ridge + 0.1, o[1]), c: cl });
+          for (var j = 0; eave + 0.1 + 0.2 * j < ridge; j++) {   /* 박공 널 (계단식 — 지붕이 덮는다) */
+            var yc = eave + 0.1 + 0.2 * j, hw = Math.max(0.06, Math.min(half - ov, (ridge - yc) / tn + 0.1)), e = (ax ? wx : wz) - 0.06;
+            [-e, e].forEach(function (g2) { L.push({ g: ax ? box(0.12, 0.2, 2 * hw) : box(2 * hw, 0.2, 0.12), m: ax ? M(o[0] + g2, yc, o[1]) : M(o[0], yc, o[1] + g2), c: j % 2 ? wa : wb }); });
+          }
+          return ridge;
+        } };
+      return F;
+    }
+    function vilShell(L, F, hx, hz, o) {   /* 받침돌 · 벽 널 n 줄 + 1px 이음 · 모서리 기둥 → 처마 높이 */
+      var PLH = 0.14, n = o.rows || 7, i;
+      F.B(L, 2 * hx + 0.06, PLH, 2 * hz + 0.06, 0, PLH / 2, 0, EXT_C.plinth);
+      F.B(L, 2 * hx + 0.1, 0.04, 2 * hz + 0.1, 0, PLH - 0.02, 0, EXT_C.plinthLine);
+      for (i = 0; i < n; i++) { F.B(L, 2 * hx, 0.2, 2 * hz, 0, PLH + 0.1 + 0.2 * i, 0, i % 2 ? o.wa : o.wb); if (i) F.B(L, 2 * hx + 0.02, 0.04, 2 * hz + 0.02, 0, PLH + 0.2 * i, 0, o.seam); }
+      [[-hx, -hz], [-hx, hz], [hx, -hz], [hx, hz]].forEach(function (c) { F.B(L, 0.12, 0.2 * n + 0.04, 0.12, c[0], PLH + 0.1 * n, c[1], o.post); });
+      return PLH + 0.2 * n;
+    }
+    /* 앞면(+lx) 창: 틀 + 창턱. 유리는 GL 목록 (밤에 켜지는 MeshBasic) 에 — shut 이면 유리 대신 닫힌 덧문 */
+    function vilWinF(L, GL, F, lx, y, lz, w, h, shut) {
+      [[0, h / 2 + 0.03, w + 0.12, 0.06], [0, -h / 2 - 0.03, w + 0.12, 0.06], [w / 2 + 0.03, 0, 0.06, h], [-w / 2 - 0.03, 0, 0.06, h]].forEach(function (f) { F.B(L, 0.05, f[3], f[2], lx + 0.03, y + f[1], lz + f[0], shut ? VC.slateD : VC.cream); });
+      F.B(L, 0.14, 0.05, w + 0.18, lx + 0.06, y - h / 2 - 0.07, lz, shut ? VC.woodD : VC.woodA);
+      if (shut) { [-w / 4, w / 4].forEach(function (d) { F.B(L, 0.04, h, w / 2 - 0.01, lx + 0.025, y, lz + d, VC.woodB); F.B(L, 0.045, 0.04, w / 2 - 0.06, lx + 0.03, y + h / 4, lz + d, VC.woodD); F.B(L, 0.045, 0.04, w / 2 - 0.06, lx + 0.03, y - h / 4, lz + d, VC.woodD); }); }
+      else { F.B(GL, 0.02, h, w, lx + 0.012, y, lz, VC.glass); F.B(L, 0.05, h, 0.04, lx + 0.03, y, lz, VC.cream); }
+    }
+    function vilWinS(L, GL, F, lx, y, lz, w, h, shut) {   /* 옆면(+lz) 창 */
+      [[0, h / 2 + 0.03, w + 0.12, 0.06], [0, -h / 2 - 0.03, w + 0.12, 0.06], [w / 2 + 0.03, 0, 0.06, h], [-w / 2 - 0.03, 0, 0.06, h]].forEach(function (f) { F.B(L, f[2], f[3], 0.05, lx + f[0], y + f[1], lz + 0.03, shut ? VC.slateD : VC.cream); });
+      if (shut) { [-w / 4, w / 4].forEach(function (d) { F.B(L, w / 2 - 0.01, h, 0.04, lx + d, y, lz + 0.025, VC.woodB); F.B(L, w / 2 - 0.06, 0.04, 0.045, lx + d, y, lz + 0.03, VC.woodD); }); }
+      else { F.B(GL, w, h, 0.02, lx, y, lz + 0.012, VC.glass); F.B(L, 0.04, h, 0.05, lx, y, lz + 0.03, VC.cream); F.B(L, w, 0.04, 0.05, lx, y, lz + 0.03, VC.cream); }
+    }
+    function vilDoor(L, F, lx, lz, open, c2) {   /* 앞면 문: 열린 가게 = 어두운 문 자리 + 문틀 · 빈 집 = 닫힌 문짝 */
+      F.B(L, 0.02, 1.04, 0.62, lx + 0.006, 0.14 + 0.52, lz, open ? PAL.ink : c2);
+      if (!open) { F.B(L, 0.03, 0.04, 0.52, lx + 0.012, 0.44, lz, VC.woodD); F.B(L, 0.03, 0.04, 0.52, lx + 0.012, 0.9, lz, VC.woodD); F.B(L, 0.05, 0.06, 0.06, lx + 0.03, 0.64, lz + 0.2, VC.slateA); }
+      [-0.35, 0.35].forEach(function (dz) { F.B(L, 0.08, 1.12, 0.08, lx + 0.03, 0.14 + 0.56, lz + dz, VC.woodB); });
+      F.B(L, 0.08, 0.08, 0.78, lx + 0.03, 0.14 + 1.1, lz, VC.woodB);
+      F.B(L, 0.3, 0.14, 0.8, lx + 0.15, 0.07, lz, EXT_C.step[0]);   /* 문 앞 디딤돌 한 칸 */
+    }
+    function vilAwning(L, F, lx, y, hz, a, b) {   /* 줄무늬 차양 (앞으로 숙인 널 일곱 줄 + 앞 처짐 띠) */
+      var n = 7, w = 2 * hz / n;
+      for (var i = 0; i < n; i++) { var z = -hz + w * (i + 0.5); F.T(L, 0.72, 0.04, w, lx + 0.34, y - 0.12, z, 0.36, i % 2 ? a : b); F.B(L, 0.03, 0.1, w, lx + 0.68, y - 0.29, z, i % 2 ? a : b); }
+      [-hz + 0.04, hz - 0.04].forEach(function (z) { F.G(L, [lx + 0.02, y - 0.32, z], [lx + 0.66, y - 0.26, z], 0.02, VC.woodD); });
+    }
+    function vilSign(L, F, lx, y, lz, c2, draw) {   /* 길 쪽 모서리의 걸이 간판 (글자 없음 — draw(put) 가 판 양면에 픽셀 그림을 올린다). put(dx, dy, w, h, 색) */
+      F.B(L, 0.62, 0.05, 0.05, lx + 0.31, y + 0.34, lz, VC.iron);
+      [0.14, 0.5].forEach(function (d) { F.B(L, 0.02, 0.1, 0.02, lx + d, y + 0.28, lz, VC.iron); });
+      F.B(L, 0.5, 0.46, 0.04, lx + 0.32, y, lz, c2); F.B(L, 0.54, 0.04, 0.05, lx + 0.32, y + 0.23, lz, VC.woodD); F.B(L, 0.54, 0.04, 0.05, lx + 0.32, y - 0.23, lz, VC.woodD);
+      if (draw) draw(function (dx, dy, w, h, c3) { F.B(L, w, h, 0.07, lx + 0.32 + dx, y + dy, lz, c3); });
+    }
+    function vilBigSign(L, F, lx, y, lz, w, h, c2, draw) {   /* 가게 앞 처마 위에 세운 큰 그림 간판 (길에서 한눈에 — 글자 없음). put(dz, dy, w, h, 색) = 판 앞면의 픽셀 조각 */
+      F.B(L, 0.06, h, w, lx, y, lz, c2); F.B(L, 0.08, 0.05, w + 0.08, lx, y + h / 2 + 0.025, lz, VC.woodD); F.B(L, 0.08, 0.05, w + 0.08, lx, y - h / 2 - 0.025, lz, VC.woodD);
+      [-w / 2 - 0.02, w / 2 + 0.02].forEach(function (d) { F.B(L, 0.08, h + 0.1, 0.05, lx, y, lz + d, VC.woodD); F.B(L, 0.05, 0.3, 0.05, lx - 0.06, y - h / 2 - 0.15, lz + d * 0.8, VC.woodD); });
+      draw(function (dz, dy, pw, ph, c3) { F.B(L, 0.03, ph, pw, lx + 0.04, y + dy, lz + dz, c3); });
+    }
+    function vilStall(L, F, top, cloth) {   /* 가게 앞 판매대: 몸 + 윗판 + 앞 천 띠 → 윗면 높이 */
+      var s = VILLAGE.STALL;
+      F.B(L, 2 * s.hw, s.h, 2 * s.hd, s.lx, s.h / 2, s.lz, VC.woodB); F.B(L, 2 * s.hw + 0.08, 0.04, 2 * s.hd + 0.08, s.lx, s.h + 0.02, s.lz, top);
+      F.B(L, 0.02, 0.2, 2 * s.hd, s.lx + s.hw + 0.012, s.h - 0.1, s.lz, cloth); F.B(L, 0.025, 0.04, 2 * s.hd, s.lx + s.hw + 0.014, s.h - 0.2, s.lz, VC.cream);
+      return s.h + 0.04;
+    }
+    function vilPot(L, x, z, k) {   /* 화분: 토분 + 잎 + 꽃 점 */
+      var bl = [VC.pink, VC.yellow, VC.white, VC.dusk][k % 4];
+      L.push({ g: new T.CylinderGeometry(0.12, 0.09, 0.16, 7), m: M(x, 0.08, z), c: VC.red }, { g: new T.CylinderGeometry(0.135, 0.135, 0.035, 7), m: M(x, 0.165, z), c: VC.roofR },
+        { g: new T.SphereGeometry(0.15, 7, 5), m: M(x, 0.29, z, 0, 0, 0, 1, 0.8, 1), c: k % 2 ? VC.moss : VC.leaf });
+      [[0.07, 0.38, 0.04], [-0.06, 0.36, -0.05], [0.0, 0.4, 0.08]].forEach(function (p) { L.push({ g: box(0.06, 0.06, 0.06), m: M(x + p[0], p[1], z + p[2]), c: bl }); });
+    }
+    function vilLamp(L, GL, PO, x, z) {   /* 가로등: 기둥 + 팔 + 등 (유리는 낮에도 따뜻한 색 · 밤 불빛은 GL 발광 + PO 땅의 빛 원판) */
+      L.push({ g: box(0.14, 0.1, 0.14), m: M(x, 0.05, z), c: VC.iron }, { g: box(0.07, 1.7, 0.07), m: M(x, 0.85, z), c: VC.iron }, { g: box(0.3, 0.05, 0.05), m: M(x + 0.11, 1.68, z), c: VC.iron },
+        { g: box(0.15, 0.18, 0.15), m: M(x + 0.22, 1.52, z), c: PAL.amber[3] }, { g: box(0.19, 0.04, 0.19), m: M(x + 0.22, 1.63, z), c: VC.iron }, { g: box(0.11, 0.03, 0.11), m: M(x + 0.22, 1.42, z), c: VC.iron });
+      GL.push({ g: box(0.16, 0.17, 0.16), m: M(x + 0.22, 1.52, z), c: VC.yellow });
+      PO.push({ g: new T.PlaneGeometry(2.6, 2.6), m: M(x + 0.22, 0.03, z, -Math.PI / 2, 0, 0), c: VC.yellow });
+    }
+    function vilBench(L, x, z, alongZ, c2) {   /* 등받이 있는 벤치 (앉는 면 y 0.3) — 부딪힘 네모는 VILLAGE.BOXES */
+      var BN = VILLAGE.BENCH, w = alongZ ? BN.w : BN.d, d = alongZ ? BN.d : BN.w;
+      L.push({ g: box(w, 0.06, d), m: M(x, 0.27, z), c: c2 || VC.woodA });
+      [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(function (q) { L.push({ g: box(0.06, 0.26, 0.06), m: M(x + q[0] * (w / 2 - 0.05), 0.13, z + q[1] * (d / 2 - 0.05)), c: VC.woodD }); });
+      if (alongZ) { L.push({ g: box(0.05, 0.3, d), m: M(x - w / 2 + 0.025, 0.5, z), c: VC.woodB }); } else { L.push({ g: box(w, 0.3, 0.05), m: M(x, 0.5, z - d / 2 + 0.025), c: VC.woodB }); }
+    }
+    function vilBlanket(L, x, y, z, a, b) { L.push({ g: box(0.62, 0.03, 0.56), m: M(x, y + 0.015, z), c: a }); [-0.18, 0, 0.18].forEach(function (d) { L.push({ g: box(0.63, 0.032, 0.05), m: M(x, y + 0.016, z + d), c: b }); }); }
+
+    /* ── 가게 둘 (옷가게 = 왼쪽 · 잡화점 = 오른쪽: 같은 틀을 길 건너편에 비춘 꼴) ── */
+    function vilShops(P) {
+      var lc = VILLAGE.lot('clothes'), lg = VILLAGE.lot('goods'), ST = VILLAGE.STALL, i;
+      /* 옷가게: 크림 벽 · 파란 지붕 · 빨강 흰 줄 차양 · 마네킹 창 · 티셔츠 간판 · 옷걸이 */
+      var F = vilFrame(lc.c, false), L = P.rowL, hx = lc.hx, hz = lc.hz;
+      var ev = vilShell(L, F, hx, hz, { wa: VC.wallA, wb: VC.wallB, seam: VC.seam, post: VC.woodB });
+      F.roof(L, hx, hz, ev, 'z', VC.blue, VC.blueD, VC.wallA, VC.wallB, P.snowL);
+      vilDoor(L, F, hx, 0.3, true); vilWinF(L, P.glL, F, hx, 0.94, -0.72, 0.8, 0.7); vilWinS(L, P.glL, F, -0.2, 0.98, hz, 0.6, 0.5);
+      vilAwning(L, F, hx, ev, hz, VC.red, VC.cream);
+      /* 창 안 마네킹 (유리 바로 앞 얇은 조각 — 밤엔 켜진 유리 앞 실루엣): 받침대 · 몸 · 티셔츠 */
+      F.B(L, 0.03, 0.26, 0.04, hx + 0.03, 0.72, -0.72, VC.woodD); F.S(L, 0.07, hx + 0.035, 1.2, -0.72, VC.paper);
+      F.B(L, 0.035, 0.3, 0.26, hx + 0.035, 0.96, -0.72, VC.sky); F.B(L, 0.035, 0.11, 0.46, hx + 0.035, 1.06, -0.72, VC.sky); F.B(L, 0.04, 0.04, 0.1, hx + 0.036, 1.1, -0.72, VC.white);
+      vilSign(L, F, hx + 0.04, 1.62, -hz + 0.06, VC.cream, function (put) { put(0, -0.03, 0.2, 0.22, VC.blue); put(0, 0.05, 0.36, 0.09, VC.blue); put(0, 0.085, 0.08, 0.03, VC.cream); });
+      F.B(L, 0.5, 0.3, 0.5, 1.8, 0.15, -1.0, VC.woodA); F.B(L, 0.52, 0.04, 0.52, 1.8, 0.24, -1.0, VC.woodD);   /* 가게 문어의 발판 */
+      vilBigSign(L, F, hx + 0.34, ev + 0.5, 0, 1.2, 0.74, VC.cream, function (put) { put(0, -0.06, 0.42, 0.44, VC.blue); put(0, 0.1, 0.8, 0.2, VC.blue); put(0, 0.17, 0.18, 0.07, VC.cream); put(0, -0.1, 0.14, 0.14, VC.yellow); });   /* 티셔츠 */
+      var top = vilStall(L, F, VC.woodL, VC.red);
+      [[-1.1, VC.sky], [-0.75, VC.pink], [-0.4, VC.yellow]].forEach(function (q, k) { for (var j = 0; j < 2 + k % 2; j++) F.B(L, 0.3, 0.05, 0.24, ST.lx, top + 0.025 + 0.05 * j, q[0], j % 2 ? VC.cream : q[1]); });   /* 갠 옷 더미 */
+      /* 옷걸이: 기둥 둘 · 가로대 · 걸린 옷 넷 (가게를 누르는 자리) */
+      [0.7, 1.5].forEach(function (z) { F.B(L, 0.05, 1.0, 0.05, 2.35, 0.5, z, VC.woodD); F.B(L, 0.24, 0.04, 0.08, 2.35, 0.02, z, VC.woodD); });
+      F.B(L, 0.04, 0.04, 0.9, 2.35, 1.0, 1.1, VC.woodB);
+      [[0.8, VC.red], [1.0, VC.blueL], [1.2, VC.yellow], [1.4, VC.moss]].forEach(function (q) { F.B(L, 0.3, 0.36, 0.05, 2.35, 0.76, q[0], q[1]); F.B(L, 0.46, 0.1, 0.05, 2.35, 0.89, q[0], q[1]); F.B(L, 0.03, 0.06, 0.02, 2.35, 0.96, q[0], VC.iron); });
+      /* 잡화점: 나무 벽 · 풀빛 지붕 · 노랑 흰 줄 차양 · 바구니 간판 · 걸린 연장 · 상자 더미 */
+      F = vilFrame(lg.c, true); L = P.rowR; hx = lg.hx; hz = lg.hz;
+      ev = vilShell(L, F, hx, hz, { wa: VC.woodA, wb: VC.woodB, seam: VC.woodD, post: VC.dark });
+      F.roof(L, hx, hz, ev, 'x', VC.moss, VC.mossD, VC.woodA, VC.woodB, P.snowR);
+      vilDoor(L, F, hx, 0.3, true); vilWinF(L, P.glR, F, hx, 0.94, -0.72, 0.8, 0.7); vilWinS(L, P.glR, F, -0.2, 0.98, hz, 0.6, 0.5);
+      vilAwning(L, F, hx, ev, hz, VC.yellow, VC.cream);
+      vilSign(L, F, hx + 0.04, 1.62, -hz + 0.06, VC.cream, function (put) { put(0, -0.06, 0.26, 0.14, VC.woodA); put(0, -0.06, 0.26, 0.03, VC.woodD); put(-0.11, 0.05, 0.03, 0.1, VC.woodD); put(0.11, 0.05, 0.03, 0.1, VC.woodD); put(0, 0.11, 0.25, 0.03, VC.woodD); });
+      /* 처마 밑에 걸린 것: 빗자루 · 냄비 · 작은 등 */
+      F.B(L, 0.03, 0.5, 0.03, hx + 0.05, 1.12, 0.98, VC.woodL); F.B(L, 0.04, 0.16, 0.14, hx + 0.05, 0.82, 0.98, VC.yellow);
+      F.B(L, 0.04, 0.14, 0.2, hx + 0.05, 1.22, 1.24, VC.slateB); F.B(L, 0.03, 0.03, 0.14, hx + 0.05, 1.3, 1.1, VC.slateD);
+      F.B(L, 0.5, 0.3, 0.5, 1.8, 0.15, -1.0, VC.woodA); F.B(L, 0.52, 0.04, 0.52, 1.8, 0.24, -1.0, VC.woodD);
+      vilBigSign(L, F, hx + 0.34, ev + 0.5, 0, 1.2, 0.74, VC.cream, function (put) {   /* 씨앗 봉지 + 물감 병 */
+        put(-0.28, -0.02, 0.36, 0.5, VC.paper); put(-0.28, 0.2, 0.36, 0.07, VC.woodA); put(-0.28, -0.06, 0.07, 0.2, VC.moss); put(-0.34, 0.04, 0.1, 0.08, VC.leaf); put(-0.22, 0.0, 0.1, 0.08, VC.leaf); put(-0.28, 0.1, 0.1, 0.1, VC.pink);
+        put(0.28, -0.08, 0.3, 0.36, VC.rose); put(0.28, 0.14, 0.14, 0.1, VC.rose); put(0.28, 0.22, 0.2, 0.07, VC.woodD); put(0.28, -0.1, 0.2, 0.14, VC.cream); });
+      top = vilStall(L, F, VC.woodL, VC.moss);
+      [[-1.15, VC.rose], [-0.95, VC.blueL], [-0.75, VC.yellow], [-0.55, VC.moss]].forEach(function (q) { F.Y(L, 0.07, 0.07, 0.16, 6, ST.lx, top + 0.08, q[0], q[1]); F.Y(L, 0.04, 0.04, 0.04, 6, ST.lx, top + 0.18, q[0], VC.cream); });   /* 물감 병 */
+      F.B(L, 0.22, 0.03, 0.3, ST.lx, top + 0.015, -0.28, VC.paper); F.B(L, 0.08, 0.035, 0.08, ST.lx - 0.04, top + 0.02, -0.33, VC.leaf); F.B(L, 0.08, 0.035, 0.08, ST.lx + 0.05, top + 0.02, -0.22, VC.pink);   /* 씨앗 봉지 */
+      /* 상자 · 바구니 (가게를 누르는 자리) */
+      [[2.3, 0.2, 0.75, 0.42], [2.36, 0.2, 1.2, 0.4], [2.32, 0.6, 0.95, 0.36]].forEach(function (q, k) { F.B(L, q[3], q[3], q[3], q[0], q[1], q[2], k % 2 ? VC.woodA : VC.woodL); F.B(L, q[3] + 0.02, 0.04, q[3] + 0.02, q[0], q[1] + q[3] / 2 - 0.06, q[2], VC.woodD); F.B(L, q[3] + 0.02, 0.04, q[3] + 0.02, q[0], q[1] - q[3] / 2 + 0.06, q[2], VC.woodD); });
+      F.Y(L, 0.2, 0.16, 0.2, 8, 2.75, 0.1, 0.55, VC.woodL); F.Y(L, 0.215, 0.215, 0.03, 8, 2.75, 0.2, 0.55, VC.woodD);
+      [[0.06, 0.04, VC.red], [-0.07, 0.02, VC.yellow], [0.0, -0.08, VC.red]].forEach(function (q) { F.S(L, 0.07, 2.75 + q[0], 0.24, 0.55 + q[1], q[2]); });
+      for (i = 0; i < 2; i++) { var q2 = vilXZ(VILLAGE.POTS[i][0], VILLAGE.POTS[i][1]); vilPot(P.street, q2[0], q2[1], i); }
+    }
+    /* ── 빈 집 (왼쪽 s 30–36): 닫힌 덧문 · 닫힌 문 · 바랜 빈 간판 · 현관 마루와 담요 · 우체통의 오래된 편지. 낡았지만 누가 돌본 집 ── */
+    function vilEmpty(P) {
+      var le = VILLAGE.lot('empty'), F = vilFrame(le.c, false), L = P.rowL, hx = le.hx, hz = le.hz;
+      var ev = vilShell(L, F, hx, hz, { wa: VC.slateA, wb: VC.stone, seam: VC.slateD, post: VC.slateB });
+      F.roof(L, hx, hz, ev, 'x', EXT_C.chim, EXT_C.chimRim, VC.slateA, VC.stone, P.snowL);
+      /* 11-28: 이제 집 문어 (sleep-2 — 마을 집을 고치던 문어, 갈래 N) 가 산다 — 못 박은 덧문 · 빈 간판을 걷고 창 둘에 유리 (밤엔 다른 집처럼 불빛), 간판엔 망치 그림. 잿빛 벽 · 풀 포기 · 빨랫줄은 그대로 (오래된 집) */
+      vilWinF(L, P.glL, F, hx, 0.94, 0.8, 0.6, 0.6); vilWinS(L, P.glL, F, -0.2, 0.98, hz, 0.6, 0.5);
+      vilDoor(L, F, hx, -0.45, false, VC.woodA);
+      vilSign(L, F, hx + 0.04, 1.62, -hz + 0.06, VC.cream, function (put) { put(0.03, -0.04, 0.05, 0.26, VC.woodA); put(0, 0.1, 0.24, 0.1, VC.slateD); });
+      [[1.5, 1.75], [1.9, 1.6], [2.5, 1.9], [-0.4, 1.7], [0.6, 1.8], [2.9, 0.75], [3.05, 1.5], [2.45, -1.75], [1.6, -1.72], [3.1, -1.3]].forEach(function (wq, k) {   /* 집 둘레에 자란 풀 포기 */
+        for (var j = 0; j < 3; j++) F.B(L, 0.05, 0.16 + (k + j) % 3 * 0.07, 0.05, wq[0] + (j - 1) * 0.08, 0.1 + (k + j) % 3 * 0.035, wq[1] + (j % 2) * 0.07, j % 2 ? VC.moss : VC.mossD);
+      });
+      /* 현관 마루 (y 0.3) + 디딤 한 칸 + 기둥 둘과 가는 처마 */
+      F.B(L, 0.9, 0.3, 2.3, hx + 0.45, 0.15, -0.2, EXT_C.step[1]); F.B(L, 0.92, 0.04, 2.32, hx + 0.45, 0.3, -0.2, EXT_C.step[0]); F.B(L, 0.26, 0.15, 0.9, hx + 1.03, 0.075, 0.3, EXT_C.step[0]);
+      [-1.3, 0.9].forEach(function (z) { F.B(L, 0.08, 1.24, 0.08, hx + 0.84, 0.92, z, VC.slateB); });
+      F.T(L, 1.0, 0.05, 2.5, hx + 0.46, ev - 0.02, -0.2, 0.16, EXT_C.chim); if (P.snowL) F.T(P.snowL, 0.9, 0.05, 2.4, hx + 0.46, ev + 0.04, -0.2, 0.16, EXT_C.snow);
+      var b = F.p(hx + 0.6, 0.45); vilBlanket(L, b[0], 0.32, b[1], VC.dusk, VC.cream);   /* 담요 (낮에 그 집 문어가 눕는 자리 — VILLAGE.NPCS 의 sleep-2 와 같은 자리: 문 옆) */
+      var pt = F.p(hx + 0.6, -1.05); vilPot(L, pt[0], pt[1], 2); for (var pi = 1; pi <= 6; pi++) L[L.length - pi].m.elements[13] += 0.32;   /* 화분은 마루 위에 (여섯 조각을 마루 높이만큼 올린다) */
+      /* 우체통: 기둥 + 통 + 삐져나온 편지 둘 */
+      F.B(L, 0.07, 0.7, 0.07, 2.75, 0.35, 1.25, VC.woodD); F.B(L, 0.3, 0.2, 0.2, 2.75, 0.78, 1.25, VC.rose); F.B(L, 0.32, 0.03, 0.22, 2.75, 0.89, 1.25, VC.slateD);
+      F.B(L, 0.06, 0.12, 0.14, 2.9, 0.82, 1.25, VC.paper); F.B(L, 0.05, 0.1, 0.12, 2.93, 0.78, 1.21, VC.cream);
+      /* 빨랫줄: 집 옆 기둥 둘 사이 — 마른 천 셋 (누가 걷지 않은 채) */
+      F.B(L, 0.06, 1.3, 0.06, 0.2, 0.65, hz + 0.5, VC.woodD); F.B(L, 0.06, 1.3, 0.06, 0.2, 0.65, hz + 2.2, VC.woodD); F.G(P.thin, [0.2, 1.26, hz + 0.5], [0.2, 1.26, hz + 2.2], 0.012, VC.cream);
+      [[0.85, VC.white, 0.36], [1.3, VC.sky, 0.3], [1.72, VC.cream, 0.34]].forEach(function (q) { F.B(L, 0.03, q[2], 0.3, 0.2, 1.26 - q[2] / 2, hz + q[0], q[1]); });
+    }
+    /* ── 카페 (오른쪽 s 30–37): 길과 나란한 열린 덱 (지붕 없음 — 기둥 넷과 가는 들보뿐이라 어느 각에서도 안이 보인다) + 뒤의 작은 부엌 집 ── */
+    function vilCafe(P) {
+      var lf = VILLAGE.lot('cafe'), D = VILLAGE.DECK, CF = VILLAGE.CAFE, L = P.street, i, K4 = Math.PI / 4;
+      function R(L2, wt, h, ws, s, y, t, c2) { var q = vilXZ(s, t); L2.push({ g: box(wt, h, ws), m: M(q[0], y, q[1], 0, K4, 0), c: c2 }); }   /* 길과 나란한 상자 (가로 = t · 세로 = s) */
+      function Y(r0, r1, h, n, s, y, t, c2) { var q = vilXZ(s, t); L.push({ g: new T.CylinderGeometry(r0, r1, h, n), m: M(q[0], y, q[1]), c: c2 }); }
+      var ds = D.s1 - D.s0, dt = D.t1 - D.t0, cs = (D.s0 + D.s1) / 2, ct = (D.t0 + D.t1) / 2;
+      R(L, dt + 0.1, 0.02, ds + 0.1, cs, 0.006, ct, VC.woodD);
+      for (i = 0; i < 14; i++) R(L, dt, 0.024, ds / 14 - 0.03, D.s0 + ds / 14 * (i + 0.5), 0.014, ct, i % 2 ? VC.woodL : VC.woodA);
+      /* 기둥 넷 · 들보 (길 쪽 · 뒤쪽 · 가로 셋) · 들보에 달린 작은 전구 */
+      [[D.s0, D.t0 - 0.05], [D.s1, D.t0 - 0.05], [D.s0, D.t1 + 0.05], [D.s1, D.t1 + 0.05]].forEach(function (p) { var q = vilXZ(p[0], p[1]); L.push({ g: box(0.1, 2.0, 0.1), m: M(q[0], 1.0, q[1]), c: VC.woodB }, { g: box(0.16, 0.08, 0.16), m: M(q[0], 0.04, q[1]), c: VC.woodD }); });
+      var TH = P.thin; R(TH, 0.07, 0.07, ds + 0.2, cs, 2.02, D.t0 - 0.05, VC.woodB); R(TH, 0.07, 0.07, ds + 0.2, cs, 2.02, D.t1 + 0.05, VC.woodB);   /* 들보 · 전구는 그림자 없는 메시에 (가는 그림자 줄이 풀밭에 길게 그어졌다) */
+      [D.s0, cs, D.s1].forEach(function (s, k) {
+        R(TH, dt + 0.2, 0.06, 0.06, s, 2.07, ct, VC.woodD);
+        for (var j = 0; j < 4; j++) { var t = D.t0 + 0.5 + j * 0.84, q = vilXZ(s, t); TH.push({ g: box(0.015, 0.1, 0.015), m: M(q[0], 1.99, q[1]), c: VC.iron }, { g: box(0.07, 0.07, 0.07), m: M(q[0], 1.91, q[1]), c: PAL.amber[3] }); P.lamp.push({ g: box(0.08, 0.08, 0.08), m: M(q[0], 1.91, q[1]), c: VC.yellow }); if (k === 1 && j % 2) P.pool.push({ g: new T.PlaneGeometry(2.4, 2.4), m: M(q[0], 0.04, q[1], -Math.PI / 2, 0, 0), c: VC.yellow }); }
+      });
+      /* 계산대 (뒤쪽 가장자리) + 커피 기계 + 잔 쟁반 + 차림 그림판 (주문하는 자리) */
+      var c = CF.counter, cl = c.s1 - c.s0, cm = (c.s0 + c.s1) / 2;
+      R(L, c.w, c.h, cl, cm, c.h / 2, c.t, VC.woodB); R(L, c.w + 0.08, 0.04, cl + 0.08, cm, c.h + 0.02, c.t, VC.woodL); R(L, 0.02, 0.1, cl, cm, c.h - 0.12, c.t - c.w / 2 - 0.012, VC.rose);
+      R(L, 0.32, 0.34, 0.36, c.s0 + 0.3, c.h + 0.21, c.t, VC.slateD); R(L, 0.34, 0.05, 0.38, c.s0 + 0.3, c.h + 0.4, c.t, VC.slateA); R(L, 0.1, 0.12, 0.1, c.s0 + 0.3, c.h + 0.1, c.t - 0.2, VC.iron); R(L, 0.1, 0.07, 0.1, c.s0 + 0.3, c.h + 0.075, c.t - 0.22, VC.white);
+      [[0, 0], [0.14, 0.04], [0.07, -0.1]].forEach(function (q) { Y(0.045, 0.035, 0.08, 6, c.s0 + 0.9 + q[0], c.h + 0.08, c.t + q[1], VC.white); });
+      var kq = VILLAGE.npc('cafe'); R(L, 0.5, 0.34, 0.5, kq.s, 0.17, kq.t, VC.woodA); R(L, 0.52, 0.04, 0.52, kq.s, 0.26, kq.t, VC.woodD);   /* 카페 문어의 발판 */
+      /* 레코드 선반 (덱 안쪽 끝, 화면을 본다): 칸 둘 · 세워 둔 레코드 집 · 위에 레코드 플레이어 */
+      var sh = CF.shelf, sw = sh.t1 - sh.t0, sm = (sh.t0 + sh.t1) / 2;
+      R(L, sw, sh.h, sh.d, sh.s, sh.h / 2, sm, VC.woodB); R(L, sw + 0.06, 0.04, sh.d + 0.06, sh.s, sh.h + 0.02, sm, VC.woodL); R(L, sw - 0.12, 0.24, 0.02, sh.s + sh.d / 2 + 0.002, 0.2, sm, VC.dark); R(L, sw - 0.12, 0.22, 0.02, sh.s + sh.d / 2 + 0.002, 0.5, sm, VC.dark);
+      [VC.red, VC.yellow, VC.blueL, VC.cream, VC.moss, VC.rose, VC.sky, VC.dusk].forEach(function (c2, k) { R(L, 0.05, 0.2, 0.03, sh.s + sh.d / 2 + 0.012, k < 5 ? 0.2 : 0.5, sh.t0 + 0.18 + (k < 5 ? k * 0.09 : (k - 5) * 0.1 + 0.5), c2); });
+      R(L, 0.44, 0.08, 0.34, sh.s, sh.h + 0.08, sm, VC.woodA); Y(0.15, 0.15, 0.02, 10, sh.s, sh.h + 0.13, sm - 0.03, VC.iron); Y(0.05, 0.05, 0.025, 6, sh.s, sh.h + 0.133, sm - 0.03, VC.red); R(L, 0.03, 0.03, 0.2, sh.s + 0.02, sh.h + 0.15, sm + 0.16, VC.cream);
+      /* 식탁 둘 · 걸상 넷 */
+      CF.tables.forEach(function (tb) { Y(tb.r, tb.r, 0.04, 10, tb.s, tb.h - 0.02, tb.t, VC.woodL); Y(tb.r + 0.01, tb.r + 0.01, 0.015, 10, tb.s, tb.h - 0.05, tb.t, VC.woodD); Y(0.05, 0.05, tb.h - 0.06, 6, tb.s, (tb.h - 0.06) / 2, tb.t, VC.woodD); Y(0.16, 0.18, 0.04, 8, tb.s, 0.02, tb.t, VC.woodD); });
+      CF.stools.forEach(function (q, k) { Y(CF.stoolR, CF.stoolR, 0.05, 8, q[0], CF.stoolH - 0.025, q[1], k % 2 ? VC.rose : VC.blueL); Y(0.04, 0.06, CF.stoolH - 0.05, 6, q[0], (CF.stoolH - 0.05) / 2, q[1], VC.woodD); });
+      var pq = vilXZ(35.7, 5.6); vilPot(L, pq[0], pq[1], 0); for (i = 1; i <= 6; i++) { var e = L[L.length - i].m.elements; e[13] += 0.44 - 0.08; e[12] = pq[0] + (e[12] - pq[0]) * 0.6; e[14] = pq[1] + (e[14] - pq[1]) * 0.6; }   /* 둘째 식탁 위 작은 화분 */
+      /* 부엌 집 (덱 뒤, 오른쪽 줄 메시): 크림 벽 · 붉은 지붕 · 내주는 창 · 잔 간판 */
+      var F = vilFrame(lf.c, true), LR = P.rowR, hx = lf.hx, hz = lf.hz;
+      var ev = vilShell(LR, F, hx, hz, { wa: VC.cream, wb: VC.paper, seam: VC.wallB, post: VC.woodB, rows: 6 });
+      F.roof(LR, hx, hz, ev, 'z', VC.rose, EXT_C.roofLine, VC.cream, VC.paper, P.snowR);
+      vilWinF(LR, P.glR, F, hx, 0.9, -0.3, 0.9, 0.6); vilWinS(LR, P.glR, F, 0, 0.9, hz, 0.6, 0.5);
+      F.B(LR, 0.3, 0.05, 1.2, hx + 0.14, 0.56, -0.3, VC.woodL);
+      vilAwning(LR, F, hx, ev, hz, VC.rose, VC.cream);
+      vilBigSign(LR, F, hx + 0.34, ev + 0.46, 0, 1.0, 0.7, VC.cream, function (put) { put(-0.04, -0.06, 0.4, 0.34, VC.rose); put(0.22, -0.04, 0.1, 0.18, VC.rose); put(-0.04, -0.27, 0.56, 0.06, VC.rose); put(-0.14, 0.2, 0.06, 0.14, VC.slateA); put(0.04, 0.22, 0.06, 0.14, VC.slateA); });   /* 김 나는 잔 */
+      vilSign(LR, F, hx + 0.04, 1.42, -hz + 0.06, VC.cream, function (put) { put(-0.02, -0.02, 0.18, 0.16, VC.rose); put(0.1, -0.01, 0.05, 0.08, VC.rose); put(-0.02, -0.13, 0.26, 0.03, VC.rose); put(-0.05, 0.12, 0.03, 0.07, VC.slateA); put(0.03, 0.13, 0.03, 0.07, VC.slateA); });
+    }
+    /* ── 광장 (s 38–46): 게시판 · 낮은 나무 무대와 등 기둥 둘 · 깃발 줄 · 우물 · 벤치 · 그물과 부표 ── */
+    function vilPlaza(P) {
+      var L = P.plaza, K4 = Math.PI / 4, i;
+      /* 게시판 (화면을 본다 — 길과 나란한 판): 기둥 둘 · 판 · 작은 지붕 · 바랜 종이들 */
+      var PZ = VILLAGE.PLAZA, b = vilXZ(PZ.board[0], PZ.board[1]), SQ = Math.SQRT1_2;
+      function R(w, h, d, dt, y, ds, c2) { L.push({ g: box(w, h, d), m: M(b[0] + (ds + dt) * SQ, y, b[1] + (ds - dt) * SQ, 0, K4, 0), c: c2 }); }
+      R(0.08, 1.5, 0.08, -0.62, 0.75, 0, VC.woodD); R(0.08, 1.5, 0.08, 0.62, 0.75, 0, VC.woodD); R(1.3, 0.8, 0.05, 0, 1.0, 0, VC.woodA); R(1.5, 0.05, 0.3, 0, 1.52, 0, VC.woodD); R(1.4, 0.04, 0.2, 0, 1.56, 0, VC.woodB);
+      [[-0.4, 1.12, 0.26, 0.3, VC.paper], [-0.05, 1.05, 0.3, 0.22, VC.cream], [0.36, 1.1, 0.24, 0.34, VC.paper], [-0.34, 0.8, 0.22, 0.2, VC.wallA], [0.2, 0.78, 0.36, 0.18, VC.cream]].forEach(function (q) { R(q[2], q[3], 0.02, q[0], q[1], 0.035, q[4]); R(0.04, 0.04, 0.025, q[0], q[1] + q[3] / 2 - 0.04, 0.04, VC.rose); });
+      /* 무대 (x · z 네모, 높이 0.24): 널 · 테 · 뒤 (−z) 모서리 두 기둥과 등 · 그 사이 깃발 줄 */
+      var SG = VILLAGE.STAGE, o = vilXZ(SG.c[0], SG.c[1]), h = SG.h;
+      L.push({ g: box(2 * h, SG.y - 0.04, 2 * h), m: M(o[0], (SG.y - 0.04) / 2, o[1]), c: VC.woodD });
+      for (i = 0; i < 8; i++) L.push({ g: box(2 * h / 8 - 0.03, 0.04, 2 * h), m: M(o[0] - h + 2 * h / 8 * (i + 0.5), SG.y - 0.02, o[1]), c: i % 2 ? VC.woodL : VC.woodA });
+      L.push({ g: box(0.9, 0.16, 0.3), m: M(o[0], 0.08, o[1] + h + 0.15), c: VC.woodB }, { g: box(0.9, 0.08, 0.3), m: M(o[0], 0.04, o[1] + h + 0.45), c: VC.woodA });   /* 앞 디딤 두 칸 (그림만) */
+      L.push({ g: box(2 * h - 0.1, 0.08, 0.08), m: M(o[0], SG.y + 2.06, o[1] - h + 0.08), c: VC.woodD }, { g: box(2 * h - 0.2, 1.1, 0.04), m: M(o[0], SG.y + 0.62, o[1] - h + 0.06), c: VC.blueD }, { g: box(2 * h - 0.2, 0.06, 0.05), m: M(o[0], SG.y + 1.2, o[1] - h + 0.06), c: VC.yellow });   /* 뒤 틀: 가로대 + 낮은 막 (무대로 읽히게) */
+      [-0.7, 0, 0.7].forEach(function (d, k) { L.push({ g: box(0.16, 0.16, 0.05), m: M(o[0] + d, SG.y + 0.72, o[1] - h + 0.085, 0, 0, K4), c: [VC.yellow, VC.cream, VC.yellow][k] }); });
+      var rg = VILLAGE.PLAZA.rug, rq = vilXZ(rg[0], rg[1]);   /* 무대 앞 둥근 깔개 (바닥 그림 — 밟고 선다) */
+      L.push({ g: new T.CylinderGeometry(rg[2], rg[2], 0.012, 14), m: M(rq[0], 0.028, rq[1]), c: VC.rose }, { g: new T.CylinderGeometry(rg[2] - 0.14, rg[2] - 0.14, 0.012, 14), m: M(rq[0], 0.032, rq[1]), c: VC.cream }, { g: new T.CylinderGeometry(rg[2] - 0.3, rg[2] - 0.3, 0.012, 14), m: M(rq[0], 0.036, rq[1]), c: VC.dusk });
+      [-1, 1].forEach(function (sg) {
+        var px = o[0] + sg * (h - 0.08), pz = o[1] - h + 0.08;
+        L.push({ g: box(0.08, 2.1, 0.08), m: M(px, SG.y + 1.05, pz), c: VC.woodD }, { g: box(0.16, 0.2, 0.16), m: M(px, SG.y + 2.2, pz), c: PAL.amber[3] }, { g: box(0.2, 0.04, 0.2), m: M(px, SG.y + 2.32, pz), c: VC.iron });
+        P.lamp.push({ g: box(0.17, 0.19, 0.17), m: M(px, SG.y + 2.2, pz), c: VC.yellow }); P.pool.push({ g: new T.PlaneGeometry(2.6, 2.6), m: M(px, SG.y + 0.03, pz + 0.6, -Math.PI / 2, 0, 0), c: VC.yellow });
+      });
+      for (i = 0; i < 9; i++) { var u = (i + 0.5) / 9, fx = o[0] - h + 0.08 + (2 * h - 0.16) * u, fy = SG.y + 1.95 - 0.22 * Math.sin(Math.PI * u); P.thin.push({ g: box(0.14, 0.14, 0.02), m: M(fx, fy, o[1] - h + 0.08, 0, 0, K4), c: [VC.red, VC.yellow, VC.blueL, VC.cream][i % 4] }); }
+      seg(P.thin, [o[0] - h + 0.08, SG.y + 2.0, o[1] - h + 0.08], [o[0] + h - 0.08, SG.y + 2.0, o[1] - h + 0.08], 0.012, VC.cream, 4);
+      /* 우물: 돌 테 · 어두운 물 · 기둥 둘과 작은 지붕 · 두레박 */
+      var w = vilXZ(PZ.well[0], PZ.well[1]);
+      L.push({ g: new T.CylinderGeometry(0.5, 0.54, 0.46, 10), m: M(w[0], 0.23, w[1]), c: VC.stone }, { g: new T.CylinderGeometry(0.53, 0.53, 0.06, 10), m: M(w[0], 0.48, w[1]), c: VC.slateB }, { g: new T.CylinderGeometry(0.38, 0.38, 0.02, 10), m: M(w[0], 0.515, w[1]), c: VC.blueD });
+      [-0.46, 0.46].forEach(function (d) { L.push({ g: box(0.07, 1.3, 0.07), m: M(w[0] + d, 0.65, w[1]), c: VC.woodD }); });
+      L.push({ g: box(1.2, 0.05, 0.5), m: M(w[0], 1.36, w[1] + 0.2, 0.5, 0, 0), c: VC.roofR }, { g: box(1.2, 0.05, 0.5), m: M(w[0], 1.36, w[1] - 0.2, -0.5, 0, 0), c: VC.roofR }, { g: box(0.92, 0.04, 0.04), m: M(w[0], 1.12, w[1]), c: VC.woodB }, { g: box(0.14, 0.14, 0.14), m: M(w[0] + 0.1, 0.62, w[1]), c: VC.woodA }, { g: box(0.015, 0.44, 0.015), m: M(w[0] + 0.1, 0.9, w[1]), c: VC.cream });
+      for (i = 0; i < 12; i++) { var fa = i / 12 * Math.PI * 2, fx2 = w[0] + Math.cos(fa) * 0.86, fz2 = w[1] + Math.sin(fa) * 0.86; L.push({ g: box(0.16, 0.1, 0.16), m: M(fx2, 0.05, fz2, 0, -fa, 0), c: i % 2 ? VC.moss : VC.leaf }, { g: box(0.07, 0.07, 0.07), m: M(fx2, 0.13, fz2), c: [VC.pink, VC.white, VC.yellow][i % 3] }); }   /* 우물 둘레 꽃 고리 (광장 한가운데) */
+      /* 벤치 셋 · 그물과 부표 (바닷가 쪽 구석) · 화분 */
+      PZ.benches.forEach(function (q) { var bq = vilXZ(q[0], q[1]); vilBench(L, bq[0], bq[1], !!q[2]); });
+      var n = vilXZ(PZ.nets[0], PZ.nets[1]);
+      L.push({ g: new T.CylinderGeometry(0.46, 0.5, 0.1, 9), m: M(n[0], 0.05, n[1]), c: VC.blueD }, { g: new T.CylinderGeometry(0.3, 0.42, 0.12, 9), m: M(n[0] + 0.04, 0.14, n[1] - 0.03), c: VC.slateD });
+      for (i = 0; i < 5; i++) L.push({ g: box(0.86, 0.012, 0.02), m: M(n[0], 0.105, n[1] - 0.3 + i * 0.15), c: VC.glass }, { g: box(0.02, 0.012, 0.86), m: M(n[0] - 0.3 + i * 0.15, 0.106, n[1]), c: VC.glass });
+      [[0.2, 0.1, VC.red], [-0.22, 0.16, VC.yellow], [0.02, -0.26, VC.red]].forEach(function (q) { L.push({ g: new T.SphereGeometry(0.13, 7, 5), m: M(n[0] + q[0], 0.28, n[1] + q[1]), c: q[2] }, { g: box(0.27, 0.05, 0.27), m: M(n[0] + q[0], 0.28, n[1] + q[1]), c: VC.white }); });
+      seg(L, [n[0] - 0.5, 0, n[1] + 0.35], [n[0] - 0.42, 1.25, n[1] + 0.3], 0.03, VC.woodB, 4); L.push({ g: box(0.05, 0.3, 0.2), m: M(n[0] - 0.42, 1.12, n[1] + 0.3), c: VC.blueL });   /* 세워 둔 노 */
+      VILLAGE.LAMPS.slice(VILLAGE.NLAMP).forEach(function (l) { var q = vilXZ(l[0], l[1]); vilLamp(L, P.lamp, P.pool, q[0], q[1]); });
+      [[38.5, -7.4], [45.6, -3.6], [39.2, 7.3]].forEach(function (p, k) { var q = vilXZ(p[0], p[1]); vilPot(L, q[0], q[1], k + 1); });
+    }
+    /* ── 길 소품: 가로등 · 화분 · 마을 문 옆 벤치 (잠든 문어 자리) · 자전거 · 상자 더미 ── */
+    function vilStreet(P) {
+      var L = P.street, i;
+      VILLAGE.LAMPS.slice(0, VILLAGE.NLAMP).forEach(function (l) { var q = vilXZ(l[0], l[1]); vilLamp(L, P.lamp, P.pool, q[0], q[1]); });
+      /* 길을 가로지르는 깃발 줄 둘 (마주 선 가로등 사이 — 가는 것 메시: 그림자 없음) */
+      [[0, 1], [2, 3]].forEach(function (pr) {
+        var a = VILLAGE.LAMPS[pr[0]], b2 = VILLAGE.LAMPS[pr[1]], qa = vilXZ(a[0], a[1]), qb = vilXZ(b2[0], b2[1]), n = 11;
+        seg(P.thin, [qa[0], 1.7, qa[1]], [qb[0], 1.7, qb[1]], 0.012, VC.cream, 4);
+        for (var f = 0; f < n; f++) { var u = (f + 0.5) / n; P.thin.push({ g: box(0.16, 0.16, 0.02), m: M(qa[0] + (qb[0] - qa[0]) * u, 1.62 - 0.2 * Math.sin(Math.PI * u), qa[1] + (qb[1] - qa[1]) * u, 0, Math.PI / 4, Math.PI / 4), c: [VC.red, VC.yellow, VC.blueL, VC.cream, VC.moss][f % 5] }); }
+      });
+      /* 길 어깨 (포장과 건물 사이 |t| 2.6 ~ 3.4 — 걷는 곳 밖): 긴 화분 · 통 · 손수레 */
+      var K4 = Math.PI / 4;
+      [[22.5, -2.85, 1.3], [27.0, 2.85, 1.2], [36.95, 2.85, 0.9], [35.4, -2.85, 1.2]].forEach(function (pl, k) {   /* 긴 화분 (길과 나란히): 나무 상자 + 흙 + 풀과 꽃 */
+        var q = vilXZ(pl[0], pl[1]), bl = [VC.pink, VC.yellow, VC.white, VC.dusk][k % 4];
+        L.push({ g: box(0.36, 0.24, pl[2]), m: M(q[0], 0.12, q[1], 0, K4, 0), c: VC.woodA }, { g: box(0.4, 0.04, pl[2] + 0.04), m: M(q[0], 0.23, q[1], 0, K4, 0), c: VC.woodD }, { g: box(0.3, 0.03, pl[2] - 0.06), m: M(q[0], 0.255, q[1], 0, K4, 0), c: VC.dark });
+        for (var f = 0; f < 5; f++) { var fq = vilXZ(pl[0] - pl[2] / 2 + pl[2] * (f + 0.5) / 5, pl[1]); L.push({ g: box(0.1, 0.14, 0.1), m: M(fq[0], 0.33, fq[1]), c: f % 2 ? VC.moss : VC.leaf }, { g: box(0.07, 0.07, 0.07), m: M(fq[0], 0.43, fq[1]), c: f % 2 ? bl : VC.white }); }
+      });
+      [[28.2, -3.3], [28.55, -3.05], [22.3, 3.15], [37.0, -3.4]].forEach(function (bq, k) {   /* 통: 몸 + 테 둘 + 뚜껑 */
+        var q = vilXZ(bq[0], bq[1]);
+        L.push({ g: new T.CylinderGeometry(0.19, 0.17, 0.46, 8), m: M(q[0], 0.23, q[1]), c: k % 2 ? VC.woodA : VC.woodB }, { g: new T.CylinderGeometry(0.2, 0.2, 0.04, 8), m: M(q[0], 0.12, q[1]), c: VC.iron }, { g: new T.CylinderGeometry(0.2, 0.2, 0.04, 8), m: M(q[0], 0.36, q[1]), c: VC.iron }, { g: new T.CylinderGeometry(0.16, 0.16, 0.02, 8), m: M(q[0], 0.47, q[1]), c: VC.woodL });
+      });
+      var hc = vilXZ(34.0, 3.05 - 6.2);   /* 손수레 (빈 집 앞 어깨): 판 · 옆널 · 바퀴 둘 · 손잡이 · 실린 자루 */
+      L.push({ g: box(0.9, 0.05, 0.56), m: M(hc[0], 0.34, hc[1]), c: VC.woodA }, { g: box(0.9, 0.16, 0.04), m: M(hc[0], 0.44, hc[1] - 0.27), c: VC.woodB }, { g: box(0.9, 0.16, 0.04), m: M(hc[0], 0.44, hc[1] + 0.27), c: VC.woodB }, { g: box(0.04, 0.16, 0.56), m: M(hc[0] - 0.44, 0.44, hc[1]), c: VC.woodB },
+        { g: new T.TorusGeometry(0.2, 0.03, 4, 10), m: M(hc[0] - 0.1, 0.22, hc[1] - 0.32), c: VC.dark }, { g: new T.TorusGeometry(0.2, 0.03, 4, 10), m: M(hc[0] - 0.1, 0.22, hc[1] + 0.32), c: VC.dark }, { g: new T.SphereGeometry(0.2, 7, 5), m: M(hc[0] - 0.12, 0.5, hc[1], 0, 0, 0, 1, 0.7, 1), c: VC.paper });
+      seg(L, [hc[0] + 0.45, 0.36, hc[1] - 0.24], [hc[0] + 1.0, 0.2, hc[1] - 0.24], 0.022, VC.woodD, 4); seg(L, [hc[0] + 0.45, 0.36, hc[1] + 0.24], [hc[0] + 1.0, 0.2, hc[1] + 0.24], 0.022, VC.woodD, 4); L.push({ g: box(0.05, 0.3, 0.05), m: M(hc[0] + 0.4, 0.15, hc[1]), c: VC.woodD });
+      for (i = 2; i < VILLAGE.POTS.length; i++) { var q = vilXZ(VILLAGE.POTS[i][0], VILLAGE.POTS[i][1]); vilPot(L, q[0], q[1], i); }
+      var s1 = VILLAGE.npc('sleep-1'), b = vilXZ(s1.s, s1.t); vilBench(L, b[0], b[1], true, VC.woodL); vilBlanket(L, b[0] + 0.02, 0.3, b[1], VC.blueL, VC.cream);
+      /* 자전거 (옷가게와 빈 집 사이, 길 가장자리에 기대 놓은): 바퀴 둘 · 몸 · 손잡이 · 안장 · 바구니 */
+      var c = vilXZ(29.75, -3.25), wh = function (dz) { L.push({ g: new T.TorusGeometry(0.2, 0.025, 4, 10), m: M(c[0], 0.225, c[1] + dz, 0, Math.PI / 2, 0), c: VC.iron }, { g: box(0.02, 0.05, 0.05), m: M(c[0], 0.225, c[1] + dz), c: VC.slateA }); };
+      wh(-0.34); wh(0.34);
+      seg(L, [c[0], 0.225, c[1] - 0.34], [c[0], 0.5, c[1] - 0.1], 0.018, VC.red, 4); seg(L, [c[0], 0.5, c[1] - 0.1], [c[0], 0.52, c[1] + 0.26], 0.018, VC.red, 4); seg(L, [c[0], 0.225, c[1] + 0.34], [c[0], 0.6, c[1] + 0.26], 0.018, VC.red, 4); seg(L, [c[0], 0.225, c[1] - 0.34], [c[0], 0.24, c[1] + 0.02], 0.018, VC.red, 4); seg(L, [c[0], 0.24, c[1] + 0.02], [c[0], 0.5, c[1] - 0.1], 0.018, VC.red, 4);
+      L.push({ g: box(0.08, 0.04, 0.16), m: M(c[0], 0.56, c[1] - 0.12), c: VC.dark }, { g: box(0.3, 0.03, 0.03), m: M(c[0], 0.62, c[1] + 0.26), c: VC.iron }, { g: box(0.2, 0.14, 0.16), m: M(c[0], 0.52, c[1] + 0.42), c: VC.woodL });
+      /* 카페 입구 (덱의 길 쪽 가장자리 — 길에서 보이게): 기둥 둘 · 인방 · 걸린 잔 간판 · 양옆 붉은 발 · 문 앞 깔개 */
+      var CE = VILLAGE.CAFE_DOOR, cs2 = CE[0], ct2 = CE[1], R = function (L2, wt, h, ws, s3, y, t3, c2) { var q = vilXZ(s3, t3); L2.push({ g: box(wt, h, ws), m: M(q[0], y, q[1], 0, Math.PI / 4, 0), c: c2 }); };   /* 길과 나란한 상자 (가로 = t · 세로 = s) */
+      R(L, 0.1, 2.0, 0.1, cs2, 1.0, ct2 - 0.45, VC.woodD); R(L, 0.1, 2.0, 0.1, cs2, 1.0, ct2 + 0.45, VC.woodD); R(L, 1.12, 0.12, 0.14, cs2, 2.02, ct2, VC.woodD); R(L, 1.0, 0.05, 0.1, cs2, 2.1, ct2, VC.woodL);   /* 문틀이 화면 (+s) 을 본다 */
+      R(L, 0.66, 0.5, 0.05, cs2 + 0.02, 2.38, ct2, VC.cream); R(L, 0.7, 0.04, 0.06, cs2 + 0.02, 2.64, ct2, VC.woodD); R(L, 0.7, 0.04, 0.06, cs2 + 0.02, 2.12, ct2, VC.woodD);
+      R(L, 0.2, 0.18, 0.07, cs2 + 0.04, 2.34, ct2 - 0.02, VC.rose); R(L, 0.05, 0.08, 0.07, cs2 + 0.04, 2.35, ct2 + 0.12, VC.rose); R(L, 0.3, 0.03, 0.07, cs2 + 0.04, 2.22, ct2 - 0.02, VC.rose); R(L, 0.03, 0.07, 0.07, cs2 + 0.04, 2.5, ct2 - 0.07, VC.slateA); R(L, 0.03, 0.07, 0.07, cs2 + 0.04, 2.52, ct2 + 0.03, VC.slateA);
+      [-1, 1].forEach(function (sg) { for (var k = 0; k < 2; k++) R(L, 0.12, 1.1, 0.04, cs2, 1.4, ct2 + sg * (0.33 - k * 0.12), k % 2 ? VC.roofR : VC.red); });
+      R(L, 0.7, 0.02, 0.5, cs2 + 0.45, 0.03, ct2, VC.rose); R(L, 0.56, 0.022, 0.36, cs2 + 0.45, 0.032, ct2, VC.cream);
+      /* 카페 앞 세움 간판 (길가): 다리 벌린 판 두 장 · 잔 그림 (글자 없음) */
+      var bd = VILLAGE.BOARD, bq = vilXZ(bd.s, bd.t);
+      [1, -1].forEach(function (sg) { L.push({ g: box(0.46, 0.7, 0.04), m: M(bq[0], 0.34, bq[1] + sg * 0.1, sg * 0.28, 0, 0), c: VC.blueD }, { g: box(0.5, 0.04, 0.05), m: M(bq[0], 0.68, bq[1] + sg * 0.012, 0, 0, 0), c: VC.woodD }); });
+      [[0, 0.36, 0.18, 0.16], [0.11, 0.37, 0.05, 0.08], [0, 0.25, 0.26, 0.03]].forEach(function (q) { L.push({ g: box(q[2], q[3], 0.02), m: M(bq[0] + q[0], q[1], bq[1] + 0.125 - (q[1] - 0.34) * 0.28, 0.28, 0, 0), c: VC.white }); });
+      /* 상자 더미 (잡화점과 카페 사이) */
+      var k = vilXZ(29.0, 3.9);
+      [[0, 0.17, 0, 0.34], [0.36, 0.15, 0.05, 0.3], [0.1, 0.48, 0.02, 0.28]].forEach(function (q, j) { L.push({ g: box(q[3], q[3], q[3]), m: M(k[0] + q[0], q[1], k[1] + q[2]), c: j % 2 ? VC.woodL : VC.woodA }, { g: box(q[3] + 0.02, 0.04, q[3] + 0.02), m: M(k[0] + q[0], q[1] + q[3] / 2 - 0.05, k[1] + q[2]), c: VC.woodD }); });
+    }
+    function vilMesh(list, mat) { var m = new T.Mesh(keep(mergeParts(list)), mat || lambert); if (!mat) { m.castShadow = true; m.receiveShadow = true; } return m; }
+    /* ── 11-24 다섯째 바퀴: 문어 집 셋 (숲길 둘 · 광장 하나 — 빈 집이 넷째) · 미용실 (광장 왼쪽). 한 틀 (vilHouse) 에 색 · 지붕 · 문 앞 소품만 다르게 ── */
+    function vilHouse(P, id, o) {
+      var lt = VILLAGE.lot(id), F = vilFrame(lt.c, lt.mir), L = P[o.list], GL = P['gl' + o.list], hx = lt.hx, hz = lt.hz;   /* 목록 = 집마다 하나 (hL · hR = 숲길 왼쪽 · 오른쪽 집, pL · pR = 광장 왼쪽 미용실 · 오른쪽 집) — 창 유리 (gl…) · 지붕 눈 (sn…) 도 그 집 것끼리 */
+      var ev = vilShell(L, F, hx, hz, { wa: o.wa, wb: o.wb, seam: o.seam || VC.seam, post: o.post || VC.woodB });
+      F.roof(L, hx, hz, ev, o.axis || 'z', o.roof, o.roofL, o.wa, o.wb, P['sn' + o.list]);
+      vilDoor(L, F, hx, -0.4, !!o.open, o.door || VC.woodA);
+      vilWinF(L, GL, F, hx, 0.94, 0.66, o.bigWin ? 0.9 : 0.56, o.bigWin ? 0.8 : 0.56); vilWinS(L, GL, F, -0.2, 0.98, hz, 0.6, 0.5);
+      if (o.extra) o.extra(L, F, hx, hz, ev);
+      return ev;
+    }
+    function vilHomes(P) {
+      vilHouse(P, 'home1', { list: 'hL', wa: '#a9b98c', wb: '#98a97b', seam: VC.mossD, post: VC.woodD, roof: VC.roofR, roofL: VC.roofRL, door: VC.moss,   /* 숲길 집: 이끼 벽 · 붉은 지붕 · 문 앞 화분 둘과 물뿌리개 */
+        extra: function (L, F, hx) { var a = F.p(hx + 0.45, 0.35), b = F.p(hx + 0.5, -1.15); vilPot(L, a[0], a[1], 1); vilPot(L, b[0], b[1], 3); F.Y(L, 0.09, 0.1, 0.18, 7, hx + 0.6, 0.09, 0.75, VC.blueL); } });
+      vilHouse(P, 'home4', { list: 'hR', wa: '#93a8c4', wb: '#8298b4', seam: VC.blueD, post: VC.woodD, roof: VC.blueD, roofL: VC.iron, door: VC.yellow,   /* 숲길 건너 집: 남빛 벽 · 짙은 지붕 · 노란 문 · 부표 둘과 말린 그물 */
+        extra: function (L, F, hx) { [[0.45, 0.4, VC.red], [0.55, 0.75, VC.white]].forEach(function (q) { F.S(L, 0.12, hx + q[0], 0.12, q[1], q[2], 0.9); }); F.B(L, 0.03, 0.6, 0.7, hx + 0.03, 0.62, 0.95, VC.paper); F.B(L, 0.035, 0.04, 0.72, hx + 0.035, 0.92, 0.95, VC.woodD); } });
+      vilHouse(P, 'home3', { list: 'pR', wa: '#dccaa6', wb: '#cdb994', seam: VC.woodB, post: VC.woodA, roof: VC.blueL, roofL: VC.blue, door: VC.sky,   /* 광장 집: 모래빛 벽 · 하늘빛 지붕 · 조개 바구니 */
+        extra: function (L, F, hx) { F.Y(L, 0.2, 0.16, 0.22, 8, hx + 0.5, 0.11, 0.6, VC.woodL); [[0.45, 0.55, VC.pink], [0.55, 0.66, VC.cream], [0.5, 0.6, VC.dusk]].forEach(function (q, k) { F.S(L, 0.05, hx + q[0], 0.25 + k * 0.02, q[1], q[2], 0.6); }); } });
+      vilHouse(P, 'salon', { list: 'pL', open: true, bigWin: true, wa: VC.cream, wb: VC.paper, seam: VC.wallB, post: VC.woodB, roof: '#c46a86', roofL: VC.rose,   /* 미용실: 크림 벽 · 분홍 지붕 · 분홍 흰 줄 차양 · 가위와 빗 간판 · 큰 창 */
+        extra: function (L, F, hx, hz, ev) {
+          vilAwning(L, F, hx, ev, hz, VC.pink, VC.cream);
+          vilBigSign(L, F, hx + 0.34, ev + 0.5, 0, 1.1, 0.7, VC.cream, function (put) {   /* 가위 (고리 둘 + 날 둘) · 빗 */
+            put(-0.18, -0.12, 0.12, 0.12, VC.rose); put(-0.18, -0.12, 0.05, 0.05, VC.cream); put(-0.02, -0.12, 0.12, 0.12, VC.rose); put(-0.02, -0.12, 0.05, 0.05, VC.cream);
+            put(-0.13, 0.06, 0.04, 0.24, VC.slateD); put(-0.07, 0.06, 0.04, 0.24, VC.slateD); put(0.28, 0.0, 0.08, 0.34, VC.woodA); for (var i = 0; i < 4; i++) put(0.22, -0.12 + i * 0.08, 0.06, 0.03, VC.woodA); });
+          var a = F.p(hx + 0.4, 0.75), b = F.p(hx + 0.4, -1.2); vilPot(L, a[0], a[1], 2); vilPot(L, b[0], b[1], 0);
+          F.B(L, 0.03, 0.5, 0.04, hx + 0.03, 1.0, 0.66, VC.pink); F.B(L, 0.035, 0.04, 0.5, hx + 0.035, 0.8, 0.66, VC.white);   /* 창 안 거울 하나 (분홍 테) */
+        } });
+    }
+    /* 문어 집 안 (한 틀): 침대 (뒤 왼쪽) · 식탁과 걸상 둘 · 왼벽 창 · 깔개 · 등 둘 · 화분 · 침대 위 그림 · 오른쪽 벽의 '그 문어의 일' 선반 */
+    var VIL_HOME_C = { moss: '#c3d08b', slateA: VC.slateA, sand: '#e2c99a', blueD: '#6f84a6', woodL: VC.woodL, woodB: VC.woodB, white: '#c9ad84',   /* white = 밝은 나무 (거의 흰 널은 어두운 이음과 얼룩말 줄이 됐다 — 11-28) */ woodA: VC.woodA, cream: VC.cream, rose: VC.rose, sky: VC.sky, yellow: VC.yellow, woodD: VC.woodD, slateD: VC.slateD };
+    function vilShade(hex, k) { return '#' + new T.Color(hex).multiplyScalar(k).getHexString(); }   /* 같은 색의 조금 어두운 짝 (sRGB 값 그대로 곱한다 — C() 로 선형으로 바꾼 뒤 16진수로 적으면 mergeParts 가 한 번 더 바꿔 거의 검게 나왔다, 11-28 검토) */
+    function vilHomeLook(key) { var lk = VILLAGE.ROOMS[key].look, c = function (n) { return VIL_HOME_C[n] || VC[n] || VC.cream; }; return { fa: c(lk.floor), fb: vilShade(c(lk.floor), 0.9), wa: c(lk.wall), wb: vilShade(c(lk.wall), 0.92), wain: c(lk.trim), seam: VC.seam, trim: c(lk.trim), mat: c(lk.quilt), fill: vilRoomHome }; }
+    function vilRoomHome(P) {
+      var L = P.floor, R = P.R, S = R.slots, lk = R.look, q = VIL_HOME_C[lk.quilt] || VC[lk.quilt] || VC.cream, i;
+      vilRoomWin(P, 'nx', 0.45, 1.3, 0.8, 0.7, lk.job === 'shell' || lk.job === 'fish');
+      vilRug(L, 0.25, 0.4, 1.8, 1.4, VC.woodD, q, VC.cream);
+      /* 침대: 틀 · 머리판 · 요 · 이불 (줄 셋) · 베개 */
+      var b = S.bed;
+      L.push({ g: box(1.4, 0.3, 0.9), m: M(b[0], 0.15, b[2]), c: VC.woodB }, { g: box(0.07, 0.72, 0.94), m: M(b[0] - 0.7, 0.36, b[2]), c: VC.woodD }, { g: box(0.07, 0.46, 0.94), m: M(b[0] + 0.7, 0.23, b[2]), c: VC.woodD },
+        { g: box(1.3, 0.12, 0.84), m: M(b[0], 0.36, b[2]), c: VC.cream }, { g: box(0.86, 0.06, 0.88), m: M(b[0] + 0.2, 0.44, b[2]), c: q }, { g: box(0.3, 0.1, 0.52), m: M(b[0] - 0.48, 0.46, b[2]), c: VC.white });
+      for (i = 0; i < 3; i++) L.push({ g: box(0.06, 0.062, 0.89), m: M(b[0] - 0.08 + i * 0.28, 0.441, b[2]), c: VC.cream });
+      P.nz.push({ g: box(0.62, 0.46, 0.03), m: M(b[0], 1.35, -P.hz + 0.02), c: VC.woodD }, { g: box(0.54, 0.38, 0.032), m: M(b[0], 1.35, -P.hz + 0.025), c: VC.sky }, { g: box(0.54, 0.12, 0.034), m: M(b[0], 1.22, -P.hz + 0.027), c: VC.moss }, { g: box(0.1, 0.1, 0.036), m: M(b[0] + 0.15, 1.45, -P.hz + 0.028), c: VC.yellow });   /* 침대 위 그림 (언덕과 해 — 글자 없음) */
+      /* 식탁 · 걸상 둘 · 잔과 접시 */
+      vilTable(L, S.tableTop[0], S.tableTop[2], 0.42, 0.5); vilStool(L, -1.55, 0.45, q); vilStool(L, -0.85, 1.15, VC.woodL);
+      L.push({ g: new T.CylinderGeometry(0.12, 0.12, 0.015, 10), m: M(-0.75, 0.51, 0.35), c: VC.white }, { g: new T.CylinderGeometry(0.045, 0.04, 0.08, 7), m: M(-0.98, 0.54, 0.55), c: q });
+      vilPlant(L, -1.75, 1.55, 0.5);
+      vilRoomLamp(P, R.lights[0][0], R.lights[0][2]); vilRoomLamp(P, R.lights[1][0], R.lights[1][2]);
+      /* 오른쪽 벽의 일 선반 (x 1.75 – 2.15, z −1.75 – 0.45): 옆널 둘 · 널 셋 + 일의 물건 */
+      var x0 = 1.95, put = function (w, h, d, x, y, z, c2) { L.push({ g: box(w, h, d), m: M(x, y, z), c: c2 }); };
+      put(0.4, 1.3, 0.04, x0, 0.65, -1.73, VC.woodD); put(0.4, 1.3, 0.04, x0, 0.65, 0.43, VC.woodD); put(0.03, 1.3, 2.2, 2.17, 0.65, -0.65, VC.woodB);
+      [0.25, 0.7, 1.15].forEach(function (y) { put(0.4, 0.04, 2.2, x0, y, -0.65, VC.woodL); });
+      var J = lk.job;
+      for (i = 0; i < 5; i++) {
+        var z = -1.45 + i * 0.42, c1 = [VC.red, VC.yellow, VC.blueL, VC.pink, VC.moss][i];
+        if (J === 'post') { put(0.26, 0.04 + (i % 3) * 0.04, 0.3, x0, 0.29 + (i % 3) * 0.02, z, i % 2 ? VC.paper : VC.cream); put(0.06, 0.16, 0.3, x0 + 0.05, 0.8, z, c1); put(0.28, 0.2, 0.02, x0 - 0.02, 0.83, z + 0.12, VC.paper); put(0.05, 0.05, 0.012, x0 - 0.02, 0.88, z + 0.135, c1); }   /* 편지 더미 · 우표 붙은 봉투 */
+        else if (J === 'fix') { put(0.3, 0.05, 0.12, x0, 0.3 + (i % 2) * 0.05, z, VC.woodL); if (i % 2) put(0.3, 0.05, 0.12, x0, 0.3, z, VC.woodA); L.push({ g: new T.CylinderGeometry(0.06, 0.06, 0.1, 7), m: M(x0, 0.78, z), c: VC.slateA }, { g: new T.CylinderGeometry(0.062, 0.062, 0.015, 7), m: M(x0, 0.835, z), c: VC.iron }); }   /* 판자 · 못 통 */
+        else if (J === 'shell') { L.push({ g: new T.SphereGeometry(0.07, 6, 4), m: M(x0, 0.31, z, 0, 0, 0, 1, 0.55, 1), c: [VC.pink, VC.cream, VC.dusk, VC.white, VC.pink][i] }, { g: new T.ConeGeometry(0.05, 0.14, 6), m: M(x0, 0.8, z), c: [VC.cream, VC.dusk, VC.white, VC.pink, VC.paper][i] }); }
+        else { L.push({ g: new T.SphereGeometry(0.08, 6, 5), m: M(x0, 0.35, z), c: i % 2 ? VC.red : VC.white }); put(0.04, 0.04, 0.3, x0, 0.85, z, VC.iron); }
+      }
+      /* 바닥의 일 물건 (1.4, −1.6 — 부딪힘 원은 VILLAGE 의 homeRoom) 과 뒷벽 (−z, 늘 보이는 벽) 에 건 것. 11-28 검토: 오른쪽 (+x) 벽은 카메라 쪽이라 늘 무릎 높이로 잘려 거기 건 것은 한 번도 안 보였다 → 뒷벽 x 0.2 ~ 1.5 로 */
+      var wz = -P.hz + 0.02, W2 = P.nz, wput = function (w, h, x, y, c2, d) { W2.push({ g: box(w, h, d || 0.03), m: M(x, y, wz + (d || 0.03) / 2), c: c2 }); };
+      if (J === 'fix') {   /* 연장 상자와 망치 · 벽에 기댄 판자 둘 · 걸이 줄에 건 톱과 망치 */
+        L.push({ g: box(0.5, 0.26, 0.3), m: M(1.4, 0.13, -1.6), c: VC.woodB }, { g: box(0.52, 0.03, 0.32), m: M(1.4, 0.27, -1.6), c: VC.woodD }, { g: box(0.04, 0.04, 0.3), m: M(1.35, 0.3, -1.6, 0, 0.4, 0), c: VC.woodL }, { g: box(0.12, 0.06, 0.05), m: M(1.32, 0.3, -1.46, 0, 0.4, 0), c: VC.iron });
+        L.push({ g: box(0.14, 1.0, 0.03), m: M(0.3, 0.5, -P.hz + 0.09, 0.12, 0, 0), c: VC.woodL }, { g: box(0.14, 0.86, 0.03), m: M(0.48, 0.43, -P.hz + 0.1, 0.14, 0, 0), c: VC.woodA });
+        wput(0.9, 0.04, 0.95, 1.8, VC.slateD); wput(0.34, 0.1, 0.8, 1.62, VC.slateA, 0.02); wput(0.1, 0.14, 0.58, 1.64, VC.woodA, 0.035); wput(0.03, 0.06, 0.8, 1.75, VC.iron, 0.02);
+        wput(0.035, 0.3, 1.2, 1.62, VC.woodL, 0.035); wput(0.14, 0.06, 1.2, 1.5, VC.iron, 0.045);
+      } else if (J === 'post') {   /* 우표 상자 · 벽의 길 그림 (언덕 · 물길 · 빨간 핀 — 글자 없음) */
+        L.push({ g: box(0.36, 0.3, 0.16), m: M(1.4, 0.15, -1.6), c: VC.woodA }, { g: box(0.36, 0.06, 0.17), m: M(1.4, 0.27, -1.6), c: VC.woodD });
+        wput(0.9, 0.66, 0.85, 1.55, VC.woodD, 0.02); wput(0.82, 0.58, 0.85, 1.55, VC.paper, 0.026); wput(0.5, 0.1, 0.75, 1.42, VC.moss, 0.03); wput(0.3, 0.08, 1.0, 1.5, VC.leaf, 0.03); wput(0.07, 0.34, 0.6, 1.62, VC.blueL, 0.03); wput(0.3, 0.06, 0.74, 1.76, VC.blueL, 0.03); wput(0.06, 0.06, 1.1, 1.72, VC.red, 0.036);
+      } else if (J === 'shell') {   /* 조개 바구니 · 벽의 조개 판 (가로대 넷에 조개 · 돌) */
+        L.push({ g: new T.CylinderGeometry(0.2, 0.15, 0.24, 9), m: M(1.4, 0.12, -1.6), c: VC.woodL });
+        wput(1.08, 0.8, 0.85, 1.55, VC.woodD, 0.02); wput(1.0, 0.72, 0.85, 1.55, VC.woodA, 0.026);
+        for (i = 0; i < 4; i++) { wput(1.0, 0.035, 0.85, 1.27 + i * 0.17, VC.woodD, 0.034); for (var sj = 0; sj < 4; sj++) wput(0.09, 0.07, 0.5 + sj * 0.23 + (i % 2) * 0.06, 1.325 + i * 0.17, [VC.pink, VC.cream, VC.dusk, VC.slateA, VC.white][(i + sj) % 5], 0.045); }
+      } else {   /* 통 · 벽에 기댄 낚싯대 둘 · 걸린 그물 (가는 줄 격자) */
+        L.push({ g: new T.CylinderGeometry(0.18, 0.18, 0.4, 9), m: M(1.4, 0.2, -1.6), c: VC.woodB }, { g: new T.CylinderGeometry(0.19, 0.19, 0.03, 9), m: M(1.4, 0.3, -1.6), c: VC.iron });
+        L.push({ g: box(0.03, 1.5, 0.03), m: M(0.3, 0.75, -P.hz + 0.1, 0.1, 0, 0.06), c: VC.woodL }, { g: box(0.03, 1.36, 0.03), m: M(0.5, 0.68, -P.hz + 0.1, 0.1, 0, -0.05), c: VC.woodA });
+        wput(0.8, 0.04, 1.1, 1.82, VC.woodD); for (i = 0; i < 4; i++) wput(0.76, 0.016, 1.1, 1.72 - i * 0.13, VC.cream, 0.02); for (i = 0; i < 6; i++) wput(0.016, 0.5, 0.76 + i * 0.136, 1.56, VC.cream, 0.022);
+        wput(0.1, 0.1, 0.82, 1.28, VC.red, 0.05); wput(0.1, 0.1, 1.36, 1.28, VC.white, 0.05);
+      }
+    }
+    /* 미용실 안: 뒷벽 거울 (큰 판 + 빛 줄 — 비친 상은 그리지 않는다) 과 그 앞 미용 의자 · 왼쪽 세면대 · 수건 선반 · 오른쪽 머리 색 병 선반 · 기다리는 벤치 · 화분 */
+    function vilRoomSalon(P) {
+      var L = P.floor, R = P.R, S = R.slots, i, put = function (list, w, h, d, x, y, z, c2) { list.push({ g: box(w, h, d), m: M(x, y, z), c: c2 }); };
+      vilRug(L, 0.4, 0.35, 2.2, 1.5, VC.rose, VC.pink, VC.cream);
+      var mz = -P.hz + 0.02, mx = S.mirror[0];
+      put(P.nz, 1.24, 1.34, 0.04, mx, 1.25, mz, VC.pink); put(P.nz, 1.1, 1.2, 0.045, mx, 1.25, mz + 0.004, '#cfe0ea'); put(P.nz, 0.08, 0.9, 0.05, mx - 0.3, 1.3, mz + 0.006, VC.white); put(P.nz, 0.05, 0.5, 0.05, mx - 0.18, 1.45, mz + 0.006, VC.white);
+      put(P.nz, 1.0, 0.05, 0.22, mx, 0.62, mz + 0.1, VC.woodL); L.push({ g: new T.CylinderGeometry(0.03, 0.03, 0.12, 6), m: M(mx - 0.3, 0.7, mz + 0.12), c: VC.blueL }, { g: box(0.2, 0.03, 0.05), m: M(mx + 0.25, 0.66, mz + 0.12), c: VC.woodA });   /* 거울 아래 선반: 병 · 빗 */
+      /* 미용 의자: 받침 원판 · 기둥 · 앉는 면 · 등받이 · 팔걸이 둘 · 발판 */
+      var c = S.chair;
+      L.push({ g: new T.CylinderGeometry(0.26, 0.28, 0.05, 10), m: M(c[0], 0.025, c[2]), c: VC.iron }, { g: new T.CylinderGeometry(0.06, 0.06, 0.3, 8), m: M(c[0], 0.2, c[2]), c: VC.slateA },
+        { g: box(0.56, 0.12, 0.52), m: M(c[0], 0.42, c[2]), c: VC.rose }, { g: box(0.56, 0.62, 0.1), m: M(c[0], 0.76, c[2] + 0.24), c: VC.rose }, { g: box(0.5, 0.06, 0.12), m: M(c[0], 1.07, c[2] + 0.24), c: VC.pink },
+        { g: box(0.06, 0.06, 0.44), m: M(c[0] - 0.3, 0.6, c[2] - 0.02), c: VC.iron }, { g: box(0.06, 0.06, 0.44), m: M(c[0] + 0.3, 0.6, c[2] - 0.02), c: VC.iron }, { g: box(0.4, 0.04, 0.16), m: M(c[0], 0.16, c[2] - 0.34), c: VC.iron });
+      /* 세면대: 장 · 대야 · 수도 · 수건 선반 (왼벽) */
+      put(L, 1.2, 0.8, 0.55, S.sink[0], 0.4, S.sink[2], VC.white); put(L, 1.26, 0.05, 0.6, S.sink[0], 0.82, S.sink[2], VC.slateA); L.push({ g: new T.CylinderGeometry(0.22, 0.16, 0.12, 10), m: M(S.sink[0], 0.86, S.sink[2]), c: VC.white }, { g: box(0.04, 0.22, 0.04), m: M(S.sink[0], 0.97, S.sink[2] - 0.22), c: VC.iron }, { g: box(0.04, 0.04, 0.14), m: M(S.sink[0], 1.07, S.sink[2] - 0.16), c: VC.iron });
+      put(P.nx, 0.3, 0.04, 1.2, -P.hx + 0.15, 1.5, -0.6, VC.woodL); [[-1.0, VC.sky], [-0.65, VC.pink], [-0.3, VC.cream], [0.05, VC.yellow]].forEach(function (q) { put(P.nx, 0.24, 0.16, 0.26, -P.hx + 0.15, 1.6, q[0], q[1]); put(P.nx, 0.03, 0.3, 0.24, -P.hx + 0.04, 1.3, q[0], q[1]); });
+      /* 머리 색 병 선반 (오른벽): 널 셋 · 병 일곱 줄 */
+      var bx = 2.15; [0.5, 0.95, 1.4].forEach(function (y, row) { put(L, 0.38, 0.04, 1.0, bx, y, -1.1, VC.woodL); for (i = 0; i < 6; i++) { var cc = ['#c8463c', '#e8b04a', '#5c86b0', '#8cc05a', '#f2a6c0', '#44241b', '#efe3c8', '#9a5058'][(i + row * 3) % 8]; L.push({ g: new T.CylinderGeometry(0.045, 0.05, 0.18, 7), m: M(bx, y + 0.11, -1.5 + i * 0.16), c: cc }, { g: new T.CylinderGeometry(0.02, 0.02, 0.05, 6), m: M(bx, y + 0.225, -1.5 + i * 0.16), c: VC.white }); } });
+      put(L, 0.38, 1.5, 0.04, bx, 0.75, -1.6, VC.woodD); put(L, 0.38, 1.5, 0.04, bx, 0.75, -0.6, VC.woodD);
+      /* 기다리는 벤치 (오른쪽 앞, z 로 긴 것) · 잡지 · 화분 */
+      var bn = S.bench; put(L, 0.4, 0.06, 1.2, bn[0], 0.4, bn[2], VC.pink); put(L, 0.06, 0.4, 1.2, bn[0] + 0.18, 0.62, bn[2], VC.rose); [-0.5, 0.5].forEach(function (d) { put(L, 0.36, 0.38, 0.06, bn[0], 0.19, bn[2] + d, VC.woodD); });
+      put(L, 0.22, 0.03, 0.3, bn[0] - 0.02, 0.445, bn[2] - 0.3, VC.sky); vilPlant(L, -2.05, 1.65, 0.5);
+      vilRoomLamp(P, R.lights[0][0], R.lights[0][2]); vilRoomLamp(P, R.lights[1][0], R.lights[1][2]);
+    }
+    /* 미용 의자에 앉기 (카페 자리와 같은 방식): 의자 앞 통로까지 걸어가 폴짝 앉는다 → 'ppol:salon-seat' { on } (목록은 S · 색 기록은 P). 앉은 동안 미용사가 의자 옆 (stylistWork) 에 선다 */
+    function vilSalonIn() { return PL.place === 'inside' && vilRoomKey() === 'salon' && !!VR.rooms.salon && PLACE.vis === 'inside'; }
+    function vilSalonEmit(on) { try { document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: !!on } })); } catch (e) { /* noop */ } }
+    function vilSalonPts() { var S = VILLAGE.ROOMS.salon.slots; return { aisle: new T.Vector3(S.aisle[0], 0, S.aisle[2]), seat: new T.Vector3(S.chair[0], S.chair[1] - 0.24, S.chair[2]), yaw: S.chair[3] }; }
+    function vilStylist(work) { var o = VR.npc.salon, S = VILLAGE.ROOMS.salon.slots, q = work ? S.stylistWork : S.keeper; if (!o) return; o.m.position.set(q[0], q[1], q[2]); o.m.rotation.y = q[3]; o.y = q[1]; o.f = -1; dither.still = 0; }
+    /* 앉은 몸을 그 자리에서 세운다 (폴짝 없이): 앉은 채로 옮겨졌을 때 — 문으로 걸어 나감 (걸음이 시작되면 바로) · 방을 나감 (모션 감소면 걸음도 덮기도 없이 한 번에 바깥이다).
+       11-28 (독립 검토 MUST): 미용 의자에 앉은 채 '밖으로' 를 누르면 앉은 채로 바깥에 나와 있었고 (먼 마을 단추가 안 먹고 · 첫 스틱 밀기가 소파 쪽으로 폴짝), 카페도 모션 감소에선 같았다.
+       방을 막 나온 프레임이면 다리 · 보는 쪽도 바로 맞춘다 (stepPlayer 가 이 프레임에 이미 앉은 다리 · 의자 쪽으로 그렸다 — 나온 뒤 보는 쪽은 갈래 W 가 들어갈 때 적어 둔 IN.back[2]) */
+    function vilUnseat(out) {   /* out = 방 안 자리에 앉은 채 방을 나와 버렸다 (지금 바깥) */
+      PL.sit = false; if (PL.hop && PL.hop.sit) { var h0 = PL.hop; PL.hop = null; if (h0.done) h0.done(); } PL.pos.y = 0; plLegL.rotation.x = plLegR.rotation.x = 0;
+      if (out && PL.place === 'yard' && !PL.walking && IN.back && typeof IN.back[2] === 'number') { PL.faceCam = false; PL.yaw = PL.wantYaw = IN.back[2]; PL.dir8 = Math.round(PL.yaw / (Math.PI / 4)); plG.rotation.y = PL.dir8 * (Math.PI / 4); }
+      plSnap(); dither.still = 0;
+    }
+    function vilSalonSync() {
+      var V = VIL.salon; if (!V || !V.seated) return;
+      var here = PL.place === 'inside' && vilRoomKey() === 'salon', P = vilSalonPts();
+      if (here && PL.hop && !PL.hop.salon && !PL.hop.sit) { PL.hop.b.copy(P.aisle); PL.hop.salon = true; }   /* 스틱으로 일어난 폴짝 → 의자 앞 통로로 */
+      if (PL.sit && (here ? !!PL.walking || Math.hypot(PL.pos.x - P.seat.x, PL.pos.z - P.seat.z) > 0.5 : (PL.place === 'yard' || PL.place === 'inside') && !VIL.cafe.seated)) vilUnseat(!here);   /* 앉은 채 걷기 시작했다 · 옮겨졌다 · 방을 나갔다 → 서 있는 몸으로 (다락 · 놀이방의 앉음은 건드리지 않는다) */
+      if (!here || (!PL.sit && !(PL.hop && PL.hop.sit))) { V.seated = false; vilStylist(false); vilSalonEmit(false); }
+    }
+    function vilSalonSit(on) {
+      var V = VIL.salon || (VIL.salon = { seated: false }); vilSalonSync();
+      if (on === false) {
+        if (!V.seated) return Promise.resolve(false);
+        return new Promise(function (res) {
+          var P = vilSalonPts(); V.seated = false;
+          if (PL.hop) { var h0 = PL.hop; PL.pos.copy(h0.b); PL.sit = h0.sit; PL.hop = null; if (h0.done) h0.done(); }
+          PL.sit = false; vilStylist(false); vilSalonEmit(false); dither.still = 0;
+          if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.aisle); plSnap(); res(true); return; }
+          PL.hop = { t: 0, a: PL.pos.clone(), b: P.aisle, sit: false, salon: true, done: function () { res(true); } };
+        });
+      }
+      if (V.seated || !vilSalonIn() || PL.sit || PL.hop || !playerInputAllowed()) return Promise.resolve(false);
+      var P = vilSalonPts();
+      return vilWalk(P.aisle, P.yaw).then(function (ok) {
+        if (!ok || !vilSalonIn() || PL_IN.v || PL.sit || PL.hop) return false;
+        PL.sitYaw = P.yaw; PL.faceCam = false; PL.wantYaw = P.yaw; V.seated = true;
+        if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.seat); PL.sit = true; plSnap(); vilStylist(true); vilSalonEmit(true); return true; }
+        return new Promise(function (res) { PL.hop = { t: 0, a: PL.pos.clone(), b: P.seat, sit: true, salon: true, done: function () { res(VIL.salon.seated); } }; vilStylist(true); vilSalonEmit(true); });
+      });
+    }
+    function vilBuild(g) {   /* 등록부의 builder: 갈래 W 의 buildYard 가 마당 그룹을 넘겨 부른다 (한 번만) */
+      if (VIL.built || !VIL.on) return; VIL.built = true;
+      var yard = g; g = VIL.root = new T.Group(); g.name = 'village'; yard.add(g);   /* 마을 것은 모두 이 그룹 아래 (시험에서 통째로 숨겨 내 드로우콜만 잰다 — debugVillageHide) */
+      var P = { rowL: [], rowR: [], street: [], plaza: [], thin: [], glL: [], glR: [], lamp: [], pool: [], snowL: [], snowR: [] };
+      P.dress = []; ['hL', 'hR', 'pL', 'pR'].forEach(function (k) { P[k] = []; P['gl' + k] = []; P['sn' + k] = []; }); vilShops(P); vilEmpty(P); vilHomes(P); vilCafe(P); vilPlaza(P); vilStreet(P); vilStageParts(P);
+      var low = function (q) { return !q.m || q.m.elements[13] < KNEE + 0.02; };
+      /* 건물 덩어리 하나 = 온 것 (몸 + 그 끝에 지붕 눈) + 무릎 높이 쌍둥이 + 창 유리 (밤엔 불빛 — 온 것에 붙여 같이 숨긴다). 카메라가 그 덩어리의 바깥쪽 (길 · 광장 반대편) 으로 돌면 자른다 (th = 문턱).
+         지붕 눈은 따로 그리지 않는다: 온 것의 꼭짓점 끝에 붙여 두고 겨울에만 그리는 범위에 넣는다 (vilLight — setDrawRange). 11-28 검증: 눈을 덩어리마다 따로 그렸더니 (뷰티 + 노멀 두 번씩) 겨울엔 마을 것이 42 ~ 43 번으로 예산 40 을 넘었다 */
+      var verts = function (list) { var n = 0; list.forEach(function (q) { n += q.g.index ? q.g.index.count : q.g.attributes.position.count; }); return n; };
+      var block = function (gg, body, glass, snow, sign, c, th, key) {
+        var nb = verts(body), full = vilMesh(body.concat(snow)), lo = vilMesh(body.filter(low)); full.geometry.setDrawRange(0, nb); gg.add(full); gg.add(lo); VIL.snow.push({ m: full, n: nb });
+        var gm = keep(new T.MeshBasicMaterial({ color: C('#141c33') })), gl = vilMesh(glass, gm); full.add(gl); VIL.win.push({ m: gl, em: emTwin(gl, gl.geometry) });
+        var n = wideXZ(0, sign); cutAdd('yard', full, lo, n[0], n[1], c[0], c[1], th).key = key;
+      };
+      [['rowL', 'glL', 'snowL', -1], ['rowR', 'glR', 'snowR', 1]].forEach(function (r) { block(VIL.grp[r[0]], P[r[0]], P[r[1]], P[r[2]], r[3], vilXZ(29, r[3] * 6), 0.5, r[0] === 'rowL' ? 'vilL' : 'vilR'); });   /* 가게 줄: 줄 바깥쪽에서 볼 때만 (문턱 0.5 = 30° 넘게 돌았을 때 — 가게 앞이 오래 보이게) */
+      VIL.grp.street.add(vilMesh(P.street)); VIL.grp.plaza.add(vilMesh(P.plaza));
+      /* 새 집 넷 (11-24) 도 집마다 한 덩어리. 11-28 검토: 자르기가 없어 돌려 보면 (90° · 270°) 집이 제 문 앞에 선 내 캐릭터를 통째로 가렸고, 겨울에도 새 지붕 넷만 눈이 없었다.
+         문턱은 0.2 (15° 넘게 돌았을 때): 집이 걷는 곳 가장자리에 바짝 붙어 있어, 가게 줄의 0.5 로는 자르기 직전 각 (200 ~ 213°) 에서 문 앞 캐릭터의 몸이 41 % 까지 가려졌다 (0.2 면 가장 나쁜 각에서 8 % — 11-28 검증의 측정) */
+      [['hL', 'homes', -1, 'home1'], ['hR', 'homes', 1, 'home4'], ['pL', 'plaza', -1, 'salon'], ['pR', 'plaza', 1, 'home3']].forEach(function (r) { var k = r[0], lt = VILLAGE.lot(r[3]); block(VIL.grp[r[1]], P[k], P['gl' + k], P['sn' + k], r[2], vilXZ(lt.c[0], lt.c[1]), 0.2, 'vil' + k); });
+      var lm = keep(new T.MeshBasicMaterial({ color: C(PAL.amber[3]) })); VIL.lampGlow = vilMesh(P.lamp, lm); VIL.lampEm = emTwin(VIL.lampGlow, VIL.lampGlow.geometry); VIL.lampGlow.visible = false;
+      VIL.pools = vilMesh(P.pool, keep(glowMat.clone())); VIL.pools.renderOrder = 1; VIL.pools.visible = false;
+      ['homes', 'rowL', 'rowR', 'street', 'plaza'].forEach(function (k) { g.add(VIL.grp[k]); });
+      var thin = vilMesh(P.thin); thin.castShadow = false; g.add(thin);   /* 가는 것 (들보 · 전구 · 깃발 줄 · 빨랫줄): 그림자를 던지지 않는다 */
+      g.add(VIL.lampGlow); g.add(VIL.pools);
+      /* 카페 잔 (cafeCup) */
+      var cq = vilXZ(VILLAGE.CAFE.cup.s, VILLAGE.CAFE.cup.t), ty = VILLAGE.CAFE.tables[0].h;
+      VIL.cup = vilMesh([{ g: new T.CylinderGeometry(0.075, 0.075, 0.015, 8), m: M(0, 0.008, 0), c: VC.cream }, { g: new T.CylinderGeometry(0.05, 0.04, 0.07, 7), m: M(0, 0.05, 0), c: VC.white }, { g: new T.CylinderGeometry(0.04, 0.04, 0.01, 7), m: M(0, 0.083, 0), c: VC.dark }, { g: box(0.03, 0.035, 0.02), m: M(0.06, 0.05, 0), c: VC.white }]);
+      VIL.cup.castShadow = false; VIL.cup.position.set(cq[0], ty, cq[1]); VIL.cup.visible = false; g.add(VIL.cup);
+      VIL.dress = vilMesh(P.dress); VIL.dress.visible = !!VR.dressOn; VIL.grp.plaza.add(VIL.dress);   /* 바깥 무대의 주말 꾸밈 (stageDress) */
+      VIL.g = g; vilNpcApply(); vilLight(true); dither.still = 0;
+    }
+    function vilLight(force) {   /* 창 · 등: 시각대의 밤 정도 (em) 를 따라 — 낮엔 하늘 비친 유리 · 밤엔 따뜻한 불빛 (마당 집 1층 창과 같은 식). 겨울이면 지붕 눈 */
+      if (!VIL.built) return;
+      var em = light.em == null ? 1 : light.em, night = Math.max(0, (em - 0.25) / 0.75), winter = SEASON.cur === 'winter', key = Math.round(night * 100) + (winter ? 1000 : 0) + (light.out ? light.out.getHex() % 997 : 0) * 2000;
+      if (!force && key === VIL.lightKey) return; VIL.lightKey = key;
+      var out = light.out || C(LIGHTS.night.out), sky = tmpB.copy(out); if (winter) sky.lerp(C('#dde8f0'), 0.35);
+      VIL.win.forEach(function (w) { w.m.material.color.copy(sky).lerp(C(PAL.amber[3]), night); w.em.material.color.copy(light.winEm || C('#3c507a')).multiplyScalar(1 - night).add(tmpA.copy(C(EM.lamp)).multiplyScalar(em * 0.85 * night)); });
+      var on = night > 0.3; VIL.lampGlow.visible = on; VIL.pools.visible = on;
+      if (on) { VIL.lampGlow.material.color.copy(C(PAL.amber[3])).lerp(C(VC.white), 0.25 * night); VIL.lampEm.material.color.copy(C(EM.lamp)).multiplyScalar(em * night); VIL.pools.material.opacity = 0.42 * night; }
+      VIL.snowOn = winter; VIL.snow.forEach(function (o) { o.m.geometry.setDrawRange(0, winter ? Infinity : o.n); });   /* 지붕 눈 = 온 것의 꼭짓점 끝 토막 (vilBuild) */
+      dither.still = 0;
+    }
+
+    /* ── NPC 문어 (계약 C6): 다락 문어와 같은 모양 (머리 · 눈 · 다리 여덟) 을 한 메시로 구워 색만 달리한다 — 다락 문어 물체는 쓰지 않는다 (그 문어는 밖에 나오지 않는다).
+       얼굴은 뜬 눈 · 감은 눈뿐 (기분 표정 없음 — 대본 캐릭터). 재질은 건물과 같은 lambert (툰은 한낮 햇빛에서 몸 색이 하얗게 떴다 · 문어 툰은 다락 문어가 체크로 사라질 때 같이 사라진다). 그림자는 받기만 ── */
+    function vilOctGeo(hex, hat, sleep) {
+      /* 밝은 몸 색은 한 톤 가라앉혀 굽는다 (밝기 0.45 아래는 그대로 · 0.8 위는 40 %): 바깥 한낮 햇빛 (다락 안보다 훨씬 밝다) 에서 하얗게 뜨지 않게 */
+      var c = octDerived(mixHex(hex, '#1b1522', clamp((hexToOklab(hex)[0] - 0.45) / 0.35, 0, 1) * 0.4)), L = [{ g: new T.SphereGeometry(1, 16, 11), m: M(0, HEAD_Y, 0, 0, 0, 0, 1, HEAD_SQ, 1), c: c.body },
+        { g: new T.SphereGeometry(0.3, 8, 6), m: M(-0.45, 1.50, 0.52, 0.5, -0.4, 0, 1, 0.55, 0.5), c: c.hi }, { g: box(0.30, 0.07, 0.08), m: M(0, 0.44, 0.82), c: c.mouth }];
+      EYE.forEach(function (e) {
+        if (sleep) { L.push({ g: box(0.42, 0.07, 0.1), m: M(e[0], e[1] - 0.04, e[2] + 0.02, 0, e[0] < 0 ? -0.3 : 0.3, e[0] < 0 ? 0.14 : -0.14), c: c.eye }); return; }
+        L.push({ g: new T.SphereGeometry(EYE_R, 9, 7), m: M(e[0], e[1], e[2], 0, 0, 0, 1, 1, 0.55), c: c.white }, { g: new T.SphereGeometry(PUPIL_R, 7, 5), m: M(e[0], e[1], e[2] + 0.14), c: c.eye }, { g: new T.SphereGeometry(0.07, 5, 4), m: M(e[0] - 0.045, e[1] + 0.05, e[2] + 0.24), c: c.white });
+      });
+      for (var i = 0; i < 8; i++) {
+        var a = i / 8 * Math.PI * 2 + Math.PI / 8, root = M(ARM_ROOT[0] * Math.cos(a), ARM_ROOT[1], ARM_ROOT[0] * Math.sin(a), 0, -a, 0);
+        armParts().forEach(function (p) { L.push({ g: p.g, m: root.clone().multiply(p.m), c: p.tag === 4 ? c.pale : c.body }); });
+      }
+      if (hat === 'beret') OCT_WEAR.beret(L);
+      else if (hat === 'cap') L.push({ g: new T.SphereGeometry(0.88, 12, 6, 0, Math.PI * 2, 0, 1.25), m: M(0, 1.36, -0.02, 0, 0, 0, 1, 0.55, 1), c: VC.red }, { g: box(0.74, 0.06, 0.5), m: M(0, 1.5, 0.98, 0.18, 0, 0), c: VC.roofRL }, { g: new T.SphereGeometry(0.07, 6, 5), m: M(0, 1.85, -0.02), c: VC.cream });
+      else if (hat === 'apron') L.push({ g: new T.CylinderGeometry(1.0, 1.1, 0.42, 12, 1, true, -Math.PI / 2, Math.PI), m: M(0, 0.26, 0.02), c: VC.cream }, { g: box(0.3, 0.2, 0.06), m: M(0, 0.2, 1.07), c: VC.dusk }, { g: new T.CylinderGeometry(1.0, 1.0, 0.06, 12, 1, true, -Math.PI / 2, Math.PI), m: M(0, 0.48, 0.02), c: VC.dusk });
+      return mergeParts(L);
+    }
+    function vilGround(x, z) { return typeof wideGroundY === 'function' ? wideGroundY(x, z) : 0; }
+    function vilNpcY(n) { return n.id === 'sleep-3' && WIDE.ROCKS && WIDE.ROCKS[0] ? WIDE.ROCKS[0][3] + 0.04 : n.y; }   /* sleep-3 은 갈래 W 의 넓적 바위 윗면 (그 표가 있으면 그 높이) */   /* 땅 높이 (갈래 W — 바닷가 모래는 0.6 m 낮다). 그 함수가 없으면 평지 */
+    function vilNpcSpots() { return VIL.on ? VILLAGE.NPCS.map(function (n) { var q = vilXZ(n.s, n.t); return { id: n.id, x: q[0], y: vilNpcY(n) + vilGround(q[0], q[1]), z: q[1], face: n.face }; }) : []; }
+    /* 문어 하나의 자리 (월드): 마을 표의 일곱. npcPlace 로 옮긴 자리가 있으면 그것. 콘테스트의 심사 셋 · 경쟁 셋은 공연장 방 안에 선다 (아래 vilHall…) */
+    function vilNpcSpot(id) {
+      var at = VIL.npcAt[id]; if (at) return { x: at.x, y: vilGround(at.x, at.z), z: at.z, face: at.face };
+      var n = VILLAGE.npc(id), q; if (!n) return null; q = vilXZ(n.s, n.t); return { x: q[0], y: vilNpcY(n) + vilGround(q[0], q[1]), z: q[1], face: n.face };
+    }
+    function vilIsExtra(id) { return VILLAGE.EXTRA.indexOf(id) >= 0; }
+    function vilHallY(x, z) {   /* 공연장 바닥 높이: 무대 · 길 위 0.3 · 꾸민 날 시상대 위면 그 단 */
+      var H = VILLAGE.ROOMS.hall, a = H.stage, b = H.walk, y = (x >= a.x0 && x <= a.x1 && z >= a.z0 && z <= a.z1) || (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) ? a.y : 0;
+      if (!y && Math.abs(x) <= 0.45 && z > H.steps.z0 && z <= H.steps.z1) y = z <= H.steps.z0 + 0.24 ? 0.2 : 0.1;   /* 길 끝의 계단 두 칸 (발이 계단 속에 묻히지 않게) */
+      if (y && VR.dressOn) VILLAGE.SHOW.podium.forEach(function (p, n) { if (n < 3 && Math.hypot(p[0] - x, p[1] - z) < 0.36) y = p[2]; }); return y;
+    }
+    function vilHallNpcY(x, z) {   /* 공연장 문어가 서는 높이 = 바닥 (무대 · 길 · 시상대) + 심사 걸상 위 0.3 (11-28 검토: npcPlace 로 제 걸상에 놓인 심사 문어가 바닥 높이로 그려져 걸상에 박혔다) */
+      var y = vilHallY(x, z); if (!y) VILLAGE.SHOW.judges.forEach(function (j) { if (Math.hypot(j[0] - x, j[1] - z) < 0.17) y = 0.3; }); return y;
+    }
+    function vilHallSpot(id) {
+      var at = VR.hallAt[id]; if (at) return { x: at.x, y: vilHallNpcY(at.x, at.z), z: at.z, face: at.face };
+      var m = /^(judge|rival)([0-2])$/.exec(id); if (!m) return null; var p = m[1] === 'judge' ? VILLAGE.SHOW.judges[+m[2]] : VILLAGE.SHOW.rivals[+m[2]];
+      return { x: p[0], y: m[1] === 'judge' ? 0.3 : 0, z: p[1], face: m[1] === 'judge' ? p[2] : Math.PI };   /* 심사 문어는 걸상 위 */
+    }
+    function vilHallNpc() {   /* VIL.want 의 심사 · 경쟁 문어 → 공연장 그룹의 메시 (방이 지어진 뒤에) */
+      var RM = VR.rooms.hall; if (!RM) return; var seen = {};
+      VIL.want.forEach(function (w) {
+        if (!vilIsExtra(w.id) || seen[w.id]) return; seen[w.id] = true;
+        var sp = vilHallSpot(w.id), key = w.color + '|' + w.hat + '|' + (w.pose === 'sleep'), o = VR.hallNpc[w.id];
+        if (!o || o.key !== key) { var tw0 = o && o.tw; if (o) { RM.g.remove(o.m); o.m.geometry.dispose(); } var m = new T.Mesh(vilOctGeo(w.color, w.hat, w.pose === 'sleep'), vilRoomMat()); m.receiveShadow = false; m.name = 'npc-hall-' + w.id; RM.g.add(m); o = VR.hallNpc[w.id] = { m: m, key: key, tw: tw0 }; if (tw0) m.position.set(tw0.x, vilHallNpcY(tw0.x, tw0.z), tw0.z); }   /* 색 · 모자가 바뀌어 다시 지어도 걷던 자리에서 잇는다 */
+        var R = VIL.R, sit = w.pose === 'sit', fresh = !o.tw; o.pose = w.pose; o.y = sp.y; o.sit = sit ? 0.06 : 0;
+        /* 11-24 리드 검토: 방이 보이는 동안 자리를 옮기면 걸어간다 (vilHallWalk — 한 걸음씩 순간 이동하지 않는다). 처음 · 모션 감소 · 방이 안 보일 땐 바로 그 자리에 */
+        var mv = !fresh && !st.reduced && vilRoomKey() === 'hall' && w.pose !== 'sleep' && Math.hypot(o.tw.x - sp.x, o.tw.z - sp.z) > 0.02;
+        if (!mv) { o.tw = { x: sp.x, z: sp.z, face: sp.face, tx: sp.x, tz: sp.z, tf: sp.face, ph: 0 }; o.m.position.set(sp.x, sp.y - o.sit, sp.z); o.m.rotation.set(0, sp.face, 0); }
+        else { o.tw.tx = sp.x; o.tw.tz = sp.z; o.tw.tf = sp.face; o.tw.spd = 0; }
+        o.m.scale.set(R * (w.pose === 'sleep' ? 1.08 : 1), R * (w.pose === 'sleep' ? 0.78 : sit ? 0.9 : 1), R * (w.pose === 'sleep' ? 1.08 : 1));
+      });
+      Object.keys(VR.hallNpc).forEach(function (id) { if (!seen[id]) { RM.g.remove(VR.hallNpc[id].m); VR.hallNpc[id].m.geometry.dispose(); delete VR.hallNpc[id]; } });
+      dither.still = 0;
+    }
+    function vilHallWalk(dt) {   /* 공연장 문어의 걷기: 1.6 m/s 로 새 자리까지 · 가는 쪽을 보고 뒤뚱 (좌우 기울기 + 한 픽셀 들썩) · 닿으면 받은 쪽을 본다 */
+      var moving = false;
+      Object.keys(VR.hallNpc).forEach(function (id) {
+        var o = VR.hallNpc[id], w = o.tw; if (!w) return;
+        var dx = w.tx - w.x, dz = w.tz - w.z, d = Math.hypot(dx, dz);
+        if (d < 1e-4) { if (w.ph) { w.ph = 0; o.m.rotation.set(0, w.tf, 0); o.m.position.set(w.x, vilHallNpcY(w.x, w.z) - o.sit, w.z); dither.still = 0; } else if (o.m.rotation.y !== w.tf) { o.m.rotation.y = w.tf; dither.still = 0; } return; }
+        var stp = Math.min(d, (w.spd || 1.6) * dt); w.x += dx / d * stp; w.z += dz / d * stp; w.ph += dt * 9; moving = true;
+        var arrived = d - stp < 1e-4, hy = vilHallNpcY(w.x, w.z);
+        o.m.position.set(w.x, hy - o.sit + (arrived ? 0 : (Math.floor(w.ph / Math.PI) % 2 ? PX : 0)), w.z);
+        o.m.rotation.set(0, arrived ? w.tf : Math.atan2(dx, dz), arrived ? 0 : Math.sin(w.ph) * 0.12);
+        if (arrived) { w.x = w.tx; w.z = w.tz; w.ph = 0; }
+      });
+      if (moving) dither.still = 0;
+    }
+    function vilHallWalking() { return Object.keys(VR.hallNpc).filter(function (id) { var w = VR.hallNpc[id].tw; return w && Math.hypot(w.tx - w.x, w.tz - w.z) > 1e-4; }); }
+    function vilNpcWalk(id, pts, opt) {   /* opt = 마지막에 볼 쪽 (rad) 또는 { speed (m/s, 기본 1.6), face } */
+      var face = typeof opt === 'number' ? opt : opt && opt.face != null ? +opt.face : null, spd = opt && +opt.speed > 0 ? +opt.speed : 0;   /* 공연장 문어를 점들 [[x, z], …] 을 따라 걷게 → Promise<끝까지 갔나> (방이 안 보이면 마지막 점에 바로 선다) */
+      if (!vilIsExtra(id) || !pts || !pts.length) return Promise.resolve(false);
+      var i = 0;
+      return new Promise(function (res) {
+        var next = function () {
+          var o = VR.hallNpc[id]; if (!o || !VR.rooms.hall) { res(false); return; }
+          if (i >= pts.length) { res(true); return; }
+          var p = pts[i], nx = pts[i + 1], f = nx ? Math.atan2(nx[0] - p[0], nx[1] - p[1]) : (face != null ? face : Math.atan2(p[0] - (o.tw ? o.tw.x : p[0]), p[1] - (o.tw ? o.tw.z : p[1]) || 1));
+          i++; vilNpcPlace(id, p[0], p[1], f); if (VR.hallNpc[id] && VR.hallNpc[id].tw) VR.hallNpc[id].tw.spd = spd;
+          var tick = function () { var w = VR.hallNpc[id] && VR.hallNpc[id].tw; if (!w) { res(false); return; } if (Math.hypot(w.tx - w.x, w.tz - w.z) < 1e-4) next(); else setTimeout(tick, 50); };
+          tick();
+        };
+        next();
+      });
+    }
+    function vilNpcPlace(id, x, z, face) {   /* 문어를 옮긴다 (보는 쪽 rad · x 가 null 이면 제자리로). 마을의 문어 = 월드 x · z · 심사 / 경쟁 문어 = 공연장 방 안 x · z (무대 · 시상대 위면 그 높이에 선다) */
+      if (!VIL.on) return false; var ex = vilIsExtra(id); if (!ex && !VILLAGE.npc(id)) return false;
+      var T2 = ex ? VR.hallAt : VIL.npcAt; if (x == null) delete T2[id]; else T2[id] = { x: +x || 0, z: +z || 0, face: +face || 0 };
+      if (ex) vilHallNpc(); else vilNpcApply(); return true;
+    }
+    function vilNpcPoseSet(id, pose) {   /* 'stand' | 'sleep' | 'sit' — 다음 npcSet 까지 간다 (마을 문어면 받은 목록에도 적어 둔다: 시간 칸이 바뀌어 다시 놓아도 남게. 집에 든 문어는 그 칸의 자세가 이긴다) */
+      var p = pose === 'sleep' ? 'sleep' : pose === 'sit' ? 'sit' : 'stand', ok = false; VIL.want.forEach(function (w) { if (w.id === id) { w.pose = p; ok = true; } });
+      if (ok && !vilIsExtra(id) && VIL.rawList) VIL.rawList = VIL.rawList.map(function (w) { if (!w || w.id !== id) return w; var o = {}; Object.keys(w).forEach(function (k) { o[k] = w[k]; }); o.pose = p; return o; });
+      if (ok) { if (vilIsExtra(id)) vilHallNpc(); else { Object.keys(VR.rooms).forEach(function (k) { vilRoomNpc(k); vilRoomGuests(k); }); vilNpcApply(); } } return ok;
+    }
+    /* ── 콘테스트 (공연장 방 안): stage() = 자리들 (방 안 좌표) · stageDress(on) = 꾸밈 (심사석 천과 팻말 · 시상대 단 · 깃발 줄 — 광장의 바깥 무대도 같이) ── */
+    function vilStageInfo() {
+      var S2 = VILLAGE.SHOW, H = VILLAGE.ROOMS.hall, c2 = function (p) { return p.slice(); };
+      return { room: 'hall', wait: c2(S2.wait), path: S2.path.map(c2), pathY: S2.path.map(function (p) { return vilHallY(p[0], p[1]); }), judges: S2.judges.map(c2), podium: S2.podium.map(c2), rivals: S2.rivals.map(c2), table: c2(S2.table),
+        stageBox: [H.stage.x0, H.stage.z0, H.stage.x1, H.stage.z1], walkBox: [H.walk.x0, H.walk.z0, H.walk.x1, H.walk.z1], y: H.stage.y, dressed: !!VR.dressOn, built: !!VR.rooms.hall };
+    }
+    function vilStageDress(on) { VR.dressOn = !!on; var RM = VR.rooms.hall; if (RM && RM.dress) RM.dress.visible = VR.dressOn; if (VIL.dress) VIL.dress.visible = VR.dressOn; vilHallNpc(); dither.still = 0; return VR.dressOn; }
+    function vilStageParts(P) {   /* 광장: 포스터 판과 공연장으로 들어가는 막 드리운 문 (늘) + 주말 꾸밈 (무대 앞 깃발 줄 · 등 둘 — 따로 한 메시) */
+      var S2 = VILLAGE.PLAZA_SHOW, SG = VILLAGE.STAGE, L = P.plaza, D = P.dress, K4 = Math.PI / 4, i;
+      /* 포스터 판: 발 둘 · 판 · 작은 지붕 · 빈 종이 (그 주의 주제 그림은 콘테스트 갈래가 그 위에 띄운다) · 핀 둘 — 화면을 본다 */
+      var b = vilXZ(S2.poster[0], S2.poster[1]), SQ = Math.SQRT1_2, R = function (w, h, d, dt, y, ds, c2) { L.push({ g: box(w, h, d), m: M(b[0] + (ds + dt) * SQ, y, b[1] + (ds - dt) * SQ, 0, K4, 0), c: c2 }); };
+      R(0.07, 1.3, 0.07, -0.36, 0.65, 0, VC.woodD); R(0.07, 1.3, 0.07, 0.36, 0.65, 0, VC.woodD); R(0.8, 0.9, 0.05, 0, 0.92, 0, VC.woodA); R(0.94, 0.05, 0.22, 0, 1.4, 0, VC.woodD); R(0.6, 0.72, 0.02, 0, 0.93, 0.035, VC.paper); R(0.05, 0.05, 0.025, -0.22, 1.24, 0.04, VC.red); R(0.05, 0.05, 0.025, 0.22, 1.24, 0.04, VC.red);
+      R(0.3, 0.3, 0.022, 0, 1.0, 0.037, VC.yellow); R(0.14, 0.14, 0.024, 0, 1.0, 0.038, VC.paper); R(0.4, 0.04, 0.022, 0, 0.72, 0.037, VC.rose);
+      /* 공연장 문 (무대 오른쪽, +z 를 본다): 기둥 둘 · 인방 · 별 달린 박공 판 · 양옆으로 걷어 묶은 붉은 막 · 어두운 안 · 발판 */
+      var d = vilXZ(S2.door[0], S2.door[1]);
+      [-0.4, 0.4].forEach(function (dx) { L.push({ g: box(0.12, 1.9, 0.12), m: M(d[0] + dx, 0.95, d[1]), c: VC.woodD }); });
+      L.push({ g: box(1.0, 0.12, 0.16), m: M(d[0], 1.9, d[1]), c: VC.woodD }, { g: box(0.9, 0.36, 0.08), m: M(d[0], 2.14, d[1]), c: VC.blueD }, { g: box(0.16, 0.16, 0.09), m: M(d[0], 2.14, d[1], 0, 0, K4), c: VC.yellow }, { g: box(1.0, 0.05, 0.14), m: M(d[0], 2.34, d[1]), c: VC.woodD },
+        { g: box(0.68, 1.78, 0.02), m: M(d[0], 0.89, d[1] - 0.04), c: PAL.ink }, { g: box(0.8, 0.02, 0.5), m: M(d[0], 0.012, d[1] + 0.3), c: VC.rose }, { g: box(0.66, 0.022, 0.36), m: M(d[0], 0.013, d[1] + 0.3), c: VC.cream });
+      [-1, 1].forEach(function (sg) { for (var k = 0; k < 3; k++) L.push({ g: box(0.08, 1.7 - k * 0.0, 0.05 + (k % 2) * 0.03), m: M(d[0] + sg * (0.31 - k * 0.075), 0.95, d[1] + 0.02), c: k % 2 ? VC.roofR : VC.red }); L.push({ g: box(0.26, 0.05, 0.09), m: M(d[0] + sg * 0.24, 0.9, d[1] + 0.02), c: VC.yellow }); });
+      var o = vilXZ(SG.c[0], SG.c[1]), h = SG.h;
+      for (i = 0; i < 10; i++) { var u = (i + 0.5) / 10; D.push({ g: box(0.15, 0.15, 0.02), m: M(o[0] - h + 2 * h * u, SG.y + 0.02, o[1] + h + 0.012, 0, 0, K4), c: [VC.yellow, VC.red, VC.blueL, VC.cream, VC.moss][i % 5] }); }
+      [-1, 1].forEach(function (sg) { var px = o[0] + sg * (h + 0.25), pz = o[1] + h + 0.2; D.push({ g: box(0.07, 1.1, 0.07), m: M(px, 0.55, pz), c: VC.iron }, { g: box(0.16, 0.18, 0.16), m: M(px, 1.19, pz), c: PAL.amber[3] }, { g: box(0.2, 0.04, 0.2), m: M(px, 1.3, pz), c: VC.iron }); });
+    }
+    function vilNpcApply() {   /* VIL.want → 메시 (바뀐 것만 다시 굽는다). 마을이 아직 안 지어졌으면 기억만 해 둔다 */
+      if (!VIL.built) return 0;
+      var seen = {}, n = 0;
+      VIL.want.forEach(function (w) {
+        if (vilIsExtra(w.id) || (w.room && w.room !== 'hall' && VILLAGE.ROOMS[w.room].slots[w.slot])) { if (!seen['x' + w.id]) { seen['x' + w.id] = true; n++; } return; }   /* 심사 · 경쟁 문어는 공연장 방 안 (vilHallNpc) · room / slot 을 준 문어는 그 방 안 (vilRoomGuests) */
+        var sp = vilNpcSpot(w.id); if (!sp || seen[w.id]) return; seen[w.id] = true; n++;
+        var key = w.color + '|' + w.hat + '|' + (w.pose === 'sleep'), o = VIL.npcs[w.id];
+        if (o && o.key === key) { o.pose = w.pose; o.y = sp.y; o.m.position.set(sp.x, sp.y, sp.z); o.m.rotation.y = sp.face; o.f = -1; return; }   /* 같은 몸: 자리 · 자세만 다시 */
+        if (o) { VIL.g.remove(o.m); o.m.geometry.dispose(); }
+        var m = new T.Mesh(vilOctGeo(w.color, w.hat, w.pose === 'sleep'), lambert), q = [sp.x, sp.z], R = VIL.R; m.receiveShadow = true;
+        var gy = sp.y; m.position.set(q[0], gy, q[1]); m.rotation.y = sp.face; m.scale.set(R, R, R); m.name = 'npc-' + w.id; VIL.g.add(m);
+        VIL.npcs[w.id] = { m: m, key: key, pose: w.pose, y: gy, ph: hash('npc' + w.id) % 100 / 100, f: -1 };
+      });
+      Object.keys(VIL.npcs).forEach(function (id) { if (!seen[id]) { var o = VIL.npcs[id]; VIL.g.remove(o.m); o.m.geometry.dispose(); delete VIL.npcs[id]; if (VIL.marks[id]) VIL.marks[id].visible = false; } });
+      Object.keys(VIL.spotRef || {}).forEach(function (id) { var o = VIL.npcs[id], r = VIL.spotRef[id]; r.on = !!o; if (o) { r.x = o.m.position.x; r.z = o.m.position.z; r.y = o.y + 0.35; } });   /* 집 문어 단추: 밖에 있을 때만 · 그려진 자리 위 (바닷가는 모래가 0.6 m 낮다 — 11-28 검토: 단추가 문어보다 22 px 위에 떠 있었다) */
+      vilNpcPose(true); dither.still = 0; return n;
+    }
+    /* 11-24 문어 집 시간표: sleep-1 ~ 4 에 room · slot 이 없으면 장면의 시각 (st.hour) 으로 집 안 (저녁 식탁 · 밤 침대) 이나 밖 (낮) 에 둔다 (VILLAGE.where). 시각이 시간표의 칸을 넘으면 다시 놓는다 (vilFrameStep) */
+    function vilSchedKey() { return ['sleep-1', 'sleep-2', 'sleep-3', 'sleep-4'].map(function (id) { var w = VILLAGE.where(id, st.hour); return w.home ? w.slot : 'out'; }).join(); }
+    function vilSchedule(list) {
+      return list.map(function (w) {
+        if (!w || !VILLAGE.HOMES[w.id] || w.room) return w;
+        var h = VILLAGE.where(w.id, st.hour); if (!h.home) return w;
+        var o = {}; Object.keys(w).forEach(function (k) { o[k] = w[k]; }); o.room = h.room; o.slot = h.slot; o.pose = h.pose; return o;
+      });
+    }
+    function vilHomeOpen(room) {   /* 문 톡: 그 집의 문어가 집에 있나 → { open, line } (미용실 · 가게는 늘 열림) */
+      var id = VILLAGE.homeOf(room); if (!id) return { open: !!VILLAGE.ROOMS[room], line: '' };
+      var w = null; (VIL.want || []).forEach(function (q) { if (q.id === id) w = q; });
+      var home = w ? w.room === room : VILLAGE.where(id, st.hour).home;
+      return { open: home, line: home ? '' : VILLAGE.lockedLine(id), id: id };
+    }
+    /* npcSet(list, opt) — list = [{ id, color, hat, pose, room?, slot? }] → 그린 수. 마을 문어 (가게 셋 · 집 넷 · 미용사) 와 콘테스트 문어 (judge0..2 · rival0..2) 는 따로 기억한다:
+         · 마을 문어가 든 목록 (빈 목록 포함) = 마을 쪽을 그 목록으로 갈아 끼운다 (없는 문어는 지운다). 콘테스트 문어가 하나도 없으면 그 여섯은 그대로 둔다 (갈래 N 의 목록이 콘테스트를 지우지 않게)
+         · 콘테스트 문어만 든 목록 = 그 여섯만 갈아 끼우고 마을은 그대로 둔다 (11-28 독립 검토: 공연장에서 여섯만 보내면 마을 · 집 · 미용사가 다음 시간 칸까지 통째로 비었다)
+         · { all: true } = 둘 다 그 목록으로 (빈 목록이면 다 지운다) · { extras: true } = 콘테스트 문어만 그 목록으로 (빈 목록이면 여섯만 지우고 마을은 그대로)
+       마을 쪽은 받은 그대로 (VIL.rawList) 두었다가 시간표 (vilSchedule) 를 얹어 그린다 — 시간 칸이 바뀌면 마을 쪽만 다시 얹는다 (vilNpcResched: 콘테스트 문어의 자세 · 자리는 건드리지 않는다) */
+    function vilNpcKnown(w) { return !!w && (!!VILLAGE.npc(w.id) || vilIsExtra(w.id) || w.id === 'stylist'); }
+    function vilNpcNorm(w) {
+      return { id: String(w.id), room: VILLAGE.ROOMS[w.room] ? String(w.room) : null, slot: w.slot ? String(w.slot) : null, color: /^#[0-9a-f]{6}$/i.test(w.color || '') ? String(w.color).toLowerCase() : '#d9694f', hat: VILLAGE.HATS.indexOf(w.hat) >= 0 ? w.hat : 'none', pose: w.pose === 'sleep' ? 'sleep' : w.pose === 'sit' ? 'sit' : 'stand' };
+    }
+    function vilNpcResched() {   /* 마을 쪽 want 를 받은 목록 + 지금 시각의 시간표로 다시 만들어 그린다 */
+      VIL.schedKey = vilSchedKey();
+      VIL.want = VIL.want.filter(function (w) { return vilIsExtra(w.id); }).concat(vilSchedule(VIL.rawList || []).map(vilNpcNorm));
+      Object.keys(VR.rooms).forEach(function (k) { vilRoomNpc(k); vilRoomGuests(k); }); vilHallNpc();   /* 방 안의 가게 문어 · 손님 문어 · 공연장의 문어도 */
+      return VIL.built ? vilNpcApply() : VIL.want.length;
+    }
+    function vilNpcSet(list, opt) {
+      if (!VIL.on) return 0;
+      var arr = (Array.isArray(list) ? list : []).filter(vilNpcKnown), xs = arr.filter(function (w) { return vilIsExtra(w.id); }), vs = arr.filter(function (w) { return !vilIsExtra(w.id); });
+      var all = !!(opt && opt.all), ex = !all && !!(opt && opt.extras), xOnly = ex || (!all && xs.length > 0 && vs.length === 0);
+      if (all || ex || xs.length) VIL.want = VIL.want.filter(function (w) { return !vilIsExtra(w.id); }).concat(xs.map(vilNpcNorm));   /* 콘테스트 문어를 갈아 끼운다 */
+      if (!xOnly) VIL.rawList = vs.slice();
+      return vilNpcResched();
+    }
+    function vilNpcPose(force) {   /* 두 프레임 몸짓 (아트 픽셀 한 칸씩만): 선 문어 = 0.8 s 마다 한 칸 까딱 · 잠든 문어 = 납작하게 누워 1.6 s 마다 숨. 모션 감소면 멈춘 채 */
+      var R = VIL.R;
+      Object.keys(VIL.npcs).forEach(function (id) {
+        var o = VIL.npcs[id], per = o.pose === 'sleep' ? 1.6 : 0.8, f = st.reduced ? 0 : Math.floor(VIL.t / per + o.ph) % 2;
+        if (!force && f === o.f) return; o.f = f;
+        if (o.pose === 'sleep') { o.m.scale.set(R * 1.08, R * (f ? 0.8 : 0.76), R * 1.08); o.m.position.y = o.y; }
+        else if (o.pose === 'sit') { o.m.scale.set(R, R * 0.9, R); o.m.position.y = o.y - 0.06; }   /* 앉음 (심사석): 조금 낮게 · 가만히 */
+        else { o.m.scale.set(R, R, R); o.m.position.y = o.y + (f ? PX : 0); }
+        var mk = VIL.marks[id]; if (mk && mk.visible) mk.position.y = o.y + (o.pose === 'sleep' ? 0.92 : 1.02) + (f ? PX : 0);
+        dither.still = 0;
+      });
+    }
+    function vilNpcMark(id, on) {   /* 문어 머리 위 작은 표시 (노란 마름모 하나 — 글자 · 기분 그림 아님) */
+      if (!VIL.built) return false;
+      var o = VIL.npcs[id], mk = VIL.marks[id];
+      if (!on || !o) { if (mk) mk.visible = false; dither.still = 0; return false; }
+      if (!mk) {   /* 차양 · 지붕 밑에 선 문어의 표시도 보이게 깊이 검사 없이 맨 나중에 그린다 (재질 종류는 창 유리와 같은 MeshBasic) */
+        if (!VIL.markMat) VIL.markMat = keep(new T.MeshBasicMaterial({ color: C(VC.yellow), depthTest: false, depthWrite: false }));
+        mk = VIL.marks[id] = vilMesh([{ g: box(0.12, 0.12, 0.12), m: M(0, 0, 0, K_MARK, 0, K_MARK), c: VC.yellow }], VIL.markMat); mk.renderOrder = 5; VIL.g.add(mk);
+      }
+      mk.position.set(o.m.position.x, o.y + (o.pose === 'sleep' ? 0.92 : 1.02), o.m.position.z); mk.visible = true; o.f = -1; vilNpcPose(false); dither.still = 0; return true;
+    }
+    var K_MARK = Math.PI / 4;
+
+    /* ── 카페 자리 (계약 C6): 첫 식탁의 길 쪽 걸상 옆까지 걷고 → 폴짝 앉아 식탁 쪽을 본다. 스틱을 밀면 일어난다 (소파 · 놀이방 식탁과 같은 규칙).
+       앉고 일어날 때 document 에 'ppol:cafe-seat' ({ detail: { on } }) 를 쏜다 — 카페 갈래가 스틱으로 일어난 것도 알 수 있게 ── */
+    function vilCafeIn() { return PL.place === 'inside' && vilRoomKey() === 'cafe' && !!VR.rooms.cafe; }   /* 카페 방 안인가 (그러면 자리 · 잔은 방 안의 것) */
+    function vilCafeOk() { return vilCafeIn() ? PLACE.vis === 'inside' : VIL.built && PL.place === 'yard' && PLACE.vis === 'yard'; }
+    function vilCupM() { return VIL.cafe.inside ? (VR.rooms.cafe && VR.rooms.cafe.cup) : VIL.cup; }
+    function vilSeatPts() {
+      if (VIL.cafe.seated ? VIL.cafe.inside : vilCafeIn()) { var S = VILLAGE.ROOMS.cafe.slots; return { aisle: new T.Vector3(S.aisle[0], 0, S.aisle[2]), seat: new T.Vector3(S.seat[0], S.seat[1] - 0.24, S.seat[2]), yaw: S.seat[3], inside: true }; }
+      var s = VILLAGE.CAFE.seat, a = vilXZ(s.aisle[0], s.aisle[1]), q = vilXZ(s.s, s.t); return { aisle: new T.Vector3(a[0], 0, a[1]), seat: new T.Vector3(q[0], VILLAGE.CAFE.stoolH - 0.24, q[1]), yaw: s.face, inside: false };
+    }
+    function vilSeatEmit(on) { try { document.dispatchEvent(new CustomEvent('ppol:cafe-seat', { detail: { on: !!on } })); } catch (e) { /* noop */ } }
+    function vilSeatSync() {   /* 앉은 표시가 실제와 어긋났으면 맞춘다 (방을 옮김 · 스틱으로 일어남) */
+      var V = VIL.cafe; if (!V.seated) return;
+      if (PL.hop && !PL.hop.cafe && !PL.hop.sit) { PL.hop.b.copy(vilSeatPts().aisle); PL.hop.cafe = true; }   /* 스틱으로 일어난 폴짝 (소파 쪽으로 뛰게 돼 있다) → 걸상 옆 통로로 */
+      var here = V.inside ? 'inside' : 'yard', at = PL.place === here && (!V.inside || vilRoomKey() === 'cafe');
+      if (PL.sit && (at ? !!PL.walking || Math.hypot(PL.pos.x - vilSeatPts().seat.x, PL.pos.z - vilSeatPts().seat.z) > 0.5 : (PL.place === 'yard' || PL.place === 'inside') && !(VIL.salon && VIL.salon.seated))) vilUnseat(!at && V.inside);   /* 앉은 채 걷기 시작했다 · 다른 데로 옮겨졌다 (표지판 빠른 이동) · 방을 나갔다 (모션 감소: 한 번에 바깥) → 서 있는 몸으로 */
+      if (PL.place !== here || (V.inside && vilRoomKey() !== 'cafe') || (!PL.sit && !(PL.hop && PL.hop.sit))) { var cm = vilCupM(); V.seated = false; if (cm) cm.visible = false; dither.still = 0; vilSeatEmit(false); }
+    }
+    function vilCafeSit(on) {   /* true → Promise<앉았나> · false → Promise<일어났나> */
+      var V = VIL.cafe; vilSeatSync();
+      if (on === false) {
+        if (!V.seated) return Promise.resolve(false);
+        return new Promise(function (res) {
+          var P = vilSeatPts(), cm0 = vilCupM();
+          V.seated = false;   /* 먼저 내린다: 앉으려 뛰던 중이면 그 앉기 약속은 false 로 풀린다 (아래 done) */
+          if (PL.hop) { var h0 = PL.hop; PL.pos.copy(h0.b); PL.sit = h0.sit; PL.hop = null; if (h0.done) h0.done(); }
+          if (cm0) cm0.visible = false; PL.sit = false; dither.still = 0; vilSeatEmit(false);
+          if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.aisle); plSnap(); res(true); return; }
+          PL.hop = { t: 0, a: PL.pos.clone(), b: P.aisle, sit: false, cafe: true, done: function () { res(true); } };
+        });
+      }
+      if (V.seated || !vilCafeOk() || PL.sit || PL.hop || !playerInputAllowed()) return Promise.resolve(false);
+      var P = vilSeatPts(), here = PL.place;
+      return vilWalk(P.aisle, Math.atan2(P.seat.x - P.aisle.x, P.seat.z - P.aisle.z)).then(function (ok) {
+        if (!ok || PL.place !== here || !vilCafeOk() || PL_IN.v || PL.sit || PL.hop) return false;
+        PL.sitYaw = P.yaw; PL.faceCam = false; PL.wantYaw = P.yaw; V.seated = true; V.inside = P.inside;
+        /* 알림 (ppol:cafe-seat) 은 앉는 폴짝을 건 뒤에 — 알림을 받고 곧장 cafeCup · cafeSeated 를 부르면 vilSeatSync 가 '앉지도 뛰지도 않음' 으로 보고 내려 버렸다 (11-24 C) */
+        if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.seat); PL.sit = true; plSnap(); vilSeatEmit(true); return true; }
+        return new Promise(function (res) { PL.hop = { t: 0, a: PL.pos.clone(), b: P.seat, sit: true, cafe: true, done: function () { res(VIL.cafe.seated); } }; vilSeatEmit(true); });
+      });
+    }
+    function vilCafeCup(on) { vilSeatSync(); var cm = vilCupM(); if (!cm) return false; cm.visible = !!on && VIL.cafe.seated; dither.still = 0; return cm.visible; }
+
+    /* ── 누르는 자리까지 걷기: 단추를 먼 데서 누르면 (1.5 m 밖) 그 자리 앞 (stand) 까지 걸어간 뒤 누른다 — js/app.js 의 [7-V] 가 click 을 잡아 villageGo 를 부른다 ── */
+    function vilSpotPts(key) { var sp = VIL.on ? VILLAGE.spot(key) : null; if (!sp && VIL.on) VILLAGE.DOORS.forEach(function (d) { if (d.key === key || d.btn === key) sp = d; }); if (!sp) return null; var q = vilXZ(sp.s, sp.t), a = vilXZ(sp.stand[0], sp.stand[1]); return { sp: sp, x: q[0], z: q[1], ax: a[0], az: a[1] }; }
+    function vilCols() {   /* 길 찾기가 돌아갈 것 = 내 캐릭터가 바깥에서 부딪히는 것 모두 (plBoxes · plCircles 의 바깥 몫과 같은 목록: 마당 네모의 것 + 등록부의 숲길 · 마을 · 해변 — 몸 반지름은 VILLAGE.route 가 더한다) */
+      var cs = [], bs = [];
+      if (YROOM) { YROOM.circles.forEach(function (c) { cs.push(c); }); YROOM.boxes.forEach(function (q) { bs.push([q[0], q[2], q[1], q[3]]); }); }
+      if (YARD_WIDE && !VIL.stub) { WIDE_REG.circles.forEach(function (c) { cs.push(c); }); WIDE_REG.boxes.forEach(function (b) { bs.push(b); }); }   /* 스텁은 등록부를 마당 목록에 이미 부었다 */
+      return { circles: cs, boxes: bs };
+    }
+    function vilWalk(to, face, skip) {   /* 마을 안 혼자 걷기: VILLAGE.route 의 점들을 차례로 → Promise<끝까지 갔나>. 스틱으로 끊기면 false 로 푼다 (plWalkTo 는 끊긴 걸음을 풀지 않는다) */
+      var k = Math.SQRT1_2, here = PL.place, s0 = (PL.pos.x + PL.pos.z) * k, t0 = (PL.pos.x - PL.pos.z) * k, pts, gate = null;
+      if (here === 'inside') pts = [[0, 0]];   /* 방 안에선 곧장 (그 안의 길 찾기는 갈래 W 의 걷기가 한다) */
+      else {   /* 바깥은 등록부의 것까지 돌아서 (11-28 검증: 마을 것만 돌아가 숲길 벤치 · 해변 바위 옆에서 섰다) */
+        if (!VILLAGE.inWalk(s0, t0, 0)) {   /* 마당 네모 안 (화면을 밀어 놓고 마을 단추를 누른 때): 먼저 울타리 문 안쪽 — 숲길이 시작하는 자리 — 까지 (마당 안의 길은 갈래 W 의 걷기가 집 · 밭 · 나무를 돌아간다), 거기서부터 마을 길 */
+          var gs = VILLAGE.WALK[0].s0 + 0.1, gq = wideXZ(gs, 0); if (!yardOut(gq[0], gq[1])) gate = [gs, 0];
+        }
+        pts = VILLAGE.route(gate || [s0, t0], [(to.x + to.z) * k, (to.x - to.z) * k], skip || null, vilCols()); if (gate) pts.unshift(gate);
+      }
+      var leg = function (i) {
+        var last = i === pts.length - 1, q = last ? [to.x, to.z] : wideXZ(pts[i][0], pts[i][1]), p = plWalkTo(new T.Vector3(q[0], 0, q[1]), last ? face : null), w = PL.walking;
+        var pr = !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); });
+        return pr.then(function (r) {
+          var late = VIL.walkLate; VIL.walkLate = false;
+          if ((r === null && !late) || PL.place !== here || PL_IN.v) { VIL.walkEnd = 'cut'; return false; }   /* 스틱으로 끊었거나 자리를 옮겼다 */
+          if (late || last) { var d = Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z); VIL.walkEnd = d <= 0.3 ? 'ok' : 'far'; VIL.walkD = d; return d <= 0.3; }
+          return leg(i + 1);
+        });
+      };
+      var len = 0; for (var j = 1; j < pts.length; j++) len += Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1]);
+      len += pts.length ? Math.hypot(PL.pos.x - wideXZ(pts[0][0], pts[0][1])[0], PL.pos.z - wideXZ(pts[0][0], pts[0][1])[1]) : 0;
+      VIL.walkEnd = ''; VIL.walkLate = false; VIL.walkDue = VIL.t + len / 1.8 * 1.6 + 2.5;   /* 11-22 리드 검토: 걷기가 가로등 둘레 같은 데 걸려 끝나지 않으면 (15 s 넘게 'walking') 이 시간에 끊는다 — vilFrameStep */
+      PL.camGap = Math.max(1.4, S.rw / 2 / S.N - 0.8);   /* 이 걸음 동안 화면이 따라온다 (plFollow 의 혼자 걷기 몫): 스틱으로 걸을 때처럼 캐릭터를 화면 가운데 0.8 m 안에 둔다 — 1.4 m 만 주면 화면 가장자리에 붙어서야 따라와 먼 자리로 걸을 때 캐릭터가 화면 밖에 있었다 */
+      return leg(0).then(function (ok) { VIL.walkDue = 0; if (!PL.walking) PL.camGap = 0; return ok; });
+    }
+    function vilNear(key) {
+      if (PL.place === 'inside') return true;   /* 방 안의 자리는 갈래 W 의 방 배관이 걸어가서 누른다 — 여기선 막지 않는다 (같은 단추를 방 안팎에서 쓴다) */
+      var p = vilSpotPts(key); if (!p || !VIL.built || PL.place !== 'yard') return false;
+      if (VIL.cafe.seated && /^(cafe|npcCafe)/.test(p.sp.key)) return true;   /* 카페에 앉은 채로는 카페 것을 그 자리에서 */
+      return Math.hypot(PL.pos.x - p.x, PL.pos.z - p.z) <= 1.5 || Math.hypot(PL.pos.x - p.ax, PL.pos.z - p.az) <= 0.45;
+    }
+    function vilGo(key) {   /* → Promise<가까이 섰나> (걷다가 스틱을 밀어 끊으면 풀리지 않거나 false) */
+      var p = vilSpotPts(key); vilSeatSync();
+      if (!p || !VIL.built || PL.place !== 'yard' || PLACE.vis !== 'yard') return Promise.resolve(false);   /* 마을이 없는 마당 (wide=0) 에선 아무 데도 가지 않는다 */
+      if (vilNear(key)) return Promise.resolve(true);
+      if (!playerInputAllowed() && !VIL.cafe.seated) return Promise.resolve(false);
+      var go = function (again) {
+        if (PL.place !== 'yard' || PL.sit || PL.hop) return false;
+        var x0 = PL.pos.x, z0 = PL.pos.z;
+        return vilWalk(new T.Vector3(p.ax, 0, p.az), Math.atan2(p.x - p.ax, p.z - p.az)).then(function (ok) {
+          if (ok || VIL.walkEnd === 'cut' || PL.place !== 'yard') return ok;
+          if (vilNear(key)) return true;   /* 조금 모자라게 섰어도 누를 수 있는 거리 (1.5 m) 면 누른다 */
+          if (!again && Math.hypot(PL.pos.x - x0, PL.pos.z - z0) > 0.3 && playerInputAllowed() && !PL.sit && !PL.hop) { VIL.walkAgain = (VIL.walkAgain || 0) + 1; return go(true); }   /* 11-28 검증: 걸려서 섰으면 선 자리에서 길을 한 번 다시 잡는다 (다시 누르면 가던 자리 — 한 번 누른 것으로 가게) */
+          if (!p.sp.room) return false;   /* 11-22 리드 검토: 문은 누르면 늘 들어간다 — 끊지 않았으면 (막혀 조금 모자라게 섰어도 · 시간이 다 됐어도) 그 자리에서 문을 연다 */
+          return Math.hypot(PL.pos.x - p.ax, PL.pos.z - p.az) <= 4 || Math.hypot(PL.pos.x - p.x, PL.pos.z - p.z) <= 4;
+        });
+      };
+      return VIL.cafe.seated ? vilCafeSit(false).then(function () { return go(false); }) : Promise.resolve(go(false));
+    }
+    function vilFrameStep(dt) { if (!VIL.built) return; VIL.t += dt; if (VIL.rawList && VIL.schedKey !== vilSchedKey()) vilNpcResched(); if (VIL.walkDue && VIL.t > VIL.walkDue && PL.walking) { VIL.walkDue = 0; VIL.walkLate = true; var w = PL.walking; plStop(); if (PL.walking === w) w.cancel(); } vilSeatSync(); vilSalonSync(); vilLight(false); vilNpcPose(false); }
+
+    /* ── 시험 스텁 (갈래 W 가 합쳐지기 전에만 쓴다): 걷는 띠와 땅을 광장까지 늘리고, 마당 그룹에 builders 를 부르고, 부딪힘을 마당 목록에 더한다. W 의 배관이 이미 지었으면 아무것도 하지 않는다.
+       debugVillageFrame(dt) = frame 콜백 + 단추를 자리 위에 놓기 (W 의 배관이 하는 일의 가장 작은 흉내) ── */
+    function vilStub() {
+      if (!VIL.on || !YARD_WIDE || typeof wideRegSync === 'function') return false;   /* 갈래 W 의 배관이 있으면 스텁은 아무것도 하지 않는다 */
+      if (VIL.built && !VIL.stub) return false;
+      if (!VIL.built) {
+        VIL.stub = true; WIDE.S1 = 46; WIDE.T = 8; WIDE.G1 = 48; WIDE.PAN_S1 = 60; WIDE.PAN_T = 12;
+        if (!YROOM) buildYard();
+        WIDE_REG.builders.forEach(function (b) { b(YROOM.g); });
+        WIDE_REG.boxes.forEach(function (b) { YROOM.boxes.push([b[0], b[2], b[1], b[3]]); }); WIDE_REG.circles.forEach(function (c) { YROOM.circles.push(c); });
+      }
+      return true;
+    }
+    function vilStubFrame(dt) {
+      if (!VIL.stub) return null;
+      WIDE_REG.frame.forEach(function (f) { f(+dt || 0, time); });
+      var out = {}, v = new T.Vector3(), on = PLACE.vis === 'yard';
+      WIDE_REG.spots.forEach(function (sp) {
+        var el = document.getElementById(sp.btn); if (!el) return;
+        v.set(sp.x, sp.y, sp.z).project(camera);
+        var x = S.offX + (v.x * 0.5 + 0.5) * S.cw, y = S.offY + (1 - (v.y * 0.5 + 0.5)) * S.ch, vis = on && x > 22 && y > 22 && x < S.offX + S.cw - 22 && y < S.offY + S.ch - 22;
+        el.hidden = !vis; if (vis) { el.style.left = Math.round(x - 22) + 'px'; el.style.top = Math.round(y - 22) + 'px'; el.style.width = el.style.height = '44px'; el.dataset.spot = 'over'; }
+        out[sp.btn] = vis ? [Math.round(x), Math.round(y)] : null;
+      });
+      return out;
+    }
+    /* ───────── 11-21 밤 — 들어가는 방 (계약 C9 · C10, 주인: "옷가게 맵을 아예 따로 만들고 … 지금은 그냥 형식만 띡 올린 느낌"). 자리 표는 VILLAGE.ROOMS.
+       방 좌표: 원점 = 바닥 가운데 · 뒷벽 = −x · −z · 문은 앞벽 (+z). 방을 들이고 내는 일 (걷는 곳 · 카메라 · 문 연출 · 벽 자르기) 은 갈래 W 의 ROOM_REG 배관 몫이고,
+       여기선 build(g) 가 바닥 · 네 벽 · 가구를 그 그룹에 지어 주고 { cuts } (벽마다 온 것 + 무릎 높이 쌍둥이 + 바깥 법선) 를 돌려준다. 소품은 저마다 제 모양대로 만든다 (하나를 다른 것인 척 돌려 쓰지 않는다 — 주인) ───────── */
+    var VR = { rooms: {}, npc: {}, cur: null, hallNpc: {}, hallAt: {}, dressOn: false };
+    function vilRoomShell(key, o) {   /* 바닥 널 · 네 벽 (널 줄 + 아래 허리 판 + 걸레받이) · 앞벽의 문 자리 → 목록 묶음 */
+      var R = VILLAGE.ROOMS[key], hx = R.half[0], hz = R.half[1], H = R.wallH, P = { floor: [], nx: [], nz: [], px: [], pz: [], glass: [], lamp: [] }, i, k;
+      var NB = Math.round(2 * hx / 0.212), pitch = 2 * hx / NB;
+      P.floor.push({ g: box(2 * hx, 0.1, 2 * hz), m: M(0, -0.05, 0), c: MAT.floorSeam });
+      for (i = 0; i < NB; i++) {
+        var fx = -hx + pitch * (i + 0.5), fz = -hz; k = 0;
+        while (fz < hz) {
+          var len = 0.9 + (hash(key + 'fl' + i + '_' + k) % 100) / 100 * 1.2, last = fz + len > hz - 0.45; if (last) len = hz - fz;
+          P.floor.push({ g: box(pitch - FLOOR_SEAM, 0.02, last ? len : len - FLOOR_SEAM), m: M(fx, -0.006, fz + (last ? len : len - FLOOR_SEAM) / 2), c: (i + k) % 2 ? o.fa : o.fb });
+          fz += len; k++;
+        }
+      }
+      var SW = 2 * hx + 0.3, SD = 2 * hz + 0.3;
+      P.floor.push({ g: box(SW, 6 * PX, SD), m: M(0, -3 * PX - 0.1, 0), c: MAT.slabTop }, { g: box(SW + 0.02, PX, SD + 0.02), m: M(0, -6.5 * PX - 0.1, 0), c: MAT.slabLine }, { g: box(SW, 6 * PX, SD), m: M(0, -10 * PX - 0.1, 0), c: MAT.slabBase });
+      var rows = Math.round(H / 0.3), rh = H / rows, dw = 0.84, dh = 1.8, dx = R.door[0];
+      for (i = 0; i < rows; i++) {
+        var yc = (i + 0.5) * rh, low = yc < 0.62, ca = low ? o.wain : (i % 2 ? o.wa : o.wb), cb = low ? o.wain : (i % 2 ? o.wb : o.wa);
+        P.nx.push({ g: box(0.12, rh, 2 * hz + 0.24), m: M(-hx - 0.06, yc, 0), c: ca }); P.px.push({ g: box(0.12, rh, 2 * hz + 0.24), m: M(hx + 0.06, yc, 0), c: ca });
+        P.nz.push({ g: box(2 * hx, rh, 0.12), m: M(0, yc, -hz - 0.06), c: cb });
+        if (yc < dh) { var l0 = -hx, l1 = dx - dw / 2, r0 = dx + dw / 2, r1 = hx; if (l1 > l0) P.pz.push({ g: box(l1 - l0, rh, 0.12), m: M((l0 + l1) / 2, yc, hz + 0.06), c: cb }); if (r1 > r0) P.pz.push({ g: box(r1 - r0, rh, 0.12), m: M((r0 + r1) / 2, yc, hz + 0.06), c: cb }); }
+        else P.pz.push({ g: box(2 * hx, rh, 0.12), m: M(0, yc, hz + 0.06), c: cb });
+        if (i && !low) { P.nx.push({ g: box(0.13, 0.03, 2 * hz), m: M(-hx - 0.055, i * rh, 0), c: o.seam }); P.nz.push({ g: box(2 * hx, 0.03, 0.13), m: M(0, i * rh, -hz - 0.055), c: o.seam }); }
+      }
+      /* 허리 판 위 띠 · 걸레받이 (보이는 두 뒷벽) · 문틀 */
+      P.nx.push({ g: box(0.05, 0.06, 2 * hz), m: M(-hx + 0.02, 0.62, 0), c: o.trim }, { g: box(0.04, 0.1, 2 * hz), m: M(-hx + 0.015, 0.05, 0), c: o.trim });
+      P.nz.push({ g: box(2 * hx, 0.06, 0.05), m: M(0, 0.62, -hz + 0.02), c: o.trim }, { g: box(2 * hx, 0.1, 0.04), m: M(0, 0.05, -hz + 0.015), c: o.trim });
+      [-dw / 2 - 0.05, dw / 2 + 0.05].forEach(function (d) { P.pz.push({ g: box(0.1, dh + 0.1, 0.16), m: M(dx + d, (dh + 0.1) / 2, hz + 0.06), c: o.trim }); });
+      P.pz.push({ g: box(dw + 0.2, 0.1, 0.16), m: M(dx, dh + 0.05, hz + 0.06), c: o.trim });
+      P.floor.push({ g: box(dw, 0.02, 0.5), m: M(dx, 0.008, hz - 0.3), c: o.mat || VC.rose }, { g: box(dw - 0.14, 0.022, 0.36), m: M(dx, 0.009, hz - 0.3), c: VC.cream });   /* 문 앞 발판 */
+      P.R = R; P.hx = hx; P.hz = hz; P.H = H; return P;
+    }
+    function vilRoomWin(P, wall, c0, y, w, h, sea) {   /* 뒷벽의 창: 틀 + 창살 + 창턱. 유리는 낮의 하늘빛 (glass 목록 — 시각대를 따른다). sea = 아래 반은 바다 띠 */
+      var L = P[wall], nx = wall === 'nx', a = nx ? -P.hx : -P.hz, B = function (list, wd, ht, dp, off, yy, along, c2) { list.push({ g: nx ? box(dp, ht, wd) : box(wd, ht, dp), m: nx ? M(a + off, yy, along) : M(along, yy, a + off), c: c2 }); };
+      B(P.glass, w, h, 0.02, 0.012, y, c0, VC.sky);
+      if (sea) { B(L, w, h * 0.34, 0.03, 0.016, y - h * 0.33, c0, VC.blue); B(L, w, 0.04, 0.032, 0.017, y - h * 0.15, c0, VC.blueL); B(L, w * 0.5, 0.03, 0.032, 0.017, y - h * 0.3, c0 - w * 0.12, VC.sky); B(L, w * 0.3, 0.03, 0.032, 0.017, y - h * 0.42, c0 + w * 0.2, VC.sky); }
+      B(L, w + 0.16, 0.08, 0.07, 0.035, y + h / 2 + 0.04, c0, VC.cream); B(L, w + 0.16, 0.08, 0.07, 0.035, y - h / 2 - 0.04, c0, VC.cream);
+      [-w / 2 - 0.04, w / 2 + 0.04].forEach(function (d) { B(L, 0.08, h, 0.07, 0.035, y, c0 + d, VC.cream); });
+      B(L, 0.04, h, 0.05, 0.03, y, c0, VC.cream); if (!sea) B(L, w, 0.04, 0.05, 0.03, y, c0, VC.cream);
+      B(L, w + 0.26, 0.05, 0.16, 0.08, y - h / 2 - 0.1, c0, VC.woodL);
+    }
+    function vilRoomLamp(P, x, z) {   /* 천장에서 내려온 갓등 (줄 + 갓 + 전구 — 밤에 전구가 켜진다) */
+      var L = P.floor; L.push({ g: box(0.02, P.H - 1.72, 0.02), m: M(x, (P.H + 1.72) / 2, z), c: VC.iron }, { g: new T.CylinderGeometry(0.08, 0.22, 0.16, 8), m: M(x, 1.66, z), c: VC.cream }, { g: new T.CylinderGeometry(0.23, 0.23, 0.02, 8), m: M(x, 1.575, z), c: VC.dusk }, { g: new T.SphereGeometry(0.06, 6, 5), m: M(x, 1.55, z), c: PAL.amber[3] });
+      P.lamp.push({ g: new T.SphereGeometry(0.07, 6, 5), m: M(x, 1.55, z), c: VC.yellow });
+    }
+    function vilRug(L, x, z, w, d, a, b, c2) { L.push({ g: box(w, 0.016, d), m: M(x, 0.008, z), c: a }, { g: box(w - 0.2, 0.018, d - 0.2), m: M(x, 0.009, z), c: b }, { g: box(w - 0.5, 0.02, d - 0.5), m: M(x, 0.01, z), c: c2 }); for (var i = 0; i < 9; i++) { var fx = x - w / 2 + w * (i + 0.5) / 9; L.push({ g: box(0.04, 0.012, 0.07), m: M(fx, 0.006, z - d / 2 - 0.03), c: b }, { g: box(0.04, 0.012, 0.07), m: M(fx, 0.006, z + d / 2 + 0.03), c: b }); } }
+    function vilPlant(L, x, z, h) {   /* 잎이 넓은 화분 (토분 + 줄기 + 잎 여섯 장 — 잎은 납작한 판) */
+      L.push({ g: new T.CylinderGeometry(0.17, 0.13, 0.26, 8), m: M(x, 0.13, z), c: VC.red }, { g: new T.CylinderGeometry(0.185, 0.185, 0.04, 8), m: M(x, 0.27, z), c: VC.roofR }, { g: new T.CylinderGeometry(0.15, 0.15, 0.02, 8), m: M(x, 0.285, z), c: VC.dark }, { g: box(0.035, h, 0.035), m: M(x, 0.28 + h / 2, z), c: VC.mossD });
+      for (var i = 0; i < 6; i++) { var a = i / 6 * Math.PI * 2 + 0.3, r = 0.2 + (i % 2) * 0.06, y = 0.36 + h * (0.35 + 0.11 * i); L.push({ g: box(0.26, 0.025, 0.13), m: M(x + Math.cos(a) * r, y, z + Math.sin(a) * r, 0, -a, 0.5), c: i % 2 ? VC.moss : VC.leaf }); }
+    }
+    function vilStool(L, x, z, c2) { L.push({ g: new T.CylinderGeometry(0.16, 0.16, 0.05, 8), m: M(x, 0.275, z), c: c2 }, { g: new T.CylinderGeometry(0.04, 0.06, 0.25, 6), m: M(x, 0.125, z), c: VC.woodD }, { g: new T.CylinderGeometry(0.12, 0.13, 0.02, 8), m: M(x, 0.01, z), c: VC.woodD }); }
+    function vilTable(L, x, z, r, h) { L.push({ g: new T.CylinderGeometry(r, r, 0.04, 10), m: M(x, h - 0.02, z), c: VC.woodL }, { g: new T.CylinderGeometry(r + 0.01, r + 0.01, 0.015, 10), m: M(x, h - 0.05, z), c: VC.woodD }, { g: new T.CylinderGeometry(0.05, 0.05, h - 0.06, 6), m: M(x, (h - 0.06) / 2, z), c: VC.woodD }, { g: new T.CylinderGeometry(0.16, 0.18, 0.04, 8), m: M(x, 0.02, z), c: VC.woodD }); }
+    function vilCounter(L, x0, x1, z, top, band) {   /* 뒷벽 앞 계산대 (x 로 긴 것, 깊이 0.5, 높이 0.52): 몸 널 + 윗판 + 앞 띠 + 문어 발판 */
+      var w = x1 - x0, xc = (x0 + x1) / 2;
+      L.push({ g: box(w, 0.5, 0.5), m: M(xc, 0.25, z), c: VC.woodB }, { g: box(w + 0.08, 0.04, 0.58), m: M(xc, 0.52, z), c: top }, { g: box(w, 0.1, 0.02), m: M(xc, 0.4, z + 0.26), c: band }, { g: box(w, 0.03, 0.022), m: M(xc, 0.1, z + 0.262), c: VC.woodD });
+      for (var i = 1; i < 4; i++) L.push({ g: box(0.03, 0.26, 0.022), m: M(x0 + w * i / 4, 0.23, z + 0.262), c: VC.woodD });
+    }
+    /* ── 옷가게 안: 마네킹 받침 넷과 걸린 값표 · 선 거울 · 계산대와 금전함 · 옷걸이 줄 · 천 두루마리 선반과 재단대 · 신발 벤치 · 깔개 · 갈아입는 칸 (커튼) · 창 ── */
+    function vilRoomClothes(P) {
+      var L = P.floor, R = P.R, S = R.slots, hx = P.hx, hz = P.hz, i;
+      vilRoomWin(P, 'nx', -0.3, 1.38, 1.1, 0.8, false);
+      vilRug(L, -0.5, 0.35, 2.8, 1.7, VC.blueD, VC.blue, VC.blueL);
+      ['mq0', 'mq1', 'mq2', 'mq3'].forEach(function (k, n) {   /* 받침 (둥근 단 두 겹) + 옆에 선 값표 걸이 (가는 대 + 끈 + 표) */
+        var q = S[k];
+        L.push({ g: new T.CylinderGeometry(0.3, 0.34, 0.04, 12), m: M(q[0], 0.02, q[2]), c: VC.woodD }, { g: new T.CylinderGeometry(0.12, 0.2, 0.05, 10), m: M(q[0], 0.06, q[2]), c: VC.woodB }, { g: new T.SphereGeometry(0.1, 8, 6), m: M(q[0], 0.09, q[2], 0, 0, 0, 1, 0.45, 1), c: VC.woodA },
+          { g: new T.CylinderGeometry(0.34, 0.31, 0.03, 12), m: M(q[0], 0.115, q[2]), c: VC.woodL }, { g: new T.CylinderGeometry(0.31, 0.31, 0.012, 12), m: M(q[0], 0.134, q[2]), c: VC.cream });   /* 돌림 나무 받침: 굽 · 목 · 둥근 마디 · 윗판 · 천 */
+        L.push({ g: box(0.03, 0.62, 0.03), m: M(q[0] + 0.36, 0.31, q[2] + 0.26), c: VC.iron }, { g: box(0.12, 0.03, 0.03), m: M(q[0] + 0.31, 0.62, q[2] + 0.26), c: VC.iron }, { g: box(0.012, 0.1, 0.012), m: M(q[0] + 0.26, 0.56, q[2] + 0.26), c: VC.cream },
+          { g: box(0.13, 0.17, 0.02), m: M(q[0] + 0.26, 0.43, q[2] + 0.26), c: VC.paper }, { g: box(0.03, 0.03, 0.022), m: M(q[0] + 0.26, 0.49, q[2] + 0.262), c: VC.dark }, { g: box(0.08, 0.02, 0.022), m: M(q[0] + 0.26, 0.41, q[2] + 0.262), c: [VC.red, VC.blue, VC.moss, VC.rose][n] });
+      });
+      /* 뒷벽 위 선반: 모자 상자 · 갠 옷 */
+      P.nz.push({ g: box(3.9, 0.04, 0.24), m: M(-0.7, 1.86, -hz + 0.12), c: VC.woodL }); [-2.4, -0.7, 1.0].forEach(function (x) { P.nz.push({ g: box(0.05, 0.14, 0.2), m: M(x, 1.78, -hz + 0.1), c: VC.woodD }); });
+      [[-2.2, VC.rose, 0], [-1.5, VC.cream, 1], [-0.6, VC.blueL, 0], [0.2, VC.yellow, 1], [0.9, VC.dusk, 0]].forEach(function (q) {
+        if (q[2]) { for (var j = 0; j < 3; j++) P.nz.push({ g: box(0.32, 0.05, 0.2), m: M(q[0], 1.905 + 0.05 * j, -hz + 0.13), c: j % 2 ? VC.cream : q[1] }); }
+        else P.nz.push({ g: new T.CylinderGeometry(0.15, 0.15, 0.14, 10), m: M(q[0], 1.95, -hz + 0.14), c: q[1] }, { g: new T.CylinderGeometry(0.16, 0.16, 0.04, 10), m: M(q[0], 2.03, -hz + 0.14), c: VC.cream }, { g: box(0.31, 0.03, 0.03), m: M(q[0], 1.96, -hz + 0.14), c: VC.woodD });
+      });
+      /* 계산대 (뒷벽 오른쪽) + 금전함 (서랍 · 숫자 판 · 손잡이) + 포장 종이 두루마리 + 리본 타래 */
+      vilCounter(L, -2.95, -1.55, -1.75, VC.woodL, VC.rose);   /* 계산대는 뒷벽 왼쪽 (문 가까이 — 들어서면 가게 문어가 화면에 든다) */
+      L.push({ g: box(0.34, 0.16, 0.3), m: M(-1.75, 0.62, -1.78), c: VC.slateD }, { g: box(0.3, 0.14, 0.12), m: M(-1.75, 0.75, -1.88, -0.4, 0, 0), c: VC.slateA }, { g: box(0.2, 0.05, 0.02), m: M(-1.75, 0.79, -1.75, -0.4, 0, 0), c: VC.cream }, { g: box(0.3, 0.04, 0.02), m: M(-1.75, 0.58, -1.625), c: VC.yellow }, { g: box(0.03, 0.12, 0.03), m: M(-1.6, 0.72, -1.8), c: VC.iron }, { g: new T.SphereGeometry(0.03, 5, 4), m: M(-1.6, 0.79, -1.8), c: VC.red });
+      L.push({ g: new T.CylinderGeometry(0.06, 0.06, 0.3, 8), m: M(-2.83, 0.6, -1.72, Math.PI / 2, 0, 0), c: VC.paper }, { g: new T.CylinderGeometry(0.02, 0.02, 0.36, 6), m: M(-2.83, 0.6, -1.72, Math.PI / 2, 0, 0), c: VC.woodD }, { g: new T.CylinderGeometry(0.05, 0.05, 0.05, 8), m: M(-1.95, 0.565, -1.6), c: VC.red }, { g: new T.CylinderGeometry(0.05, 0.05, 0.05, 8), m: M(-2.05, 0.565, -1.56), c: VC.blueL });   /* 11-24 리드 검토: 두루마리는 계산대 왼쪽 끝에 세로로 · 리본은 앞쪽 가장자리로 (가게 문어 얼굴 앞을 비운다) */
+      L.push({ g: box(0.5, S.keeper[1] - 0.04, 0.5), m: M(S.keeper[0], (S.keeper[1] - 0.04) / 2, S.keeper[2]), c: VC.woodA }, { g: box(0.52, 0.04, 0.52), m: M(S.keeper[0], S.keeper[1] - 0.06, S.keeper[2]), c: VC.woodD });   /* 가게 문어의 발판 (높이는 keeper 자리를 따른다 — 계산대 위로 얼굴이 나오게) */
+      /* 옷걸이 줄 (창 아래, 왼벽 따라): 발 둘 · 가로대 · 옷걸이에 걸린 옷 여섯 (어깨 + 몸 + 걸이 고리) */
+      [-0.9, 0.3].forEach(function (z) { L.push({ g: box(0.05, 1.05, 0.05), m: M(-2.72, 0.525, z), c: VC.iron }, { g: box(0.34, 0.04, 0.06), m: M(-2.72, 0.02, z), c: VC.iron }); });
+      L.push({ g: box(0.04, 0.04, 1.28), m: M(-2.72, 1.05, -0.3), c: VC.iron });
+      [VC.red, VC.cream, VC.blueL, VC.yellow, VC.moss, VC.dusk].forEach(function (c2, n) { var z = -0.8 + n * 0.2; L.push({ g: box(0.34, 0.4 + (n % 3) * 0.08, 0.05), m: M(-2.72, 0.76 - (n % 3) * 0.04, z), c: c2 }, { g: box(0.5, 0.09, 0.05), m: M(-2.72, 0.93, z), c: c2 }, { g: box(0.02, 0.07, 0.02), m: M(-2.72, 1.01, z), c: VC.slateA }); });
+      /* 선 거울 (왼벽 앞, +x 를 본다): 나무 틀 · 발 · 거울 면 (유리 목록 — 방의 빛을 따른다) */
+      var mz = S.mirror[2];
+      L.push({ g: box(0.06, 1.5, 0.66), m: M(-2.8, 0.83, mz), c: VC.woodA }, { g: box(0.3, 0.05, 0.7), m: M(-2.76, 0.04, mz), c: VC.woodD }, { g: box(0.07, 0.07, 0.72), m: M(-2.8, 1.6, mz), c: VC.woodD });
+      P.glass.push({ g: box(0.02, 1.3, 0.5), m: M(-2.765, 0.86, mz), c: VC.sky }); L.push({ g: box(0.022, 0.5, 0.05), m: M(-2.763, 1.1, mz - 0.12, 0.5, 0, 0), c: VC.white });
+      /* 갈아입는 칸 (앞 왼쪽 구석): 기둥 · ㄱ 자 봉 · 주름진 커튼 (한쪽은 걷어 묶었다) · 안의 작은 걸상 */
+      L.push({ g: box(0.06, 1.9, 0.06), m: M(-1.78, 0.95, 1.58), c: VC.woodD }, { g: box(1.2, 0.04, 0.04), m: M(-2.38, 1.88, 1.58), c: VC.iron }, { g: box(0.04, 0.04, 1.0), m: M(-1.78, 1.88, 2.08), c: VC.iron });
+      for (i = 0; i < 3; i++) L.push({ g: box(0.1, 1.66, 0.06 + (i % 2) * 0.05), m: M(-2.93 + i * 0.09, 1.03, 1.58), c: i % 2 ? VC.rose : VC.dusk }); L.push({ g: box(0.32, 0.05, 0.12), m: M(-2.84, 0.95, 1.58), c: VC.yellow });   /* 커튼은 벽 쪽으로 걷어 묶어 두었다 (닫으면 거울을 가린다) */
+      for (i = 0; i < 3; i++) L.push({ g: box(0.05 + (i % 2) * 0.04, 1.66 - i * 0.0, 0.1), m: M(-1.78, 1.03, 2.45 - i * 0.1), c: i % 2 ? VC.rose : VC.dusk }); L.push({ g: box(0.1, 0.05, 0.34), m: M(-1.78, 0.95, 2.36), c: VC.yellow });
+      vilStool(L, -2.45, 2.1, VC.cream);
+      /* 재단대 (오른쪽): 상판 · 다리 넷 · 천 두루마리 셋 · 가위 · 줄자 · 아래 선반의 두루마리 */
+      L.push({ g: box(0.86, 0.05, 0.66), m: M(2.45, 0.62, 0.6), c: VC.woodL }, { g: box(0.8, 0.03, 0.6), m: M(2.45, 0.2, 0.6), c: VC.woodA });
+      [[-0.38, -0.28], [-0.38, 0.28], [0.38, -0.28], [0.38, 0.28]].forEach(function (q) { L.push({ g: box(0.06, 0.6, 0.06), m: M(2.45 + q[0], 0.3, 0.6 + q[1]), c: VC.woodD }); });
+      [[0.44, VC.blueL, 0.66], [0.62, VC.rose, 0.66], [0.8, VC.yellow, 0.66], [0.5, VC.moss, 0.24], [0.72, VC.cream, 0.24]].forEach(function (q) { L.push({ g: new T.CylinderGeometry(0.075, 0.075, 0.7, 8), m: M(2.45, q[2] + 0.075, q[0], 0, 0, Math.PI / 2), c: q[1] }, { g: new T.CylinderGeometry(0.025, 0.025, 0.76, 6), m: M(2.45, q[2] + 0.075, q[0], 0, 0, Math.PI / 2), c: VC.paper }); });
+      L.push({ g: box(0.2, 0.012, 0.03), m: M(2.25, 0.652, 0.36, 0, 0.5, 0), c: VC.slateA }, { g: box(0.2, 0.012, 0.03), m: M(2.25, 0.653, 0.36, 0, -0.3, 0), c: VC.slateA }, { g: new T.TorusGeometry(0.03, 0.012, 4, 8), m: M(2.36, 0.655, 0.38, Math.PI / 2, 0, 0), c: VC.red }, { g: new T.CylinderGeometry(0.05, 0.05, 0.03, 8), m: M(2.7, 0.66, 0.38), c: VC.yellow });
+      /* 신발 벤치 (앞벽 앞): 앉는 널 · 아래 칸 · 신발 네 켤레 (밑창 + 등) */
+      L.push({ g: box(1.3, 0.05, 0.34), m: M(-0.8, 0.36, 2.38), c: VC.woodL }, { g: box(1.3, 0.03, 0.3), m: M(-0.8, 0.12, 2.38), c: VC.woodA }, { g: box(0.05, 0.36, 0.3), m: M(-1.42, 0.18, 2.38), c: VC.woodD }, { g: box(0.05, 0.36, 0.3), m: M(-0.18, 0.18, 2.38), c: VC.woodD });
+      [[-1.25, VC.red], [-0.95, VC.blue], [-0.65, VC.dark], [-0.35, VC.yellow]].forEach(function (q) { [0, 0.11].forEach(function (d) { L.push({ g: box(0.08, 0.03, 0.2), m: M(q[0] + d, 0.15, 2.38), c: VC.cream }, { g: box(0.08, 0.06, 0.14), m: M(q[0] + d, 0.19, 2.41), c: q[1] }); }); });
+      vilPlant(L, 2.7, -2.3, 0.5); vilRoomLamp(P, R.lights[0][0], R.lights[0][2]); vilRoomLamp(P, R.lights[1][0], R.lights[1][2]);   /* 화분은 뒤 오른쪽 구석 (문 앞에서 캐릭터를 가렸다) */
+      /* 모자걸이 (받침 사이 끝): 발 · 기둥 · 가지 넷 · 걸린 모자 둘 (챙 + 몸) */
+      L.push({ g: new T.CylinderGeometry(0.16, 0.18, 0.04, 8), m: M(2.7, 0.02, -0.6), c: VC.woodD }, { g: box(0.05, 1.5, 0.05), m: M(2.7, 0.77, -0.6), c: VC.woodA }, { g: new T.SphereGeometry(0.05, 6, 5), m: M(2.7, 1.54, -0.6), c: VC.woodL });
+      [0, 1, 2, 3].forEach(function (k) { var a = k * Math.PI / 2 + 0.4; L.push({ g: box(0.16, 0.03, 0.03), m: M(2.7 + Math.cos(a) * 0.07, 1.4, -0.6 + Math.sin(a) * 0.07, 0, -a, 0.5), c: VC.woodA }); });
+      L.push({ g: new T.CylinderGeometry(0.15, 0.15, 0.015, 10), m: M(2.81, 1.4, -0.6, 0, 0, 0.5), c: VC.yellow }, { g: new T.CylinderGeometry(0.08, 0.09, 0.08, 10), m: M(2.84, 1.45, -0.6, 0, 0, 0.5), c: VC.yellow }, { g: new T.CylinderGeometry(0.08, 0.08, 0.02, 10), m: M(2.83, 1.43, -0.6, 0, 0, 0.5), c: VC.red },
+        { g: new T.SphereGeometry(0.08, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), m: M(2.63, 1.3, -0.52), c: VC.blueL }, { g: box(0.12, 0.012, 0.06), m: M(2.63, 1.3, -0.44), c: VC.blue });
+      /* 스탠드 등 (재단대 옆): 발 · 기둥 · 천 갓 (밤엔 갓 속 전구가 켜진다) */
+      L.push({ g: new T.CylinderGeometry(0.12, 0.14, 0.03, 8), m: M(2.75, 0.015, 1.4), c: VC.iron }, { g: box(0.03, 1.4, 0.03), m: M(2.75, 0.72, 1.4), c: VC.iron }, { g: new T.CylinderGeometry(0.12, 0.2, 0.24, 8, 1, true), m: M(2.75, 1.48, 1.4), c: VC.cream }, { g: new T.CylinderGeometry(0.205, 0.205, 0.02, 8, 1, true), m: M(2.75, 1.37, 1.4), c: VC.rose });
+      P.lamp.push({ g: new T.SphereGeometry(0.06, 6, 5), m: M(2.75, 1.42, 1.4), c: VC.yellow });
+      /* 계산대 위: 가위 (날 둘 + 손잡이 고리) · 감긴 줄자 · 바늘꽂이 */
+      L.push({ g: box(0.16, 0.012, 0.025), m: M(1.75, 0.548, -1.6, 0, 0.35, 0), c: VC.slateA }, { g: box(0.16, 0.012, 0.025), m: M(1.75, 0.549, -1.6, 0, -0.1, 0), c: VC.slateA }, { g: new T.TorusGeometry(0.025, 0.01, 4, 8), m: M(1.66, 0.55, -1.57, Math.PI / 2, 0, 0), c: VC.red }, { g: new T.TorusGeometry(0.025, 0.01, 4, 8), m: M(1.66, 0.55, -1.63, Math.PI / 2, 0, 0), c: VC.red },
+        { g: new T.CylinderGeometry(0.05, 0.05, 0.025, 10), m: M(2.0, 0.555, -1.6), c: VC.yellow }, { g: box(0.14, 0.006, 0.02), m: M(2.1, 0.545, -1.58, 0, 0.3, 0), c: VC.yellow }, { g: new T.SphereGeometry(0.045, 7, 5), m: M(2.25, 0.57, -1.62, 0, 0, 0, 1, 0.7, 1), c: VC.red });
+      for (i = 0; i < 4; i++) L.push({ g: box(0.008, 0.04, 0.008), m: M(2.23 + (i % 2) * 0.03, 0.6, -1.64 + (i >> 1) * 0.03), c: VC.slateA });
+      /* 액자 옷 그림 (뒷벽 왼쪽, 선반 아래): 금빛 틀 · 크림 바탕 · 원피스 그림 */
+      P.nz.push({ g: box(0.5, 0.62, 0.03), m: M(-1.5, 1.32, -hz + 0.02), c: VC.yellow }, { g: box(0.42, 0.54, 0.035), m: M(-1.5, 1.32, -hz + 0.022), c: VC.cream }, { g: box(0.12, 0.1, 0.04), m: M(-1.5, 1.44, -hz + 0.024), c: VC.rose }, { g: box(0.22, 0.24, 0.04), m: M(-1.5, 1.27, -hz + 0.024), c: VC.rose }, { g: box(0.06, 0.06, 0.042), m: M(-1.5, 1.53, -hz + 0.025), c: VC.paper });
+      /* 벽 그림: 옷본 종이 (재단 선이 그려진 판) · 실패 꽂이 */
+      P.nx.push({ g: box(0.03, 0.5, 0.4), m: M(-hx + 0.02, 1.4, -1.75), c: VC.sky }, { g: box(0.035, 0.12, 0.14), m: M(-hx + 0.022, 1.5, -1.75), c: VC.white }, { g: box(0.035, 0.2, 0.26), m: M(-hx + 0.022, 1.32, -1.75), c: VC.white }, { g: box(0.036, 0.16, 0.2), m: M(-hx + 0.023, 1.33, -1.75), c: VC.sky },   /* 벽에 꽂은 옷본: 하늘색 종이에 흰 원피스 윤곽 */ { g: box(0.04, 0.56, 0.04), m: M(-hx + 0.022, 1.4, -1.97), c: VC.woodD }, { g: box(0.04, 0.56, 0.04), m: M(-hx + 0.022, 1.4, -1.53), c: VC.woodD });
+      P.nz.push({ g: box(0.7, 0.04, 0.1), m: M(2.2, 1.3, -hz + 0.05), c: VC.woodL }); [VC.red, VC.yellow, VC.blueL, VC.moss, VC.rose, VC.cream].forEach(function (c2, n) { P.nz.push({ g: new T.CylinderGeometry(0.04, 0.04, 0.09, 6), m: M(1.92 + n * 0.11, 1.365, -hz + 0.06), c: c2 }); });
+    }
+    /* ── 카페 안: 계산대 (커피 기계 · 유리 덮개 케이크 받침 · 내주는 쟁반 자리) · 뒷벽의 분필 차림판 · 식탁 셋과 걸상 · 레코드 장 (턴테이블 · 레코드 꽂이) · 바다 창 ── */
+    function vilRoomCafe(P) {
+      var L = P.floor, R = P.R, S = R.slots, hx = P.hx, hz = P.hz, i;
+      vilRoomWin(P, 'nx', -0.9, 1.3, 1.7, 0.9, true);
+      vilRug(L, 0.3, 0.6, 3.4, 1.9, VC.roofRL, VC.rose, VC.dusk);
+      vilCounter(L, -0.2, 3.15, -1.75, VC.woodL, VC.rose);
+      L.push({ g: box(0.5, 0.3, 0.5), m: M(S.keeper[0], 0.15, S.keeper[2]), c: VC.woodA }, { g: box(0.52, 0.04, 0.52), m: M(S.keeper[0], 0.24, S.keeper[2]), c: VC.woodD });
+      /* 커피 기계: 몸 · 윗판 · 물통 · 꼭지 둘 · 받침 · 김 구멍 · 손잡이 · 올려 둔 잔 */
+      L.push({ g: box(0.56, 0.4, 0.4), m: M(2.5, 0.74, -1.8), c: VC.slateD }, { g: box(0.6, 0.05, 0.44), m: M(2.5, 0.965, -1.8), c: VC.slateA }, { g: box(0.2, 0.22, 0.2), m: M(2.66, 1.1, -1.84), c: VC.glass }, { g: box(0.5, 0.03, 0.14), m: M(2.5, 0.565, -1.56), c: VC.iron },
+        { g: box(0.05, 0.1, 0.05), m: M(2.36, 0.72, -1.57), c: VC.iron }, { g: box(0.05, 0.1, 0.05), m: M(2.56, 0.72, -1.57), c: VC.iron }, { g: box(0.16, 0.03, 0.03), m: M(2.3, 0.8, -1.58), c: VC.dark }, { g: box(0.08, 0.08, 0.02), m: M(2.72, 0.84, -1.595), c: VC.red },
+        { g: new T.CylinderGeometry(0.04, 0.035, 0.06, 6), m: M(2.36, 0.61, -1.57), c: VC.white }, { g: new T.CylinderGeometry(0.04, 0.035, 0.06, 6), m: M(2.38, 1.02, -1.86), c: VC.white }, { g: new T.CylinderGeometry(0.04, 0.035, 0.06, 6), m: M(2.5, 1.02, -1.8), c: VC.white });
+      /* 케이크 받침: 굽 · 접시 · 딸기 케이크 (시트 + 크림 + 딸기 조각) · 유리 덮개 (가는 테와 꼭지만 — 안이 보이게) */
+      L.push({ g: new T.CylinderGeometry(0.04, 0.09, 0.1, 8), m: M(1.75, 0.59, -1.72), c: VC.cream }, { g: new T.CylinderGeometry(0.2, 0.2, 0.02, 10), m: M(1.75, 0.65, -1.72), c: VC.cream }, { g: new T.CylinderGeometry(0.14, 0.14, 0.08, 10), m: M(1.75, 0.7, -1.72), c: VC.paper }, { g: new T.CylinderGeometry(0.145, 0.145, 0.025, 10), m: M(1.75, 0.7, -1.72), c: VC.pink }, { g: new T.CylinderGeometry(0.14, 0.14, 0.02, 10), m: M(1.75, 0.75, -1.72), c: VC.white },
+        { g: new T.TorusGeometry(0.19, 0.012, 4, 12), m: M(1.75, 0.67, -1.72, Math.PI / 2, 0, 0), c: VC.glass }, { g: new T.TorusGeometry(0.17, 0.01, 4, 12), m: M(1.75, 0.82, -1.72, Math.PI / 2, 0, 0), c: VC.glass }, { g: new T.SphereGeometry(0.025, 5, 4), m: M(1.75, 0.9, -1.72), c: VC.glass });
+      for (i = 0; i < 5; i++) { var ca = i / 5 * Math.PI * 2; L.push({ g: new T.SphereGeometry(0.03, 5, 4), m: M(1.75 + Math.cos(ca) * 0.09, 0.775, -1.72 + Math.sin(ca) * 0.09), c: VC.red }); }
+      /* 내주는 자리: 둥근 받침 깔개 · 종 (받침 + 둥근 몸 + 꼭지) */
+      L.push({ g: new T.CylinderGeometry(0.2, 0.2, 0.012, 10), m: M(S.pickup[0], 0.546, S.pickup[2]), c: VC.dusk }, { g: new T.CylinderGeometry(0.06, 0.07, 0.015, 8), m: M(0.05, 0.548, -1.6), c: VC.iron }, { g: new T.SphereGeometry(0.055, 7, 5, 0, Math.PI * 2, 0, Math.PI / 2), m: M(0.05, 0.555, -1.6), c: VC.yellow }, { g: box(0.02, 0.03, 0.02), m: M(0.05, 0.62, -1.6), c: VC.iron });
+      /* 분필 차림판 (뒷벽): 나무 틀 · 검은 판 · 분필로 그린 잔 · 케이크 조각 · 꼬치 (글자 없음) · 분필 받침과 분필 · 옆에 핀으로 꽂은 도장 카드 */
+      var bx = S.menu[0], by = S.menu[1], W2 = P.nz, zz = -hz + 0.03;
+      W2.push({ g: box(1.3, 0.86, 0.04), m: M(bx, by, zz), c: VC.blueD }, { g: box(1.4, 0.06, 0.06), m: M(bx, by + 0.45, zz), c: VC.woodA }, { g: box(1.4, 0.06, 0.06), m: M(bx, by - 0.45, zz), c: VC.woodA }, { g: box(0.06, 0.96, 0.06), m: M(bx - 0.67, by, zz), c: VC.woodA }, { g: box(0.06, 0.96, 0.06), m: M(bx + 0.67, by, zz), c: VC.woodA }, { g: box(1.2, 0.03, 0.1), m: M(bx, by - 0.5, zz + 0.05), c: VC.woodL }, { g: box(0.1, 0.025, 0.025), m: M(bx - 0.3, by - 0.475, zz + 0.07), c: VC.white }, { g: box(0.08, 0.025, 0.025), m: M(bx + 0.1, by - 0.475, zz + 0.07), c: VC.pink });
+      var ch = function (dx, dy, w, h, c2) { W2.push({ g: box(w, h, 0.012), m: M(bx + dx, by + dy, zz + 0.026), c: c2 || VC.cream }); };
+      ch(-0.4, 0.14, 0.18, 0.16); ch(-0.28, 0.15, 0.05, 0.08); ch(-0.4, 0.04, 0.26, 0.03); ch(-0.44, 0.27, 0.03, 0.07, VC.glass); ch(-0.36, 0.28, 0.03, 0.07, VC.glass);          /* 잔과 김 */
+      ch(0.0, 0.1, 0.22, 0.08, VC.paper); ch(0.0, 0.16, 0.22, 0.04, VC.white); ch(0.0, 0.2, 0.06, 0.05, VC.pink); ch(0.0, 0.04, 0.3, 0.03);                                  /* 케이크 조각 */
+      ch(0.4, 0.12, 0.03, 0.3, VC.woodL); ch(0.4, 0.2, 0.09, 0.07, VC.pink); ch(0.4, 0.11, 0.09, 0.07, VC.yellow); ch(0.4, 0.02, 0.09, 0.07, VC.leaf);                          /* 과일 꼬치 */
+      [-0.4, 0.0, 0.4].forEach(function (d) { ch(d, -0.2, 0.2, 0.025); ch(d - 0.04, -0.27, 0.1, 0.025, VC.yellow); });                                                           /* 값 줄 (분필 선) */
+      W2.push({ g: box(0.3, 0.4, 0.02), m: M(bx + 1.0, by - 0.05, zz), c: VC.paper }, { g: box(0.04, 0.04, 0.03), m: M(bx + 1.0, by + 0.12, zz + 0.01), c: VC.red }); for (i = 0; i < 6; i++) W2.push({ g: box(0.06, 0.06, 0.012), m: M(bx + 0.92 + (i % 3) * 0.08, by - 0.02 - Math.floor(i / 3) * 0.1, zz + 0.012), c: VC.wallB });
+      /* 식탁 셋 · 걸상 다섯 · 식탁 위 작은 꽃병 */
+      vilTable(L, S.table[0], S.table[2], 0.36, 0.46); vilTable(L, S.table1[0], S.table1[2], 0.36, 0.46); vilTable(L, S.table2[0], S.table2[2], 0.36, 0.46);
+      vilStool(L, S.seat[0], S.seat[2], VC.blueL); vilStool(L, -2.2, 0.3, VC.rose); vilStool(L, 1.9, -0.4, VC.rose); vilStool(L, 2.62, 0.3, VC.blueL); vilStool(L, S.nap[0], S.nap[2], VC.yellow);   /* 문에서 차림판 · 계산대 · 내 자리 · 레코드로 가는 길은 비워 둔다 (가운데 x −0.6 ~ 0.9) */
+      [[S.table1[0], S.table1[2]], [S.table2[0], S.table2[2]]].forEach(function (q, n) { L.push({ g: new T.CylinderGeometry(0.035, 0.05, 0.1, 6), m: M(q[0], 0.51, q[1]), c: VC.blueL }, { g: box(0.015, 0.12, 0.015), m: M(q[0], 0.6, q[1]), c: VC.moss }, { g: box(0.06, 0.06, 0.06), m: M(q[0], 0.67, q[1]), c: n ? VC.yellow : VC.pink }); });
+      /* 레코드 장 (왼벽 앞쪽): 낮은 장 (문 둘 · 다리) · 턴테이블 (판 · 받침 원반 · 바늘 팔 · 손잡이) · 나팔 스피커 · 레코드 꽂이 상자 (세운 레코드 집 여덟) */
+      L.push({ g: box(0.5, 0.56, 1.5), m: M(-2.9, 0.42, 1.45), c: VC.woodB }, { g: box(0.54, 0.04, 1.56), m: M(-2.9, 0.72, 1.45), c: VC.woodL }, { g: box(0.02, 0.4, 0.66), m: M(-2.64, 0.42, 1.1), c: VC.woodA }, { g: box(0.02, 0.4, 0.66), m: M(-2.64, 0.42, 1.8), c: VC.woodA }, { g: box(0.03, 0.06, 0.03), m: M(-2.63, 0.44, 1.38), c: VC.yellow }, { g: box(0.03, 0.06, 0.03), m: M(-2.63, 0.44, 1.52), c: VC.yellow });
+      [[-3.1, 0.75], [-3.1, 2.15], [-2.7, 0.75], [-2.7, 2.15]].forEach(function (q) { L.push({ g: box(0.05, 0.14, 0.05), m: M(q[0], 0.07, q[1]), c: VC.woodD }); });
+      var tt = S.turntable; L.push({ g: box(0.42, 0.06, 0.46), m: M(tt[0], 0.77, tt[2]), c: VC.woodA }, { g: new T.CylinderGeometry(0.17, 0.17, 0.012, 12), m: M(tt[0], 0.806, tt[2] - 0.03), c: VC.slateA }, { g: box(0.03, 0.03, 0.03), m: M(tt[0] + 0.16, 0.82, tt[2] + 0.18), c: VC.iron }, { g: box(0.02, 0.015, 0.2), m: M(tt[0] + 0.13, 0.84, tt[2] + 0.09, 0, 0.3, 0), c: VC.cream }, { g: new T.CylinderGeometry(0.02, 0.02, 0.02, 6), m: M(tt[0] + 0.16, 0.81, tt[2] - 0.17), c: VC.yellow });
+      L.push({ g: new T.CylinderGeometry(0.03, 0.03, 0.2, 6), m: M(-2.95, 0.84, 0.95), c: VC.yellow }, { g: new T.CylinderGeometry(0.16, 0.04, 0.22, 10, 1, true), m: M(-2.86, 1.0, 0.95, 0, 0, -1.0), c: VC.yellow }, { g: box(0.16, 0.04, 0.16), m: M(-2.95, 0.75, 0.95), c: VC.woodD });
+      var lp = S.lp; L.push({ g: box(0.36, 0.3, 0.5), m: M(lp[0], 0.15, lp[2] - 0.55), c: VC.woodA }, { g: box(0.38, 0.03, 0.52), m: M(lp[0], 0.03, lp[2] - 0.55), c: VC.woodD });
+      [VC.red, VC.yellow, VC.blueL, VC.cream, VC.moss, VC.rose, VC.sky, VC.dusk].forEach(function (c2, n) { L.push({ g: box(0.3, 0.3, 0.035), m: M(lp[0], 0.34, lp[2] - 0.76 + n * 0.06, 0.12, 0, 0), c: c2 }); });
+      /* 벽 선반 (뒷벽, 계산대 위): 원두 병 · 잔 줄 · 작은 화분 · 뒷벽의 그림 (돛단배) */
+      W2.push({ g: box(1.9, 0.04, 0.2), m: M(1.9, 1.5, -hz + 0.1), c: VC.woodL }, { g: box(0.05, 0.12, 0.16), m: M(1.1, 1.43, -hz + 0.08), c: VC.woodD }, { g: box(0.05, 0.12, 0.16), m: M(2.7, 1.43, -hz + 0.08), c: VC.woodD });
+      [[1.15, VC.dark], [1.38, VC.woodA], [1.61, VC.dark]].forEach(function (q) { W2.push({ g: new T.CylinderGeometry(0.07, 0.07, 0.2, 8), m: M(q[0], 1.62, -hz + 0.11), c: VC.glass }, { g: new T.CylinderGeometry(0.066, 0.066, 0.12, 8), m: M(q[0], 1.585, -hz + 0.11), c: q[1] }, { g: new T.CylinderGeometry(0.05, 0.05, 0.03, 8), m: M(q[0], 1.735, -hz + 0.11), c: VC.woodL }); });
+      for (i = 0; i < 4; i++) W2.push({ g: new T.CylinderGeometry(0.045, 0.035, 0.07, 6), m: M(1.95 + i * 0.14, 1.555, -hz + 0.11), c: i % 2 ? VC.cream : VC.dusk });
+      W2.push({ g: new T.CylinderGeometry(0.06, 0.045, 0.08, 6), m: M(2.68, 1.56, -hz + 0.11), c: VC.red }, { g: new T.SphereGeometry(0.08, 6, 5), m: M(2.68, 1.66, -hz + 0.11), c: VC.leaf });
+      W2.push({ g: box(0.6, 0.46, 0.03), m: M(0.55, 1.45, zz), c: VC.sky }, { g: box(0.6, 0.14, 0.035), m: M(0.55, 1.29, zz), c: VC.blue }, { g: box(0.2, 0.05, 0.04), m: M(0.55, 1.36, zz), c: VC.woodA }, { g: box(0.02, 0.22, 0.04), m: M(0.55, 1.49, zz), c: VC.woodD }, { g: box(0.12, 0.16, 0.04), m: M(0.62, 1.5, zz), c: VC.white },
+        { g: box(0.68, 0.04, 0.05), m: M(0.2, 1.7, zz), c: VC.woodD }, { g: box(0.68, 0.04, 0.05), m: M(0.2, 1.2, zz), c: VC.woodD }, { g: box(0.04, 0.54, 0.05), m: M(-0.12, 1.45, zz), c: VC.woodD }, { g: box(0.04, 0.54, 0.05), m: M(0.52, 1.45, zz), c: VC.woodD });
+      vilPlant(L, -2.85, -2.25, 0.6); vilPlant(L, -2.85, -0.05, 0.4); vilRoomLamp(P, R.lights[0][0], R.lights[0][2]); vilRoomLamp(P, R.lights[1][0], R.lights[1][2]);
+      [[S.table[0] + 0.12, S.table[2] - 0.12], [S.table1[0] - 0.12, S.table1[2] + 0.1]].forEach(function (q) { L.push({ g: new T.CylinderGeometry(0.045, 0.04, 0.05, 8), m: M(q[0], 0.485, q[1]), c: VC.white }, { g: new T.SphereGeometry(0.045, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), m: M(q[0], 0.51, q[1]), c: VC.white }, { g: box(0.015, 0.02, 0.015), m: M(q[0], 0.56, q[1]), c: VC.cream }); });   /* 설탕 그릇 */
+      [[S.seat[0], S.seat[2]], [-2.2, 0.3], [1.9, -0.4], [2.62, 0.3]].forEach(function (q, n) { L.push({ g: new T.CylinderGeometry(0.13, 0.14, 0.04, 8), m: M(q[0], 0.32, q[1]), c: [VC.cream, VC.dusk, VC.cream, VC.dusk][n] }); });   /* 걸상 방석 */
+    }
+    /* ── 잡화점 안: 벽 선반 여섯 (씨앗 봉지 · 물감 병) · 계산대와 접시저울 · 통 · 자루 · 걸린 연장 ── */
+    function vilRoomGoods(P) {
+      var L = P.floor, R = P.R, S = R.slots, hx = P.hx, hz = P.hz, i;
+      vilRoomWin(P, 'nx', 1.75, 1.4, 0.7, 0.7, false);
+      vilRug(L, 0.1, 0.4, 2.4, 1.6, VC.mossD, VC.moss, VC.leaf);
+      for (i = 0; i < 6; i++) {   /* 선반 장: 옆널 둘 · 널 넷 · 뒤판 (물건은 vilGoodsParts — 그날 파는 것) */
+        var q = S['shelf' + i], back = i < 3;
+        var B = function (w, h, d, a, y, off, c2) { L.push({ g: back ? box(w, h, d) : box(d, h, w), m: back ? M(q[0] + a, y, q[2] + off) : M(q[0] + off, y, q[2] + a), c: c2 }); };
+        B(0.94, 1.7, 0.03, 0, 0.85, -0.13, VC.woodB); B(0.05, 1.7, 0.3, -0.47, 0.85, 0, VC.woodD); B(0.05, 1.7, 0.3, 0.47, 0.85, 0, VC.woodD);
+        [0.08, 0.56, 1.04, 1.52].forEach(function (y) { B(0.94, 0.04, 0.3, 0, y, 0, VC.woodL); });
+      }
+      vilCounter(L, -0.2, 1.35, -1.55, VC.woodL, VC.moss);
+      L.push({ g: box(0.5, S.keeper[1] - 0.04, 0.5), m: M(S.keeper[0], (S.keeper[1] - 0.04) / 2, S.keeper[2]), c: VC.woodA }, { g: box(0.52, 0.04, 0.52), m: M(S.keeper[0], S.keeper[1] - 0.06, S.keeper[2]), c: VC.woodD });
+      /* 접시저울: 받침 · 기둥 · 가로대 · 줄과 접시 둘 (한쪽에 추, 한쪽에 씨앗 더미) · 종이 봉투 묶음 */
+      var sx = S.scale[0], sz = S.scale[2];
+      L.push({ g: box(0.24, 0.04, 0.14), m: M(sx, 0.56, sz), c: VC.iron }, { g: box(0.03, 0.34, 0.03), m: M(sx, 0.74, sz), c: VC.yellow }, { g: box(0.44, 0.025, 0.025), m: M(sx, 0.9, sz, 0, 0, 0.08), c: VC.yellow });
+      [[-0.2, -0.016, VC.slateD], [0.2, 0.016, VC.woodA]].forEach(function (q2, n) { L.push({ g: box(0.01, 0.16, 0.01), m: M(sx + q2[0], 0.81 + q2[1], sz), c: VC.cream }, { g: new T.CylinderGeometry(0.09, 0.06, 0.03, 8), m: M(sx + q2[0], 0.72 + q2[1], sz), c: VC.yellow }, n ? { g: new T.SphereGeometry(0.05, 6, 4), m: M(sx + q2[0], 0.75 + q2[1], sz, 0, 0, 0, 1, 0.6, 1), c: q2[2] } : { g: new T.CylinderGeometry(0.03, 0.04, 0.06, 6), m: M(sx + q2[0], 0.765 + q2[1], sz), c: q2[2] }); });
+      for (i = 0; i < 4; i++) L.push({ g: box(0.2, 0.012, 0.26), m: M(-0.0, 0.55 + i * 0.012, -1.5), c: i % 2 ? VC.paper : VC.cream });
+      /* 통 둘 (테 두른 나무통 · 하나엔 삽 자루) · 자루 둘 (입을 묶은 포대) · 물뿌리개 */
+      [[2.35, 0.6], [2.4, 1.15]].forEach(function (b, n) { L.push({ g: new T.CylinderGeometry(0.22 - n * 0.03, 0.19 - n * 0.03, 0.5 - n * 0.08, 9), m: M(b[0], 0.25 - n * 0.04, b[1]), c: n ? VC.woodA : VC.woodB }, { g: new T.CylinderGeometry(0.225 - n * 0.03, 0.225 - n * 0.03, 0.04, 9), m: M(b[0], 0.14, b[1]), c: VC.iron }, { g: new T.CylinderGeometry(0.225 - n * 0.03, 0.225 - n * 0.03, 0.04, 9), m: M(b[0], 0.36 - n * 0.06, b[1]), c: VC.iron }); });
+      seg(L, [2.35, 0.4, 0.6], [2.47, 1.15, 0.52], 0.02, VC.woodL, 5); seg(L, [2.31, 0.4, 0.64], [2.2, 1.05, 0.72], 0.02, VC.woodL, 5); L.push({ g: box(0.16, 0.2, 0.03), m: M(2.19, 1.12, 0.73, 0, 0, 0.16), c: VC.slateA });
+      [[-0.9, 2.0, VC.paper], [-0.45, 2.1, VC.wallA]].forEach(function (b) { L.push({ g: new T.SphereGeometry(0.24, 8, 6), m: M(b[0], 0.2, b[1], 0, 0, 0, 1, 0.9, 0.85), c: b[2] }, { g: new T.CylinderGeometry(0.05, 0.1, 0.12, 6), m: M(b[0], 0.44, b[1]), c: b[2] }, { g: new T.TorusGeometry(0.06, 0.015, 4, 8), m: M(b[0], 0.42, b[1], Math.PI / 2, 0, 0), c: VC.woodD }); });
+      L.push({ g: new T.CylinderGeometry(0.12, 0.13, 0.22, 8), m: M(0.3, 0.11, 2.05), c: VC.blueL }, { g: new T.TorusGeometry(0.09, 0.015, 4, 8, Math.PI), m: M(0.3, 0.24, 2.05, 0, Math.PI / 2, 0), c: VC.blueL }); seg(L, [0.42, 0.12, 2.05], [0.62, 0.26, 2.05], 0.02, VC.blueL, 5); L.push({ g: new T.CylinderGeometry(0.045, 0.02, 0.04, 6), m: M(0.63, 0.27, 2.05, 0, 0, -0.9), c: VC.blueD });
+      /* 뒷벽 오른쪽 위: 걸린 연장 (모종삽 · 갈퀴 · 가위) 과 작은 선반의 화분 */
+      var zz = -hz + 0.03, W2 = P.nz;
+      W2.push({ g: box(1.2, 0.05, 0.04), m: M(0.55, 1.72, zz), c: VC.woodD });
+      W2.push({ g: box(0.03, 0.22, 0.03), m: M(0.1, 1.58, zz + 0.02), c: VC.woodL }, { g: box(0.1, 0.18, 0.02), m: M(0.1, 1.38, zz + 0.02), c: VC.slateA }, { g: box(0.03, 0.36, 0.03), m: M(0.5, 1.52, zz + 0.02), c: VC.woodL }, { g: box(0.22, 0.03, 0.03), m: M(0.5, 1.33, zz + 0.02), c: VC.slateD });
+      for (i = 0; i < 4; i++) W2.push({ g: box(0.02, 0.08, 0.02), m: M(0.41 + i * 0.06, 1.28, zz + 0.02), c: VC.slateD });
+      W2.push({ g: box(0.025, 0.2, 0.02), m: M(0.87, 1.58, zz + 0.02, 0, 0, 0.2), c: VC.slateA }, { g: box(0.025, 0.2, 0.02), m: M(0.93, 1.58, zz + 0.02, 0, 0, -0.2), c: VC.slateA }, { g: new T.TorusGeometry(0.04, 0.012, 4, 8), m: M(0.84, 1.44, zz + 0.02), c: VC.red }, { g: new T.TorusGeometry(0.04, 0.012, 4, 8), m: M(0.96, 1.44, zz + 0.02), c: VC.red });
+      vilPlant(L, -2.25, 2.05, 0.45); vilRoomLamp(P, R.lights[0][0], R.lights[0][2]); vilRoomLamp(P, R.lights[1][0], R.lights[1][2]);
+      /* 계산대 위 유리 단지 셋 (안의 것 + 그림 딱지 — 글자 없음) */
+      [[-0.15, VC.yellow, VC.leaf], [0.03, VC.red, VC.pink], [1.4, VC.woodA, VC.yellow]].forEach(function (q) { L.push({ g: new T.CylinderGeometry(0.07, 0.07, 0.18, 8), m: M(q[0], 0.63, -1.72), c: VC.glass }, { g: new T.CylinderGeometry(0.066, 0.066, 0.11, 8), m: M(q[0], 0.6, -1.72), c: q[1] }, { g: new T.CylinderGeometry(0.075, 0.075, 0.03, 8), m: M(q[0], 0.735, -1.72), c: VC.woodD }, { g: box(0.08, 0.07, 0.01), m: M(q[0], 0.63, -1.648), c: VC.cream }, { g: box(0.04, 0.04, 0.012), m: M(q[0], 0.63, -1.645), c: q[2] }); });
+      /* 사다리 (오른벽 쪽 선반에 기대어): 옆대 둘 · 가로대 다섯 */
+      seg(L, [-2.0, 0, -1.8], [-2.0, 1.75, -2.08], 0.025, VC.woodL, 4); seg(L, [-1.55, 0, -1.8], [-1.55, 1.75, -2.08], 0.025, VC.woodL, 4);   /* 첫 선반에 기대 둔 사다리 */
+      for (i = 0; i < 5; i++) { var u = (i + 0.6) / 5.4; L.push({ g: box(0.45, 0.03, 0.03), m: M(-1.775, 1.75 * u, -1.8 - 0.28 * u), c: VC.woodA }); }
+    }
+    /* ── 공연장 안: 높인 무대 (널 · 앞 테) 와 방 안으로 뻗은 길 (캣워크 · 끝의 계단 둘) · 뒷벽의 붉은 막과 윗막 · 조명 대 둘 · 심사석 (긴 상과 걸상 셋) · 구경 벤치 둘 · 무대 뒤 구석 (옷걸이 · 선 거울 · 가림막) · 왼벽의 결과판 ── */
+    function vilRoomHall(P) {
+      var L = P.floor, R = P.R, S = R.slots, hx = P.hx, hz = P.hz, A = R.stage, W = R.walk, i, D = P.dress = [];
+      /* 무대 몸 + 널 + 앞 테, 길 + 널 + 옆 테, 계단 둘 */
+      L.push({ g: box(A.x1 - A.x0, A.y - 0.04, A.z1 - A.z0), m: M((A.x0 + A.x1) / 2, (A.y - 0.04) / 2, (A.z0 + A.z1) / 2), c: VC.woodD }, { g: box(W.x1 - W.x0, W.y - 0.04, W.z1 - W.z0), m: M(0, (W.y - 0.04) / 2, (W.z0 + W.z1) / 2), c: VC.woodD });
+      for (i = 0; i < 12; i++) L.push({ g: box((A.x1 - A.x0) / 12 - 0.03, 0.04, A.z1 - A.z0), m: M(A.x0 + (A.x1 - A.x0) * (i + 0.5) / 12, A.y - 0.02, (A.z0 + A.z1) / 2), c: i % 2 ? VC.woodL : VC.woodA });
+      for (i = 0; i < 8; i++) L.push({ g: box(W.x1 - W.x0, 0.04, (W.z1 - W.z0) / 8 - 0.03), m: M(0, W.y - 0.02, W.z0 + (W.z1 - W.z0) * (i + 0.5) / 8), c: i % 2 ? VC.woodA : VC.woodL });
+      L.push({ g: box(A.x1 - A.x0 + 0.04, 0.06, 0.04), m: M(0, A.y - 0.03, A.z1 + 0.01), c: VC.yellow }, { g: box(0.04, 0.06, W.z1 - W.z0), m: M(W.x0 - 0.01, W.y - 0.03, (W.z0 + W.z1) / 2), c: VC.yellow }, { g: box(0.04, 0.06, W.z1 - W.z0), m: M(W.x1 + 0.01, W.y - 0.03, (W.z0 + W.z1) / 2), c: VC.yellow });
+      L.push({ g: box(0.9, 0.2, 0.24), m: M(0, 0.1, R.steps.z0 + 0.12), c: VC.woodB }, { g: box(0.9, 0.1, 0.22), m: M(0, 0.05, R.steps.z0 + 0.35), c: VC.woodA });
+      /* 붉은 막: 뒷벽 양옆으로 걷어 둔 주름 + 윗막 (물결 단) + 금빛 끈 · 가운데는 밤하늘 배경 판과 별 */
+      var N = P.nz, zz = -hz + 0.04;
+      N.push({ g: box(3.2, 1.7, 0.03), m: M(0, 1.25, zz), c: VC.blueD }); [[-0.9, 1.7], [0.2, 1.4], [1.0, 1.75], [-0.3, 1.0], [0.7, 0.95], [-1.2, 1.15]].forEach(function (q, n) { N.push({ g: box(0.09, 0.09, 0.02), m: M(q[0], q[1], zz + 0.02, 0, 0, Math.PI / 4), c: n % 2 ? VC.cream : VC.yellow }); });
+      [-1, 1].forEach(function (sg) { for (var k = 0; k < 7; k++) N.push({ g: box(0.16, 1.9, 0.06 + (k % 2) * 0.05), m: M(sg * (2.25 - k * 0.14), 1.25, zz + 0.05), c: k % 2 ? VC.roofR : VC.red }); N.push({ g: box(0.5, 0.07, 0.14), m: M(sg * 1.75, 1.0, zz + 0.07), c: VC.yellow }); });
+      for (i = 0; i < 12; i++) N.push({ g: box(0.4, 0.26 + (i % 2) * 0.1, 0.1), m: M(-2.2 + i * 0.4, 2.2 - (i % 2) * 0.05, zz + 0.08), c: i % 2 ? VC.red : VC.roofR }); N.push({ g: box(4.8, 0.06, 0.12), m: M(0, 2.34, zz + 0.08), c: VC.yellow });
+      /* 조명 대 둘 (무대 앞 모서리): 세 발 받침 · 기둥 · 갓 달린 등 (밤에 켜진다) */
+      [[-1.25, -1.3], [1.25, -1.3]].forEach(function (q) {
+        L.push({ g: new T.CylinderGeometry(0.14, 0.16, 0.04, 8), m: M(q[0], 0.02, q[1]), c: VC.iron }, { g: box(0.04, 1.5, 0.04), m: M(q[0], 0.77, q[1]), c: VC.iron }, { g: new T.CylinderGeometry(0.07, 0.13, 0.2, 8), m: M(q[0], 1.56, q[1] - 0.04, 0.7, 0, 0), c: VC.slateD }, { g: new T.SphereGeometry(0.06, 6, 5), m: M(q[0], 1.6, q[1] - 0.1), c: PAL.amber[3] });
+        P.lamp.push({ g: new T.SphereGeometry(0.07, 6, 5), m: M(q[0], 1.6, q[1] - 0.1), c: VC.yellow });
+      });
+      /* 심사석: 긴 상 (길 쪽을 본다) · 다리 · 걸상 셋 — 천과 팻말은 꾸밈 */
+      L.push({ g: box(0.5, 0.05, 2.2), m: M(2.15, 0.5, -0.05), c: VC.woodL }, { g: box(0.06, 0.48, 0.06), m: M(2.35, 0.24, -1.05), c: VC.woodD }, { g: box(0.06, 0.48, 0.06), m: M(2.35, 0.24, 0.95), c: VC.woodD }, { g: box(0.06, 0.48, 0.06), m: M(1.95, 0.24, -1.05), c: VC.woodD }, { g: box(0.06, 0.48, 0.06), m: M(1.95, 0.24, 0.95), c: VC.woodD });
+      ['judge0', 'judge1', 'judge2'].forEach(function (k) { vilStool(L, S[k][0], S[k][2], VC.rose); });
+      D.push({ g: box(0.03, 0.36, 2.2), m: M(1.9, 0.33, -0.05), c: VC.rose }, { g: box(0.035, 0.05, 2.2), m: M(1.898, 0.18, -0.05), c: VC.cream });
+      [-0.75, -0.05, 0.65].forEach(function (z) { D.push({ g: box(0.03, 0.2, 0.26), m: M(2.0, 0.63, z, 0, 0, 0.2), c: VC.cream }, { g: box(0.03, 0.1, 0.03), m: M(2.04, 0.55, z), c: VC.woodD }); });
+      VILLAGE.SHOW.podium.slice(0, 3).forEach(function (p, n) { var ph = p[2] - A.y; D.push({ g: box(0.7, ph, 0.56), m: M(p[0], A.y + ph / 2, p[1]), c: [VC.yellow, VC.slateA, VC.woodL][n] }, { g: box(0.72, 0.03, 0.58), m: M(p[0], A.y + ph - 0.015, p[1]), c: VC.cream }, { g: box(0.16, 0.12, 0.02), m: M(p[0], A.y + ph / 2, p[1] + 0.285), c: VC.cream }); });
+      for (i = 0; i < 14; i++) D.push({ g: box(0.14, 0.14, 0.02), m: M(A.x0 + (A.x1 - A.x0) * (i + 0.5) / 14, A.y - 0.12, A.z1 + 0.03, 0, 0, Math.PI / 4), c: [VC.yellow, VC.red, VC.blueL, VC.cream, VC.moss][i % 5] });
+      /* 구경 벤치 둘 (왼쪽, 길을 본다): 앉는 널 · 등받이 · 다리 */
+      [-3.08, -2.28].forEach(function (x) { L.push({ g: box(0.36, 0.05, 1.4), m: M(x, 0.28, -0.38), c: VC.woodA }, { g: box(0.05, 0.3, 1.4), m: M(x - 0.16, 0.5, -0.38), c: VC.woodB }); [-1.0, 0.24].forEach(function (z) { L.push({ g: box(0.3, 0.26, 0.05), m: M(x, 0.13, z), c: VC.woodD }); }); });
+      /* 무대 뒤 구석 (앞 왼쪽): 옷걸이 (발 · 대 · 걸린 옷 다섯) · 선 거울 · 세 폭 가림막 */
+      [1.2, 2.0].forEach(function (z) { L.push({ g: box(0.05, 1.15, 0.05), m: M(-3.05, 0.575, z), c: VC.iron }, { g: box(0.34, 0.04, 0.06), m: M(-3.05, 0.02, z), c: VC.iron }); }); L.push({ g: box(0.04, 0.04, 0.86), m: M(-3.05, 1.15, 1.6), c: VC.iron });
+      [VC.yellow, VC.red, VC.blueL, VC.cream, VC.rose].forEach(function (c2, n) { var z = 1.28 + n * 0.16; L.push({ g: box(0.34, 0.5 + (n % 2) * 0.1, 0.05), m: M(-3.05, 0.82 - (n % 2) * 0.05, z), c: c2 }, { g: box(0.5, 0.09, 0.05), m: M(-3.05, 1.03, z), c: c2 }, { g: box(0.02, 0.07, 0.02), m: M(-3.05, 1.11, z), c: VC.slateA }); });
+      var mz = S.mirror[2]; L.push({ g: box(0.06, 1.5, 0.6), m: M(-3.3, 0.83, mz), c: VC.woodA }, { g: box(0.3, 0.05, 0.64), m: M(-3.26, 0.04, mz), c: VC.woodD }); P.glass.push({ g: box(0.02, 1.3, 0.46), m: M(-3.265, 0.86, mz), c: VC.sky });
+      [[-2.35, 2.72, 0], [-1.85, 2.6, 0.5], [-1.4, 2.72, -0.4]].forEach(function (q, n) { L.push({ g: box(0.5, 1.5, 0.04), m: M(q[0], 0.78, q[1], 0, q[2], 0), c: n % 2 ? VC.dusk : VC.rose }, { g: box(0.52, 0.05, 0.05), m: M(q[0], 1.54, q[1], 0, q[2], 0), c: VC.woodD }, { g: box(0.52, 0.05, 0.05), m: M(q[0], 0.04, q[1], 0, q[2], 0), c: VC.woodD }); });
+      /* 결과판 (왼벽): 나무 틀 · 초록 판 · 가로 줄 넷 (자리만 — 글자 없음) · 위에 작은 별 */
+      var X = P.nx, bz = S.board[2], by = S.board[1], xx = -hx + 0.03;
+      X.push({ g: box(0.04, 0.9, 1.3), m: M(xx, by, bz), c: VC.mossD }, { g: box(0.06, 0.06, 1.4), m: M(xx, by + 0.47, bz), c: VC.woodA }, { g: box(0.06, 0.06, 1.4), m: M(xx, by - 0.47, bz), c: VC.woodA }, { g: box(0.06, 1.0, 0.06), m: M(xx, by, bz - 0.67), c: VC.woodA }, { g: box(0.06, 1.0, 0.06), m: M(xx, by, bz + 0.67), c: VC.woodA }, { g: box(0.05, 0.14, 0.14), m: M(xx + 0.01, by + 0.62, bz, Math.PI / 4, 0, 0), c: VC.yellow });
+      for (i = 0; i < 4; i++) X.push({ g: box(0.045, 0.02, 1.1), m: M(xx + 0.005, by + 0.24 - i * 0.18, bz), c: VC.leaf });
+      vilRug(L, 0.9, 1.75, 2.2, 1.1, VC.roofRL, VC.red, VC.roofR); vilPlant(L, 3.15, 1.6, 0.55); vilRoomLamp(P, R.lights[1][0], R.lights[1][2]);
+    }
+    var VIL_ROOM_LOOK = {
+      clothes: { fa: MAT.floorA, fb: MAT.floorB, wa: VC.cream, wb: VC.paper, wain: VC.blueL, seam: VC.wallB, trim: VC.cream, mat: VC.red, fill: vilRoomClothes },
+      cafe: { fa: VC.woodA, fb: VC.woodL, wa: VC.paper, wb: VC.cream, wain: VC.woodB, seam: VC.wallB, trim: VC.woodD, mat: VC.rose, fill: vilRoomCafe },
+      goods: { fa: MAT.floorA, fb: MAT.floorB, wa: VC.wallA, wb: VC.wallB, wain: VC.woodA, seam: VC.seam, trim: VC.woodD, mat: VC.moss, fill: vilRoomGoods },
+      hall: { fa: VC.woodB, fb: VC.woodA, wa: VC.wallA, wb: VC.wallB, wain: VC.blueD, seam: VC.seam, trim: VC.yellow, mat: VC.red, fill: vilRoomHall },
+      salon: { fa: VC.woodL, fb: VC.woodA, wa: VC.cream, wb: VC.paper, wain: VC.pink, seam: VC.wallB, trim: VC.rose, mat: VC.pink, fill: vilRoomSalon } };
+    function vilRoomBuild(key, g) {   /* ROOM_REG[key].build: 그룹에 방을 짓는다 → { cuts } (벽 넷: 온 것 + 무릎 높이 쌍둥이 + 바깥 법선) */
+      var o = VIL_ROOM_LOOK[key] || vilHomeLook(key), P = vilRoomShell(key, o), RM = { key: key, g: g, glass: null, lamp: null, lampEm: null, lightKey: -1 }, cuts = [];
+      var f0 = [P.px.length, P.pz.length]; o.fill(P);
+      RM.look = { fa: o.fa, fb: o.fb, wa: o.wa, wb: o.wb };   /* 시험이 본다: 바닥 · 벽의 두 색 (짝이 너무 어둡지 않나) · 앞쪽 두 벽 (+x · +z — 늘 무릎 높이로 잘린다) 에 무릎 위로 건 것 (안 보이는 소품) 수 */
+      RM.frontHigh = P.px.slice(f0[0]).concat(P.pz.slice(f0[1])).filter(function (q) { return q.m && q.m.elements[13] >= 0.32; }).length;
+      g.add(vilMesh(P.floor));
+      [['nx', -1, 0], ['nz', 0, -1], ['px', 1, 0], ['pz', 0, 1]].forEach(function (w) {
+        var full = vilMesh(P[w[0]]), low = vilMesh(P[w[0]].filter(function (q) { return q.m.elements[13] < 0.32; })); low.visible = false;   /* 잘린 벽은 걸레받이 한 줄 (0.3 m) 만 — 앞벽 앞의 낮은 가구 (신발 벤치 · 화분) 가 가리지 않게 */ g.add(full); g.add(low);
+        cuts.push({ full: full, low: low, nx: w[1], nz: w[2], cx: w[1] * P.hx, cz: w[2] * P.hz, key: w[0] }); RM[w[0]] = full;
+      });
+      RM.glass = vilMesh(P.glass, keep(new T.MeshBasicMaterial({ color: C(VC.sky) }))); RM.glassEm = emTwin(RM.glass, RM.glass.geometry); RM.nx.add(RM.glass);   /* 창 · 거울은 왼벽에 달렸다 (그 벽이 잘리면 같이 숨는다) */
+      RM.lamp = vilMesh(P.lamp, keep(new T.MeshBasicMaterial({ color: C(PAL.amber[3]) }))); RM.lampEm = emTwin(RM.lamp, RM.lamp.geometry); RM.lamp.visible = false; g.add(RM.lamp);
+      RM.cuts = cuts; VR.rooms[key] = RM;
+      if (key === 'cafe') vilCafeInside(RM);
+      if (key === 'goods') vilGoodsShelf(VIL.goodsList);
+      if (key === 'hall') { RM.dress = vilMesh(P.dress); RM.dress.visible = VR.dressOn; g.add(RM.dress); vilHallNpc(); }
+      vilRoomNpc(key); vilRoomGuests(key); vilRoomLight(RM, true); dither.still = 0;
+      return { cuts: cuts };
+    }
+    function vilRoomLight(RM, force) {   /* 창 유리 = 바깥 빛 (낮 하늘 · 노을 · 밤 남색) · 갓등 = 저녁부터 켜진다 */
+      var em = light.em == null ? 1 : light.em, night = Math.max(0, (em - 0.25) / 0.75), key = Math.round(night * 100) + (light.out ? light.out.getHex() % 997 : 0) * 1000;
+      if (!force && key === RM.lightKey) return; RM.lightKey = key;
+      RM.glass.material.color.copy(light.out || C(LIGHTS.day.out)); RM.glassEm.material.color.copy(light.winEm || C('#3c507a')).multiplyScalar(0.6 * (1 - night));
+      var on = night > 0.3; RM.lamp.visible = on; if (on) { RM.lamp.material.color.copy(C(PAL.amber[3])).lerp(C(VC.white), 0.3 * night); RM.lampEm.material.color.copy(C(EM.lamp)).multiplyScalar(em * night); }
+      dither.still = 0;
+    }
+    /* 11-24 (S · 주인 '상점이 실제 물건을 반영'): 잡화점 선반 = 그날 파는 것. goodsShelf(items) — items = SHOP 의 goodsStock().items 꼴
+       [{ type: 'seed', left } | { type: 'dye', hex, sold? } | …]. 선반 여섯에 차례로: 씨앗 = 봉지 (남은 수만큼, 12 개까지) · 염료 = 그 색 병 (팔렸으면 빈 칸) · 그 밖 = 상자.
+       남은 선반은 비어 있다. 부르기 전 (목록 없음) 엔 예전 진열 (씨앗 · 물감 병 여섯 색) */
+    var VIL_GOODS_DEF = [{ type: 'seed', left: 12 }, { type: 'dye', hex: '#b04a3c' }, { type: 'seed', left: 12 }, { type: 'dye', hex: '#5c86b0' }, { type: 'seed', left: 12 }, { type: 'dye', hex: '#e8b04a' }];
+    function vilGoodsParts(items) {
+      var S = VILLAGE.ROOMS.goods.slots, L = [], list = (Array.isArray(items) ? items : VIL_GOODS_DEF).slice(0, 6);
+      list.forEach(function (it, i) {
+        if (!it) return; var q = S['shelf' + i], back = i < 3;
+        var B = function (w, h, d, a, y, off, c2) { L.push({ g: back ? box(w, h, d) : box(d, h, w), m: back ? M(q[0] + a, y, q[2] + off) : M(q[0] + off, y, q[2] + a), c: c2 }); };
+        var Yc = function (r, h, a, y, off, c2) { L.push({ g: new T.CylinderGeometry(r, r, h, 7), m: back ? M(q[0] + a, y, q[2] + off) : M(q[0] + off, y, q[2] + a), c: c2 }); };
+        var sold = it.sold || it.left === 0, n = sold ? 0 : it.type === 'seed' ? Math.max(0, Math.min(12, it.left == null ? 12 : it.left | 0)) : 12, hex = /^#[0-9a-f]{6}$/i.test(it.hex || '') ? it.hex : VC.rose;
+        for (var k = 0; k < n; k++) {
+          var row = Math.floor(k / 4), col = k % 4, a = -0.33 + col * 0.22, y = [0.08, 0.56, 1.04][row];
+          if (it.type === 'seed') { var cs = [VC.red, VC.yellow, VC.blueL, VC.moss][(col + row) % 4]; B(0.16, 0.24, 0.03, a, y + 0.14, 0.04 - (col % 2) * 0.03, VC.paper); B(0.16, 0.07, 0.035, a, y + 0.215, 0.04 - (col % 2) * 0.03, VC.woodA); B(0.08, 0.08, 0.036, a, y + 0.12, 0.042 - (col % 2) * 0.03, cs); B(0.03, 0.06, 0.036, a, y + 0.06, 0.042 - (col % 2) * 0.03, VC.leaf); }
+          else if (it.type === 'dye') { Yc(0.065, 0.2, a, y + 0.12, 0.02, hex); Yc(0.03, 0.06, a, y + 0.25, 0.02, hex); Yc(0.036, 0.03, a, y + 0.29, 0.02, VC.woodD); B(0.09, 0.07, 0.02, a, y + 0.11, 0.08, VC.cream); }
+          else { B(0.17, 0.16, 0.2, a, y + 0.1, 0.02, VC.woodL); B(0.18, 0.03, 0.21, a, y + 0.19, 0.02, VC.woodD); }
+        }
+      });
+      return L;
+    }
+    function vilGoodsShelf(items) {   /* → 놓인 물건 수 (방이 아직 없으면 기억만 — 지을 때 그린다) */
+      VIL.goodsList = Array.isArray(items) ? items.slice(0, 6) : null; var RM = VR.rooms && VR.rooms.goods; if (!RM) return -1;
+      if (RM.shelfGoods) { RM.g.remove(RM.shelfGoods); var di = disposables.indexOf(RM.shelfGoods.geometry); if (di >= 0) disposables.splice(di, 1); RM.shelfGoods.geometry.dispose(); RM.shelfGoods = null; }   /* keep 목록에서도 뺀다 (갈아 끼울 때마다 옛 지오메트리가 남지 않게) */
+      var parts = vilGoodsParts(VIL.goodsList); if (parts.length) { RM.shelfGoods = vilMesh(parts); RM.shelfGoods.castShadow = false; RM.g.add(RM.shelfGoods); }
+      dither.still = 0; return parts.length;
+    }
+    var VIL_ROOM_MAT = null;
+    function vilRoomMat() {   /* 11-24 (N · 주인 'NPC 문어가 안 보인다'): 방 안 문어 몸 = 같은 재질 (같은 셰이더) 에 약한 자체광 하나 — 방 등이 위에서만 비춰 몸이 배경보다 어두웠다. 배경보다 또렷하게 (밝기 하한) */
+      if (!VIL_ROOM_MAT) { VIL_ROOM_MAT = keep(lambert.clone()); VIL_ROOM_MAT.color.setRGB(1.45, 1.42, 1.38); VIL_ROOM_MAT.emissive = C('#141210'); }
+      return VIL_ROOM_MAT;
+    }
+    function vilRoomNpc(key) {   /* 그 방의 가게 문어 (npcSet 의 같은 문어) 를 방 안 keeper 자리에 한 벌 더 세운다 — 바깥 판매대의 문어와 같은 색 · 모자 */
+      var RM = VR.rooms[key]; if (!RM || !VILLAGE.ROOMS[key].slots.keeper) return;
+      var nid = key === 'salon' ? 'stylist' : key, w = null; VIL.want.forEach(function (q) { if (q.id === nid) w = q; });
+      var old = VR.npc[key], k = w ? w.color + '|' + w.hat + '|' + w.pose : '';
+      var ks = VR.keepSpot && VR.keepSpot[key]; if (ks) ks.on = !!w;   /* 가게 문어 단추는 그 문어가 그려져 있을 때만 (11-28 검토: 문어 없이 단추만 남아 '창만 뜨는' 일이 없게) */
+      if (old && old.key === k) return;
+      if (old) { RM.g.remove(old.m); old.m.geometry.dispose(); delete VR.npc[key]; }
+      if (!w) { dither.still = 0; return; }
+      var s = VILLAGE.ROOMS[key].slots.keeper, m = new T.Mesh(vilOctGeo(w.color, w.hat, w.pose === 'sleep'), vilRoomMat()); m.receiveShadow = false; m.position.set(s[0], s[1], s[2]); m.rotation.y = s[3]; m.scale.setScalar(VIL.R); m.name = 'npc-in-' + key; RM.g.add(m);
+      VR.npc[key] = { m: m, key: k, y: s[1], f: -1, pose: w.pose }; dither.still = 0;
+      if (key === 'salon' && VIL.salon && VIL.salon.seated) vilStylist(true);   /* 앉아 있는 동안 다시 지어졌으면 (색 · 모자가 바뀜) 의자 옆 그대로 */
+    }
+    function vilRoomGuests(key) {   /* npcSet 에 { room: key, slot } 로 온 문어 (예: 카페 구석 식탁에서 자는 sleep-1) → 그 방의 그 자리에 */
+      var RM = VR.rooms[key]; if (!RM) return; RM.guests = RM.guests || {}; var seen = {};
+      VIL.want.forEach(function (w) {
+        if (w.room !== key || !w.slot) return; var s = VILLAGE.ROOMS[key].slots[w.slot]; if (!s) return; seen[w.id] = true;
+        var k = w.color + '|' + w.hat + '|' + w.pose + '|' + w.slot, o = RM.guests[w.id]; if (o && o.key === k) return;
+        if (o) { RM.g.remove(o.m); o.m.geometry.dispose(); }
+        var m = new T.Mesh(vilOctGeo(w.color, w.hat, w.pose === 'sleep'), vilRoomMat()), R = VIL.R, sl = w.pose === 'sleep'; m.receiveShadow = false;
+        m.position.set(s[0], s[1], s[2]); m.rotation.y = s[3]; m.scale.set(R * (sl ? 1.08 : 1), R * (sl ? 0.78 : 1), R * (sl ? 1.08 : 1)); m.name = 'npc-guest-' + w.id; RM.g.add(m);
+        RM.guests[w.id] = { m: m, key: k };
+      });
+      Object.keys(RM.guests).forEach(function (id) { if (!seen[id]) { RM.g.remove(RM.guests[id].m); RM.guests[id].m.geometry.dispose(); delete RM.guests[id]; } });
+      var rs = VR.resSpot && VR.resSpot[key], who = VILLAGE.homeOf(key);   /* 집 문어 단추: 사는 문어가 집에 있으면 그 자리 (식탁 · 침대) 위로, 없으면 끈다 */
+      if (rs) { var gw = null; VIL.want.forEach(function (w) { if (w.id === who && w.room === key) gw = w; }); var gs = gw && VILLAGE.ROOMS[key].slots[gw.slot]; rs.on = !!gs; if (gs) { rs.x = gs[0]; rs.z = gs[2]; rs.y = gs[1] + (gw.pose === 'sleep' ? 0.25 : 0.45); } }
+      dither.still = 0;
+    }
+    /* 11-24 (S · 리드): 방을 나가려고 문 쪽으로 걷기 시작하면 (새 걸음이 문 앞 선 자리를 향하면) 'ppol:room-leaving' { key } 를 한 번 보낸다 — 미용사의 salon.leave 처럼
+       그 방 사람이 아직 보일 때 인사하게 (js/app.js [7-V]). 문 단추를 바로 누른 때 (키보드 · 앉은 채) 는 app 쪽이 roomLeaving 으로 같은 일을 한다 (들어온 동안 한 번) */
+    try { document.addEventListener('ppol:room', function () { VR.leaveSaid = null; }); } catch (e) { /* noop */ }
+    function vilLeaveWatch(key) {
+      var w = PL.walking; if (!w) { VR.leaveW = null; return; }
+      if (VR.leaveW === w) return; VR.leaveW = w;
+      var R = VILLAGE.ROOMS[key], ex = null; (R ? R.spots : []).forEach(function (sp) { if (sp.key === 'roomExit') ex = sp; }); if (!ex) return;
+      var dx = ex.stand[0] - PL.pos.x, dz = ex.stand[1] - PL.pos.z; if (Math.hypot(dx, dz) < 0.5) return;
+      var dy = PL.wantYaw - Math.atan2(dx, dz); dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      if (Math.abs(dy) < 0.35) vilLeaving(key);
+    }
+    function vilLeaving(key) {   /* 한 번 들어온 동안 한 번 (문 쪽으로 걷다 말았다 다시 가도 되풀이하지 않는다 — 들어올 때 'ppol:room' 이 지운다) */
+      if (!key || VR.leaveSaid === key) return false; VR.leaveSaid = key;
+      try { document.dispatchEvent(new CustomEvent('ppol:room-leaving', { detail: { key: key } })); } catch (e) { /* noop */ } return true;
+    }
+    function vilRoomFrame(key, dt) {   /* ROOM_REG[key].frame: 방이 보이는 동안 */
+      var RM = VR.rooms[key]; if (!RM) return; VR.cur = key; VIL.t += dt;
+      vilRoomLight(RM, false); vilSeatSync();
+      var o = VR.npc[key]; if (o) { var f = st.reduced ? 0 : Math.floor(VIL.t / 0.8) % 2; if (f !== o.f) { o.f = f; o.m.position.y = o.y + (f ? PX : 0); dither.still = 0; } }
+      if (key === 'cafe') vilRecordStep();
+      if (key === 'salon') vilSalonSync();
+      vilLeaveWatch(key);
+      if (VIL.rawList && VIL.schedKey !== vilSchedKey()) vilNpcResched();
+      if (key === 'hall') vilHallWalk(dt);
+      if (key === 'hall' && PL.place === 'inside' && !PL.sit && !PL.hop) { var hy = vilHallY(PL.pos.x, PL.pos.z); if (hy) plG.position.y += hy; }   /* 무대 · 길 위에 서면 그 높이만큼 올려 그린다 (걷는 값 PL.pos.y 는 0 그대로 — 마당 현관 마루와 같은 식) */
+    }
+    /* ── 카페 안의 움직이는 것: 내 잔 (cafeCup) · 턴테이블 위 레코드 (cafeRecord — 돌고, 음표가 떠오른다) ── */
+    function vilCafeInside(RM) {
+      var S = VILLAGE.ROOMS.cafe.slots, tt = S.turntable;
+      RM.cup = vilMesh([{ g: new T.CylinderGeometry(0.075, 0.075, 0.015, 8), m: M(0, 0.008, 0), c: VC.cream }, { g: new T.CylinderGeometry(0.05, 0.04, 0.07, 7), m: M(0, 0.05, 0), c: VC.white }, { g: new T.CylinderGeometry(0.04, 0.04, 0.01, 7), m: M(0, 0.083, 0), c: VC.dark }, { g: box(0.03, 0.035, 0.02), m: M(0.06, 0.05, 0), c: VC.white }]);
+      RM.cup.castShadow = false; RM.cup.position.set(S.table[0] + 0.16, S.table[1], S.table[2]); RM.cup.visible = false; RM.g.add(RM.cup);
+      /* 레코드: 검은 판 + 가운데 딱지 (색은 cafeRecord 가 칠한다 — 태그 9) + 딱지 위 흰 점 하나 (도는 것이 보이게) */
+      RM.disc = vilMesh([{ g: new T.CylinderGeometry(0.15, 0.15, 0.012, 12), m: M(0, 0, 0), c: VC.iron }, { g: new T.CylinderGeometry(0.055, 0.055, 0.014, 8), m: M(0, 0.001, 0), c: VC.red, tag: 9 }, { g: box(0.03, 0.016, 0.03), m: M(0.09, 0.001, 0), c: VC.slateA }, { g: box(0.02, 0.016, 0.02), m: M(0.035, 0.002, 0), c: VC.white }]);
+      RM.disc.castShadow = false; RM.disc.position.set(tt[0], 0.819, tt[2] - 0.03); RM.disc.visible = false; RM.g.add(RM.disc);
+      /* 음표 셋 (머리 + 기둥 + 꼬리) — 한 메시, 떠오르며 두 프레임으로 흔들린다 */
+      var nt = []; [[0, 0, VC.cream], [0.16, 0.14, VC.yellow], [-0.1, 0.3, VC.cream]].forEach(function (q) { nt.push({ g: box(0.06, 0.045, 0.03), m: M(0.02, q[1], q[0], 0, 0, 0.3), c: q[2] }, { g: box(0.015, 0.14, 0.03), m: M(0.02, q[1] + 0.07, q[0] + 0.022), c: q[2] }, { g: box(0.015, 0.03, 0.06), m: M(0.02, q[1] + 0.13, q[0] + 0.05), c: q[2] }); });
+      RM.notes = vilMesh(nt); RM.notes.castShadow = false; RM.notes.visible = false; RM.g.add(RM.notes); RM.rec = { on: false, f: -1 };
+    }
+    function vilCafeRecord(on, colour) {   /* 레코드를 올려 돌린다 (colour = 딱지 색 '#rrggbb') · 끈다. 소리는 다른 갈래 몫 (설정이 켜져 있을 때만) */
+      var RM = VR.rooms.cafe; if (!RM || !RM.disc) return false;
+      RM.rec.on = !!on; RM.rec.f = -1; RM.disc.visible = RM.rec.on; RM.notes.visible = RM.rec.on && !st.reduced;
+      if (on && /^#[0-9a-f]{6}$/i.test(colour || '')) recolor(RM.disc.geometry, 9, colour);
+      dither.still = 0; return RM.rec.on;
+    }
+    function vilRecordStep() {
+      var RM = VR.rooms.cafe; if (!RM || !RM.rec || !RM.rec.on) return;
+      var f = st.reduced ? 0 : Math.floor(VIL.t * 6); if (f === RM.rec.f) return; RM.rec.f = f;
+      RM.disc.rotation.y = -f * Math.PI / 4;   /* 초당 여섯 걸음 · 45° 씩 */
+      var tt = VILLAGE.ROOMS.cafe.slots.turntable, k = (f % 12) / 12; RM.notes.position.set(tt[0] + 0.1, 1.0 + k * 0.6, tt[2] + (f % 2 ? 0.03 : -0.03)); RM.notes.visible = !st.reduced && k < 0.9;
+      dither.still = 0;
+    }
+    function vilRoomKey() { return typeof IN !== 'undefined' && IN && PL.place === 'inside' && typeof IN.key === 'string' ? IN.key : (VR.dbg || null); }   /* 지금 들어와 있는 방 (갈래 W 의 방 상태 IN.key) */
+    /* 시험 · 살펴보기 (갈래 W 의 방 배관이 오기 전): 방 하나를 다락 자리에 지어 다락 대신 보여 준다. 다시 부르면 (null) 치운다 */
+    function vilRoomDebug(key) {
+      if (VR.dbgG) { scene.remove(VR.dbgG); VR.dbgG = null; atticG.visible = true; delete VR.rooms[VR.dbg]; delete VR.npc[VR.dbg]; VR.dbg = null; }
+      if (!key || !VIL.on || !VILLAGE.ROOMS[key]) { dither.still = 0; return false; }
+      var g = new T.Group(); g.name = 'room-debug'; scene.add(g); VR.dbgG = g; VR.dbg = key; atticG.visible = false;
+      var r = vilRoomBuild(key, g); r.cuts.forEach(function (c) { if (c.nx > 0 || c.nz > 0) { c.full.visible = false; c.low.visible = true; } });
+      dither.still = 0; return true;
+    }
+    function vilRoomReg() {   /* 갈래 W 의 ROOM_REG 가 있으면 방 셋을 올린다 (없으면 아무 일도 없다 — 방은 vilRoomDebug 로만 볼 수 있다) */
+      if (typeof ROOM_REG === 'undefined' || !ROOM_REG) return false;
+      Object.keys(VILLAGE.ROOMS).forEach(function (key) {
+        var R = VILLAGE.ROOMS[key], d = null; VILLAGE.DOORS.forEach(function (q) { if (q.room === key) d = q; });
+        ROOM_REG[key] = { half: R.half.slice(), wallH: R.wallH, door: R.door.slice(), face: R.face, outside: d ? (d.stand ? d.stand.slice() : d.key) : null, slots: R.slots, lights: R.lights,
+          boxes: R.boxes.map(function (b) { return b.slice(); }), circles: R.circles.map(function (c) { return c.slice(); }),
+          spots: R.spots.map(function (sp) { var o = { key: key + '.' + sp.key, btn: sp.btn, x: sp.x, y: sp.y, z: sp.z, r: sp.r, stand: sp.stand.slice() }; if (sp.key === 'roomResident') { o.on = false; (VR.resSpot || (VR.resSpot = {}))[key] = o; } if (sp.key === 'roomKeeper') { o.on = false; (VR.keepSpot || (VR.keepSpot = {}))[key] = o; } return o; }),   /* 사는 문어 단추는 vilRoomGuests 가 옮기고 켠다 */
+          build: function (g) { return vilRoomBuild(key, g); }, frame: function (dt) { vilRoomFrame(key, dt); } };
+      });
+      return true;
+    }
+    if (VIL.on) {   /* 등록 (init 때 — 마당은 처음 나갈 때 지어지므로 그 전에) */
+      VILLAGE.SEGMENTS.forEach(function (sg) { var gg = new T.Group(); gg.name = 'vil-' + sg.key; VIL.grp[sg.key] = gg; WIDE_REG.segments.push({ s0: sg.s0, s1: sg.s1, obj: gg }); });
+      VIL.spotRef = {}; VILLAGE.SPOTS.forEach(function (sp) { var q = vilXZ(sp.s, sp.t), o = { key: sp.key, btn: sp.btn, x: q[0], y: sp.y, z: q[1], r: sp.r }; if (sp.npc && /^sleep/.test(sp.npc)) { o.on = false; VIL.spotRef[sp.npc] = o; } WIDE_REG.spots.push(o); });   /* 집 문어 단추는 그 문어가 밖에 그려졌을 때만 (vilNpcApply) */
+      VILLAGE.CIRCLES.forEach(function (c) { var q = wideXZ(c[0], c[1]); WIDE_REG.circles.push([q[0], q[1], c[2]]); });
+      VILLAGE.BOXES.forEach(function (b) { WIDE_REG.boxes.push(b.slice()); });
+      WIDE_REG.builders.push(vilBuild); WIDE_REG.frame.push(vilFrameStep);
+      VILLAGE.DOORS.forEach(function (sp) { var q = vilXZ(sp.s, sp.t); WIDE_REG.spots.push({ key: sp.key, btn: sp.btn, x: q[0], y: sp.y, z: q[1], r: sp.r }); });   /* 가게 문 (들어가는 단추) */
+      vilRoomReg();
+    }
+
+
+    /* [7-U] 화면 채우기 · 계단 단추 */
+    /* 11-21 빈 화면 채우기: 실내 (다락 · 위층 · 놀이방) 의 허공에 먼 풍경 한 장 (js/vista.js — 하늘 · 바다 · 마을 · 숲). 텍스처 하나 · 드로콜 · 셰이더 프로그램은 그대로.
+       그림 = 렌더 타깃 크기 + 좌우 여백 VST.M (돌려 보면 그림이 반대쪽으로 몇 px 밀린다 = 먼 것처럼). 시각대 · 날씨 · 계절 · 크기가 바뀌거나 물결 칸 (1 초 3 칸) 이 넘어갈 때만 다시 그린다.
+       모션 줄이기면 물결은 멈춘다. 주소에 ?vista=0 이면 끈다 (예전 하늘 띠 그대로) */
+    var VST = { on: !/[?&]vista=0(&|$)/.test((typeof location !== 'undefined' && location.search) || ''), M: 20, tex: null, w: 0, h: 0, key: '', frame: -1, paints: 0 };
+    post.uniforms.tVista = { value: null }; post.uniforms.uVista = { value: 0 }; post.uniforms.uVistaRes = { value: new T.Vector2(1, 1) }; post.uniforms.uVistaOff = { value: new T.Vector2(0, 0) }; post.needsUpdate = true;
+    function vistaShown() { return VST.on && typeof VISTA !== 'undefined' && hasDepthTex && !outdoorP(PLACE.vis) && !INTRO.on; }
+    function vistaStep() {   /* draw() 가 후처리 바로 앞에서 부른다 */
+      var u = post.uniforms;
+      if (!vistaShown()) { u.uVista.value = 0; return; }
+      var w = S.rw + 2 * VST.M, h = S.rh, f = st.reduced ? 0 : VISTA.frame(time), key = w + '|' + h + '|' + VISTA.phase(st.hour) + '|' + st.weather + '|' + SEASON.cur;
+      if (key !== VST.key || f !== VST.frame) {
+        var v = VISTA.paint(w, h, { hour: st.hour, weather: st.weather, season: SEASON.cur, seed: 'attic', t: st.reduced ? 0 : time }), bytes = new Uint8Array(v.d.buffer);
+        if (!VST.tex || VST.w !== w || VST.h !== h) {
+          if (VST.tex) VST.tex.dispose();
+          VST.tex = new T.DataTexture(bytes, w, h, T.RGBAFormat); VST.tex.magFilter = VST.tex.minFilter = T.NearestFilter; VST.tex.generateMipmaps = false; VST.w = w; VST.h = h; u.tVista.value = VST.tex;
+        } else VST.tex.image.data = bytes;
+        VST.tex.needsUpdate = true; VST.key = key; VST.frame = f; VST.paints++;
+      }
+      u.uVista.value = 1; u.uVistaRes.value.set(w, h); u.uVistaOff.value.set(VST.M - clamp(Math.round(yawDelta() / (Math.PI / 2) * 8), -VST.M, VST.M), 0);
+    }
+    disposables.push({ dispose: function () { if (VST.tex) VST.tex.dispose(); VST.tex = null; } });
+    /* 11-21 가려진 동안 멈춤: 전체 화면 놀이 (부엌 · 달리기) 가 장면을 덮은 동안 프레임 고리를 세운다 (배터리 · 열). 탭이 숨었을 때 (st.hidden) 와 같은 길 —
+       시계 (time) 는 그린 프레임의 dt 로만 가므로 다시 돌 때 뛰지 않는다 (lastDraw = 0 → 첫 프레임 dt 0.016). pause / resume (테스트 · 의식 감기) 과는 따로 센다 */
+    /* 11-22 (독립 점검: 360 폭 기본 구도에선 계단이 0 px — 위층 가는 길이 화면에 없다): 계단이 화면 밖인 동안 (atticStair 가 'key' 칸일 때) 그쪽 가장자리에 작은 계단 그림을 흐리게 띄운다.
+       글자 없는 그림이고 위층으로 바로 가는 단추가 아니다 — 누르면 화면을 계단 쪽으로 민다 (viewFocus). 계단이 보이면 사라진다. 낭독기에는 안 읽힌다 (키보드는 안 보이는 '위층으로' 칸이 그대로 닿는다) */
+    var EDGECUE = { el: null, key: '' };
+    function stairEdgeCue() {
+      if (!SPOTS.atticStair) return;   /* 장면이 다 서기 전엔 부르지 않는다 */
+      var s = spotInfo('atticStair'), on = !!(s && s.mode === 'key'), key = on ? s.x + ',' + s.y : '';
+      if (key === EDGECUE.key) return; EDGECUE.key = key;
+      if (!EDGECUE.el) {
+        if (!on) return;
+        var el = document.createElement('div'); el.className = 'stair-cue'; el.setAttribute('aria-hidden', 'true');
+        el.innerHTML = '<i class="stair-cue-arrow"></i><svg class=\"stair-cue-ico\" viewBox=\"0 0 16 16\" width=\"32\" height=\"32\" shape-rendering=\"crispEdges\" focusable=\"false\"><path fill=\"#2b1d22\" d=\"M2 2h3v1H2zM1 3h1v1H1zM5 3h1v1H5zM1 4h1v1H1zM5 4h1v1H5zM1 5h1v1H1zM5 5h3v1H5zM1 6h1v1H1zM8 6h1v1H8zM1 7h1v1H1zM8 7h1v1H8zM1 8h1v1H1zM8 8h3v1H8zM1 9h1v1H1zM11 9h1v1H11zM1 10h1v1H1zM11 10h1v1H11zM1 11h1v1H1zM11 11h3v1H11zM1 12h1v1H1zM14 12h1v1H14zM1 13h1v1H1zM14 13h1v1H14zM1 14h1v1H1zM14 14h1v1H14zM2 15h12v1H2z\"/><path fill=\"#e7d5b3\" d=\"M2 3h3v1H2zM5 6h3v1H5zM8 9h3v1H8zM11 12h3v1H11z\"/><path fill=\"#ad7757\" d=\"M2 4h2v1H2zM2 5h2v1H2zM2 6h3v1H2zM2 7h5v1H2zM2 8h5v1H2zM2 9h6v1H2zM2 10h8v1H2zM2 11h8v1H2zM2 12h9v1H2zM2 13h11v1H2zM2 14h11v1H2z\"/><path fill=\"#7a4841\" d=\"M4 4h1v1H4zM4 5h1v1H4zM7 7h1v1H7zM7 8h1v1H7zM10 10h1v1H10zM10 11h1v1H10zM13 13h1v1H13zM13 14h1v1H13z\"/></svg>';
+        el.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+        el.addEventListener('click', function (e) { e.stopPropagation(); var a = DOOR_ANCHORS.atticStair; if (a) viewFocus(a[0] - 0.4, a[2], 1.2); });
+        container.appendChild(el); EDGECUE.el = el;
+      }
+      EDGECUE.el.hidden = !on; if (!on) return;
+      EDGECUE.el.dataset.side = s.x > 0 ? 'right' : 'left'; EDGECUE.el.style.top = (s.y + 2) + 'px';
+    }
+    disposables.push({ dispose: function () { if (EDGECUE.el && EDGECUE.el.parentNode) EDGECUE.el.parentNode.removeChild(EDGECUE.el); EDGECUE.el = null; } });
+    /* 11-24: 손 뗌 (pointerup) 처리가 끝난 다음 차례에 — 위 톡 처리 참고. 타이머가 아니라 메시지 차례 (시계를 세운 시험 · 바쁜 탭의 타이머 미룸과 상관없이 바로 다음) */
+    var U7_AFTERUP = { q: [], ch: null };
+    function afterUp(fn) {
+      if (!U7_AFTERUP.ch && typeof MessageChannel !== 'undefined') { U7_AFTERUP.ch = new MessageChannel(); U7_AFTERUP.ch.port1.onmessage = function () { var q = U7_AFTERUP.q; U7_AFTERUP.q = []; q.forEach(function (f) { try { f(); } catch (e) { console.warn('[scene3d] afterUp', e); } }); }; }
+      if (!U7_AFTERUP.ch) { setTimeout(fn, 0); return; }
+      U7_AFTERUP.q.push(fn); U7_AFTERUP.ch.port2.postMessage(0);
+    }
+    function setCovered(on) { on = !!on; if (!!st.covered === on) return; st.covered = on; dither.still = 0; if (!on) loop(); }   /* 11-22: 덮인 동안 그리기만 멈춘다 — 시뮬레이션 (문어 걸음 · 산책 연출 · 문 · 날씨) 은 화면 밖 (T4) 처럼 30 fps 로 돈다. 예전처럼 고리 전체를 멈추면 달리기 · 부엌을 연 채 끝나야 하는 산책이 영영 안 끝났다 (스모크 S · CI 9652270) */
+
+
     function pick(cx, cy) {   /* 클라이언트 CSS px (PointerEvent clientX/Y) → 탭 표적 메시 | null */
       var r = canvas.getBoundingClientRect();
       ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
       var okOct = octTappable(), sp;
-      if (PLACE.vis === 'play') { sp = spotAt(cx, cy, ['playAttic', 'machine']); return sp ? spotHit(sp) : null; }
+      if (PLACE.vis === 'inside') { sp = spotAt(cx, cy, WIDE_SPOT_KEYS.filter(function (k) { return WIDE_SPOT[k].room === IN.key; })); return sp ? spotHit(sp) : null; }   /* 11-22 방 안: 등록부의 자리만 */
+      if (PLACE.vis === 'play') {   /* 11-18: 식탁 자리가 오락기 아랫단 · 조리대 옆에 붙어 단추 칸이 겹친다 → 톡한 자리에 처음 보이는 면으로 (오락기 · 조리대 · 식탁), 그 밖은 넓힌 칸 */
+        var pv = playSurface(); if (pv && SPOTS[pv] && spotInfo(pv)) return spotHit(pv);
+        sp = spotAt(cx, cy, ['playAttic', 'machine', 'counter', 'table']); return sp ? spotHit(sp) : null;
+      }
       if (PLACE.vis === 'loft') {   /* 위층: 따라 올라온 문어 · 미용실 거울(문어가 거울 앞이면 문어가 먼저) · 계단 · 재봉틀 */
         var upOct = okOct && octUp(), salOnL = !!SPOTS.salon && !!spotInfo('salon'), smL = salOnL ? [salA, salB, salC].filter(function (m) { return m.visible; }) : [];
         var hsL = ray.intersectObjects((upOct ? bodyMeshes() : []).concat(smL), false);
         if (hsL.length) return smL.indexOf(hsL[0].object) >= 0 ? spotHit('salon') : hit;
         if (upOct && ray.intersectObject(hit, false).length) return hit;
-        sp = spotAt(cx, cy, ['loftStair', 'sew', 'salon']); return sp ? spotHit(sp) : null;
+        sp = spotAt(cx, cy, ['loftStair', 'sew', 'sewDoll', 'salon']); return sp ? spotHit(sp) : null;
       }
-      if (PLACE.vis === 'exterior' && !PLACE.room && extReady && ['plot0', 'plot1', 'plot2'].some(function (id) { return SPOTS[id] && spotInfo(id); })) {
-        /* 바깥 텃밭 (11-11): 문어 몸 · 흙 · 심은 것을 거리순으로 레이캐스트 — 맨 앞이 문어면 문어(산책 중엔 아무것도 안 함), 흙 · 풀이면 맞은 자리의 칸.
-           화면 상자(꽃 높이까지 든)는 옆 칸과 겹치고, 땅(y 0)에 내린 점은 흙 높이만큼 뒤로 밀려 옆 칸에 들었다. 다 빗나가면 문어 히트 구 → 단추 칸 (44 px 여유) */
-        var bm = octG.visible && octG.parent === extG ? bodyMeshes() : [], hx = ray.intersectObjects(bm.concat(plotPlants ? [plotBase, plotPlants] : [plotBase]), false);
-        if (hx.length && bm.indexOf(hx[0].object) >= 0) return okOct ? hit : null;
-        if (hx.length) { var lx = extG.worldToLocal(hx[0].point.clone()).x, pi = 0; for (var q = 1; q < 3; q++) if (Math.abs(lx - PLOT.xs[q]) < Math.abs(lx - PLOT.xs[pi])) pi = q; return SPOTS['plot' + pi] && spotInfo('plot' + pi) ? spotHit('plot' + pi) : null; }   /* 11-13: 맞은 칸 단추가 없으면 (밀고 돌려 그 칸이 화면 끝에 조금만 보인다) 아무것도 — 예전엔 아래 단추 칸으로 내려가 옆 칸을 심었다 */
-        if (okOct && ray.intersectObject(hit, false).length) return hit;
-        sp = spotAt(cx, cy, ['plot0', 'plot1', 'plot2']); if (sp) return spotHit(sp);
-      }   /* 놀이방: 문어도 소품도 없다 — 문·오락기 단추 칸만 (진짜 <button> 은 hotspots) */
+      if (PLACE.vis === 'yard') {   /* 11-15 마당: 문어는 없다. 흙 · 심은 것을 레이캐스트 → 맞은 자리에 가장 가까운 연 칸 · 현관 단추 칸 · 밭 단추 칸 */
+        var pm = [plotBase, plotPlants].filter(Boolean), hx = pm.length ? ray.intersectObjects(pm, false) : [];
+        if (hx.length && YROOM) { var lp = YROOM.g.worldToLocal(hx[0].point.clone()), pi = -1, bd = 1e9; for (var q = 0; q < plotBoxes.length; q++) { var c = plotXZ(q), d = Math.hypot(lp.x - c[0], lp.z - c[1]); if (d < bd) { bd = d; pi = q; } } if (pi >= 0) return SPOTS['plot' + pi] && spotInfo('plot' + pi) ? spotHit('plot' + pi) : null; }   /* 맞은 칸 단추가 없으면 (화면 끝에 조금만 보인다) 아무것도 */
+        sp = spotAt(cx, cy, ['yardAttic', 'plot0', 'plot1', 'plot2', 'plot3', 'plot4', 'plot5'].concat(WIDE_SPOT_KEYS)); return sp ? spotHit(sp) : null;
+      }
       if (PLACE.vis === 'exterior') return okOct && ray.intersectObject(hit, false).length ? hit : null;
       var doorOn = !!SPOTS.atticPlay && !!spotInfo('atticPlay'), dm = doorOn ? doorMeshes(ATTIC_DOOR) : [];
       var salOn = !!SPOTS.salon && !!spotInfo('salon'), sm = salOn ? [salA, salB, salC].filter(function (m) { return m.visible; }) : [];   /* 미용실 거울·선반·거울 속 문어 (단추가 있고 열려 있을 때만) */
@@ -4163,7 +8225,14 @@ var SCENE3D = (function () {
       if (okOct && ray.intersectObject(hit, false).length) return hit;
       if (ray.intersectObject(glass, false).length) return glass;
       if (doorOn && spotAt(cx, cy, ['atticPlay'])) return spotHit('atticPlay');
-      if (SPOTS.atticStair && spotInfo('atticStair') && spotAt(cx, cy, ['atticStair'])) return spotHit('atticStair');   /* 위층 계단 */   /* 문 그림 둘레의 넓힌 칸 (44×44 이상) */
+      if (SPOTS.atticYard && spotInfo('atticYard')) { var dh = ray.intersectObjects([room, doorDark], false); if (dh.length && dh[0].object === doorDark) return spotHit('atticYard'); }   /* 11-15 마당 문: 톡한 자리에 보이는 게 뒷벽 문간의 어둠이면 (계단 · 난간이 앞에 있으면 계단) — 계단의 화면 상자는 크게 잡혀 문간까지 덮는다. 문어가 문간 앞이면 문어가 먼저 (위 레이캐스트) */
+      sp = spotAt(cx, cy, ['atticYard', 'atticStair']);
+      if (!sp && SPOTS.atticStair) {   /* 11-18: 계단이 화면 가장자리에 조금만 걸쳐 가장자리 단추로 바뀐 동안에도, 보이는 계단 그림을 누르면 계단 (그림 위 칸이 없어 아무 일도 없었다 — 360 폭 뒤에서 보기: 계단 절반이 보이는데 0/18). 광선이 그려진 디딤판에 닿을 때만 */
+        var se = spotInfo('atticStair'), scut = se && se.mode === 'key' ? cutOf('attic', 'stair') : null;
+        if (se && se.mode === 'key' && stairRayDist(cx, cy, scut && scut.cut ? 2 : 7) < Infinity) sp = 'atticStair';
+      }
+      if (sp === 'atticStair') { var fd = furnRayDist(cx, cy), sct = cutOf('attic', 'stair'); if (fd < Infinity && !(stairRayDist(cx, cy, sct && sct.cut ? 2 : 7) < fd)) sp = null; }   /* (검증 11-18: 계단이 잘려 아래 두 칸만 그려질 땐 그 두 칸만 견준다 — 안 그려진 윗칸 자리 너머로 보이는 소파를 눌러도 위층으로 갔다) */   /* 11-18: 계단 옆이 소파 자리 — 계단의 넓힌 칸 안이라도 손가락 밑에 보이는 것이 가구 몸이면 가구 (소파 톡 = 앉기). 계단에 가려진 뒤쪽 소파는 아니다: 광선이 계단 디딤판에 먼저 닿으면 계단 (검증: 가구가 늘 이기던 첫 고침은 계단 그림의 5분의 1 을 눌러도 소파에 앉았다) */
+      if (sp) return spotHit(sp);   /* 위층 계단 · 문간 둘레의 넓힌 칸 */   /* 위층 계단 */   /* 문 그림 둘레의 넓힌 칸 (44×44 이상) */
       var ni = nearItem(cx - r.left, cy - r.top, r);
       if (ni) return ni;   /* 등불 8칸 선반 기념품이 거울 위에 겹쳐도 기념품이 먼저 */
       return salOn && spotAt(cx, cy, ['salon']) ? spotHit('salon') : null;   /* 거울 그림 둘레의 넓힌 칸 (44×44 이상) — 맨 끝 */
@@ -4171,8 +8240,9 @@ var SCENE3D = (function () {
     /* 손가락 문법 (docs/INTERIOR_MODE.md §3.1·§3.4·§3.5·§5.3): 상태기계 하나 (GEST.mode)
        press = 첫 손가락 대기 (8 px 안에서 떼면 톡 · 문어 위 350 ms 또는 8 px = 쓰다듬기) → pan = 한 손가락 밀기 1:1 + 관성 + 고무줄
        (1× 터치에서 세로가 더 큰 쓸기는 손대지 않는다 → 브라우저가 페이지를 내린다, touch-action pan-y) · 두 번째 손가락 → multi:
-       거리 1.1배 전에 15° 넘게 비틀면 twist(돌려 보기 9° 계단 ±27°), 아니면 pinch(손가락 거리를 연속으로 · 정수 N, 두 손가락 가운데가 그 자리에, 가운데가 움직이면 밀기 → 떼면 가까운 멈춤으로 0.15 s) — 한 번 정하면 손짓 끝까지.
-       마우스: 왼쪽 끌기 = 밀기 · 오른쪽 끌기 / Shift+끌기 = 돌려 보기 · 휠 = 한 멈춤 (그 칸 뒤 0.15 s 동안 들어오는 휠은 무시 — §3.5).
+       11-15: 두 손가락 각이 7° 넘게 바뀌면 돌려 보기(손가락 각 1:1 · 끝 없음 · 떼면 살짝 관성), 거리가 1.06배 넘게 바뀌면 핀치(손가락 거리를 연속으로 · 정수 N,
+       두 손가락 가운데가 그 자리에, 가운데가 움직이면 밀기 → 떼면 가까운 멈춤으로 0.15 s) — 둘 다 걸리면 지도 앱처럼 같이 간다. 각자 걸린 순간의 값에서 시작해 튀지 않는다.
+       마우스: 왼쪽 끌기 = 밀기 · 오른쪽 끌기 / Shift+끌기 = 돌려 보기 (끝 없음) · 휠 = 한 멈춤 (그 칸 뒤 0.15 s 동안 들어오는 휠은 무시 — §3.5) · 키보드 Q / E = 15° 씩.
        관성 중 누름(> 0.05 px/ms)은 멈추기만 (톡·쓰다듬기 아님, 그대로 끌면 밀기). 어떤 손짓이든 끝날 때 밀린 값이 경계 밖·소수면 제자리로 (고무줄 복귀 중 톡 포함) */
     function gPts() { var out = []; for (var k in GEST.pts) out.push(GEST.pts[k]); return out; }
     function unband(v, lo, hi) {   /* band 의 역: 고무줄에 걸린 채 다시 잡으면 그 자리에서 이어 끈다 (튐 없이) */
@@ -4209,55 +8279,70 @@ var SCENE3D = (function () {
     function startMulti() {
       var p = gPts(), a = p[0], b = p[1];
       ZT = null;   /* 앞 핀치의 멈춤 이징 중이면 지금 배율에서 이어 간다 */
-      GEST.multi = { d0: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), a0: Math.atan2(b.y - a.y, b.x - a.x), f0: st.zoomF, yaw0: yawDrag, tw: 0, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
-      GEST.mode = 'multi'; if (PAN.mode !== 'home') { PAN.mode = ''; PAN.vx = PAN.vy = 0; } dither.still = 0;
+      GEST.multi = { d0: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), al: Math.atan2(b.y - a.y, b.x - a.x), acc: 0, a1: 0, yb: 0, yk: 0, yOn: false, zOn: false, s: [], f0: st.zoomF, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };   /* acc = 손가락 각의 누적 변화 (한 바퀴를 넘어도 이어진다) */
+      GEST.mode = 'multi'; if (PAN.mode !== 'home') { PAN.mode = ''; PAN.vx = PAN.vy = 0; } YAWX.v = 0; YAWX.kt = null; dither.still = 0;
     }
-    function multiMove() {
+    var TW_DZ = 7 * DEG, PZ_DZ = 1.06;   /* 11-15 데드존: 비틀기 7° · 핀치 거리 1.06배 (둘이 안 싸우게 작게) */
+    function nowMs() { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
+    function multiMove(e) {
       var p = gPts(), a = p[0], b = p[1], m = GEST.multi; if (!a || !b) return;
-      var d = Math.hypot(b.x - a.x, b.y - a.y), da = Math.atan2(b.y - a.y, b.x - a.x) - m.a0, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      da = Math.atan2(Math.sin(da), Math.cos(da));
-      if (GEST.mode === 'multi') {
-        if (Math.abs(da) > 15 * DEG) { GEST.mode = 'twist'; m.tw = da > 0 ? 15 * DEG : -15 * DEG; }   /* 15° 를 먼저 넘기면 비틀기 */
-        else if (d / m.d0 >= 1.1 || d / m.d0 <= 1 / 1.1) { GEST.mode = 'pinch'; m.d0 = d; }          /* 거리 1.1배를 먼저 넘기면 핀치 — 그 거리에서 1:1 로 시작 (첫 프레임에 10 % 튀지 않게, 비틀기의 15° 빼기와 같다) */
-      }
-      if (GEST.mode === 'pinch') {
+      var d = Math.hypot(b.x - a.x, b.y - a.y), an = Math.atan2(b.y - a.y, b.x - a.x), da = an - m.al, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      m.al = an; m.acc += Math.atan2(Math.sin(da), Math.cos(da));   /* 프레임마다의 변화를 이어 붙인다 → 180° · 360° 를 넘어도 끝없이 */
+      if (!m.yOn && Math.abs(m.acc) > TW_DZ && !yawHeld()) { m.yOn = true; m.yb = yawDrag; m.a1 = m.acc; }   /* 7° 를 넘긴 순간의 각에서 1:1 로 (튀지 않게) */
+      if (!m.zOn && (d / m.d0 >= PZ_DZ || d / m.d0 <= 1 / PZ_DZ)) { m.zOn = true; m.d0 = d; m.f0 = st.zoomF; }   /* 1.06배를 넘긴 순간의 거리 · 배율에서 1:1 로 */
+      GEST.mode = m.zOn ? 'pinch' : m.yOn ? 'twist' : 'multi';
+      if (m.zOn) {
         if (panOn() && !panLocked()) { var k = 1 / (S.p * S.N); PAN.x -= (mx - m.mx) * k; PAN.y += (my - m.my) * k; }   /* 두 손가락 가운데가 움직이면 밀기 */
         if (!zoomN(m.f0 * d / m.d0, mx, my) && panOn()) clampPan();   /* 거리 비율을 연속으로 (정수 N) — 멈춤 맞추기는 손을 뗄 때 (zoomSettle) */
         dither.still = 0;
-      } else if (GEST.mode === 'twist') {
-        var y = clamp(m.yaw0 + (da - m.tw), -25 * DEG, 25 * DEG);
-        if (y !== yawDrag) { yawDrag = y; dither.still = 0; if (panOn()) { placeCamera(); clampPan(); } }
+      }
+      if (m.yOn) {   /* 방이 손가락과 같이 돈다 (탁자 위 사진처럼: 손가락을 시계 방향으로 → 방도 시계 방향) · 데드존으로 먹은 7° 는 그다음 14° 동안 천천히 따라잡는다 → 튀지 않고, 다 돌면 손짓 처음부터 정확히 1:1 */
+        m.yk = Math.max(m.yk, Math.min(1, Math.abs(m.acc - m.a1) / (2 * TW_DZ)));
+        var y = m.yb + (m.acc - m.a1) + m.a1 * m.yk, t = e && e.timeStamp ? e.timeStamp : nowMs();   /* 이벤트 시각 (밀기 관성과 같은 시계 — 늦게 처리돼도 손가락이 움직인 시각) */
+        m.s.push([t, y]); while (m.s.length > 2 && t - m.s[0][0] > 160) m.s.shift();
+        if (y !== yawDrag) { yawDrag = y; yawLive(); }
       }
       m.mx = mx; m.my = my;
+    }
+    function yawRelease(m, e) {   /* 뗄 때: 마지막 100 ms 의 평균 각속도 (80 ms 넘게 멈췄으면 0) → 살짝 관성 (최고 3.5 rad/s · 모션 줄이기면 없음) */
+      var s = m.s, now = e && e.timeStamp ? e.timeStamp : nowMs(), last = s[s.length - 1], v = 0;
+      if (last && now - last[0] < 80) {
+        var i = 0; while (i < s.length - 1 && now - s[i][0] > 100) i++;
+        if (i === s.length - 1 && i > 0) i--;
+        var dt = (last[0] - s[i][0]) / 1000; if (dt > 0.004) v = (last[1] - s[i][1]) / dt;
+      }
+      if (st.reduced || Math.abs(v) < 0.6) v = 0;
+      YAWX.v = clamp(v, -YAW_VMAX, YAW_VMAX);
     }
     listen(canvas, 'pointerdown', function (e) {
       if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 2) return;
       canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
       GEST.pts[e.pointerId] = { x: e.clientX, y: e.clientY }; GEST.n = gPts().length;
       if (GEST.n >= 2) {   /* 두 번째 손가락: 누르던 것은 톡·쓰다듬기가 아니게 · 밀던 것은 관성 없이 놓고 핀치/비틀기 대기 */
-        if (press) { clearTimeout(press.t); clearTimeout(press.ft); press.multi = true; if (GEST.hold) furnDrop(); }
+        if (press) { clearTimeout(press.t); clearTimeout(press.ft); press.multi = true; if (FM.drag) { furnDragEnd(false); GEST.hold = false; } }   /* 11-15: 끌던 가구는 끌기 전 자리로 */
         if (GEST.n === 2 && GEST.mode !== 'yaw') startMulti();
         e.preventDefault(); return;
       }
-      zoomFinish();
+      zoomFinish(); YAWX.v = 0;   /* 11-15: 돌던 관성은 누르면 멈춘다 */
       var caught = PAN.mode === 'coast' && (pxms(PAN.vx) > 0.05 || pxms(PAN.vy) > 0.05);
       if (PAN.mode === 'coast' || PAN.mode === 'spring') { PAN.mode = ''; PAN.vx = PAN.vy = 0; }   /* 관성·고무줄 중에 누르면 그 자리에 멈춘다 (다시 잡아 끌 수 있게) — 떼면 pointerEnd 가 경계 안으로 */
-      var yaw = e.pointerType === 'mouse' && (e.button === 2 || e.shiftKey), o = yaw ? null : pick(e.clientX, e.clientY);
-      press = { id: e.pointerId, x: e.clientX, y: e.clientY, obj: o, moved: false, pet: false, t: null, caught: caught, yaw: yaw, touch: e.pointerType === 'touch', lx: e.clientX };
-      GEST.mode = yaw ? 'yaw' : 'press';
-      if (!yaw && !caught) press.ft = setTimeout(furnHoldStart, 480);   /* 가구 꾹 누르기 → 들고 옮기기 */
+      var yaw = e.pointerType === 'mouse' && (e.button === 2 || e.shiftKey), o = yaw || FM.on ? null : pick(e.clientX, e.clientY);   /* 11-15: 가구 모드엔 문어 · 포스터 · 문을 집지 않는다 (가구만) */
+      if (caught && o && o.userData.kind === 'spot') caught = false;   /* 11-15: 관성 중 문 · 오락기 · 재봉틀 톡은 멈추고 톡으로도 친다 (눌러도 안 열리던 결함) */
+      press = { id: e.pointerId, x: e.clientX, y: e.clientY, obj: o, moved: false, pet: false, t: null, caught: caught, yaw: yaw, touch: e.pointerType === 'touch', lx: e.clientX, furn: FM.on && !yaw && PLACE.vis === 'attic' ? furnAt(e.clientX, e.clientY) : null };
+      GEST.mode = yaw ? 'yaw' : 'press';   /* 11-15: 꾹 눌러 들기는 없앴다 (가구는 망치 단추의 가구 모드에서만 옮긴다) */
       if (o && o.userData.kind === 'oct' && !caught) press.t = setTimeout(function () { if (!press || press.multi) return; press.pet = true; if (on.pet) on.pet(); }, 350);   /* 관성을 잡은 누름은 멈추기만 (§3.1) */
       e.preventDefault();
     });
     listen(canvas, 'pointermove', function (e) {
       var q = GEST.pts[e.pointerId]; if (!q) return;
       q.x = e.clientX; q.y = e.clientY;
-      if (GEST.mode === 'multi' || GEST.mode === 'pinch' || GEST.mode === 'twist') { multiMove(); return; }
+      if (GEST.mode === 'multi' || GEST.mode === 'pinch' || GEST.mode === 'twist') { multiMove(e); return; }
       if (!press || e.pointerId !== press.id || GEST.mode === 'done') return;
       var dx = e.clientX - press.x, dy = e.clientY - press.y;
-      if (GEST.mode === 'yaw') { yawDrag = clamp(yawDrag + (e.clientX - press.lx) * 0.004, -25 * DEG, 25 * DEG); press.lx = e.clientX; press.moved = true; dither.still = 0; if (panOn()) { placeCamera(); clampPan(); } return; }
+      if (GEST.mode === 'yaw') { if (!yawHeld()) { yawDrag += (e.clientX - press.lx) * 0.004; yawLive(); } press.lx = e.clientX; press.moved = true; return; }   /* 11-15: 끝 없음 */
       if (!press.moved && Math.hypot(dx, dy) > 8) press.moved = true;
-      if (GEST.hold) { furnDragMove(e); return; }
+      if (GEST.mode === 'fdrag') { furnDragMove(e.clientX, e.clientY); return; }
+      if (press.furn && press.moved && GEST.mode === 'press') { if (furnDragStart(press.furn, press.x, press.y)) { GEST.mode = 'fdrag'; GEST.hold = true; furnDragMove(e.clientX, e.clientY); } else GEST.mode = 'done'; return; }   /* 11-15: 가구 위에서 시작한 한 손가락 = 그 가구 끌기 (밀기 아님) */
       if (press.moved) clearTimeout(press.ft);
       var vert = press.touch && touchNow === 'pan-y' && Math.abs(dy) > Math.abs(dx);   /* 1× 터치의 세로 쓸기 = 페이지 몫 (브라우저가 곧 pointercancel) */
       if (octPress()) { if (press.moved && !press.pet) { clearTimeout(press.t); press.pet = true; if (on.pet) on.pet(); } return; }   /* 문어 위 쓸기 = 쓰다듬기, 세로도 (touchmove 가 페이지 스크롤을 막는다 · §5.3 '지금 그대로') */
@@ -4270,19 +8355,25 @@ var SCENE3D = (function () {
       if (GEST.mode === 'multi' || GEST.mode === 'pinch' || GEST.mode === 'twist') {   /* 한 손가락을 떼면 손짓 끝 — 남은 손가락은 뗄 때까지 아무것도 안 한다 (튐 없이) */
         if (GEST.mode === 'pinch') zoomSettle(GEST.multi.mx, GEST.multi.my);   /* 가까운 멈춤으로 0.15 s → 끝에 panSettle */
         else if (panOn() && !panLocked()) panSettle();
+        if (GEST.multi && GEST.multi.yOn) yawRelease(GEST.multi, e);   /* 11-15 */
         GEST.mode = GEST.n ? 'done' : ''; if (!GEST.n) press = null; return;
       }
       if (!press || e.pointerId !== press.id) { if (!GEST.n) { GEST.mode = ''; press = null; } return; }
       clearTimeout(press.t); clearTimeout(press.ft);
-      if (GEST.hold) { furnDrop(); press = null; GEST.mode = GEST.n ? 'done' : ''; GEST.pan = null; return; }
+      if (GEST.mode === 'fdrag') { furnDragEnd(e.type === 'pointerup'); GEST.hold = false; press = null; GEST.mode = GEST.n ? 'done' : ''; GEST.pan = null; return; }   /* 놓을 수 있으면 보이는 그 자리 · 아니면 끌기 전 자리 */
       var o = press.obj, k = o && o.userData.kind;
       if (GEST.mode === 'pan') panRelease(e);
       else if (GEST.mode === 'press' && !press.moved && !press.pet && !press.caught && !press.multi && e.type === 'pointerup') {
-        if (k === 'oct') { oct.wantYaw = camYaw(); if (on.tap) on.tap(); }
-        else if (k === 'window') { if (on.windowTap) on.windowTap(); }
-        else if (k === 'poster') { if (on.posterTap) on.posterTap(o.userData.id); }
-        else if (k === 'souvenir') { if (on.souvenirTap) on.souvenirTap(o.userData.sv); }
-        else if (k === 'spot') spotTap(o.userData.spot);   /* 문 · 오락기: 그 자리의 진짜 단추를 누른다 (앱의 click 처리 그대로) */
+        if (FM.on || k === 'oct' || k === 'window' || k === 'poster' || k === 'souvenir' || k === 'spot' || (!k && PLACE.vis === 'attic' && !PLACE.room && furnAt(press.x, press.y) === 'sofa')) guardTapClick(e.clientX, e.clientY);   /* 11-15: 뒤따르는 진짜 click 은 삼킨다 (위 tapGuard) */
+        if (FM.on) furnSelect(press.furn || null);   /* 11-15 가구 모드: 가구 톡 = 고르기 · 빈 곳 톡 = 고르기 풀기 (다른 톡은 없다) */
+        else if (k === 'oct') { oct.wantYaw = camYaw(); if (on.tap) on.tap(); }
+        /* 11-24 (주인: 포스터를 누르면 화면이 검어졌다 깜빡인다): 창 · 포스터 · 기념품 · 문 단추는 이 pointerup 이 다 끝난 뒤에 연다 (afterUp).
+           대화창은 closedby="any" (바깥을 누르면 브라우저가 닫는다 — app.js bindDialogs) 라, pointerup 처리 안에서 열면 브라우저가 바로 그 손 뗌을 '창 바깥 누름' 으로 보고
+           2 ms 뒤 닫았다 — 열린 한 장의 어두운 막만 보이고 창은 안 열렸다. 뒤따르는 click 은 guardTapClick 이 막는다 */
+        else if (k === 'window') afterUp(function () { if (on.windowTap) on.windowTap(); });
+        else if (k === 'poster') { var pid = o.userData.id; afterUp(function () { if (on.posterTap) on.posterTap(pid); }); }
+        else if (k === 'souvenir') { var psv = o.userData.sv; afterUp(function () { if (on.souvenirTap) on.souvenirTap(psv); }); }
+        else if (k === 'spot') { var psp = o.userData.spot; afterUp(function () { spotTap(psp); }); }   /* 문 · 오락기: 그 자리의 진짜 단추를 누른다 (앱의 click 처리 그대로) */
         else if (!k && PLACE.vis === 'attic' && !PLACE.room && furnAt(press.x, press.y) === 'sofa') playerSit();   /* 소파 톡 = 앉기 (노란 점은 표시일 뿐 — 누르기는 장면이 받아야 같은 자리에서 꾹 눌러 옮길 수 있다) */
       }
       if (GEST.mode !== 'pan' && !PAN.mode && !ZT && panOn() && !panLocked()) panSettle();   /* 고무줄 복귀·관성을 톡·꾹으로 멈췄으면 경계 밖·소수 자리에 남지 않게 (안이면 정수 px 로만) */
@@ -4310,6 +8401,12 @@ var SCENE3D = (function () {
     }
     listen(canvas, 'touchmove', function (e) { if (e.cancelable && (e.touches.length >= 2 || GEST.hold || GEST.mode === 'pan' || octPress() || pullAtTop(e))) e.preventDefault(); }, { passive: false });
     listen(canvas, 'contextmenu', function (e) { e.preventDefault(); });   /* 안드로이드 꾹 누르기 · 마우스 오른쪽 끌기 */
+    listen(document, 'keydown', function (e) {   /* 11-15 돌려 보기 키보드: Q = 왼쪽으로 · E = 오른쪽으로 15° (이징). 창이 열렸거나 글자 칸 · 수정키 조합 · 자동 반복이면 그대로 둔다 */
+      var k = e.code || ''; if ((k !== 'KeyQ' && k !== 'KeyE') || e.repeat || e.ctrlKey || e.metaKey || e.altKey || !ready || st.hidden || yawHeld() || !container.isConnected || !container.offsetParent) return;
+      if (document.querySelector('dialog[open]')) return;
+      var ae = document.activeElement; if (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) return;
+      var base = YAWX.kt != null ? YAWX.kt : yawDrag; YAWX.v = 0; YAWX.kt = Math.round((base + (k === 'KeyE' ? 15 : -15) * DEG) / (15 * DEG)) * 15 * DEG;
+    });
     canvas.style.setProperty('-webkit-touch-callout', 'none'); canvas.style.setProperty('-webkit-user-select', 'none'); canvas.style.userSelect = 'none';   /* iOS 꾹 누르기 말풍선 없음 */
     listen(document, 'pointermove', function (e) { if (e.pointerType !== 'touch') { oct.pointer = { x: e.clientX, y: e.clientY }; oct.lookTarget = null; } }, { passive: true });
     /* 컨텍스트 잃음 (docs/research/a11y-and-mobile-perf.md 3): 보이는 동안 3 s 안에 돌아오지 않으면 opts.onLost() 한 번 → 앱이 2D 폴백으로 바꾼다. 돌아오면 아무것도 안 한다 (3D 그대로).
@@ -4320,7 +8417,7 @@ var SCENE3D = (function () {
       if (!st.lost || lostTold || document.hidden || typeof opts.onLost !== 'function') return;
       lostTimer = setTimeout(function () { lostTimer = 0; if (!st.lost || lostTold || document.hidden) return; lostTold = true; opts.onLost(); }, 3000);
     }
-    listen(canvas, 'webglcontextlost', function (e) { e.preventDefault(); st.lost = true; if (oct.walking && oct.walking.finish) oct.walking.finish(); dqFinish(); if (SAL.active) salFinishNow(); armLost(); });   /* 문 작업 · 미용실 연출도 지금 끝낸다 (프레임이 안 돌아 Promise 가 걸리지 않게) */
+    listen(canvas, 'webglcontextlost', function (e) { e.preventDefault(); st.lost = true; if (oct.walking && oct.walking.finish) oct.walking.finish(); dqFinish(); if (SAL.active) salFinishNow(); tableLost(); armLost(); });   /* 문 작업 · 미용실 연출도 지금 끝낸다 (프레임이 안 돌아 Promise 가 걸리지 않게) */
     listen(canvas, 'webglcontextrestored', function () { st.lost = false; renderer.shadowMap.needsUpdate = true; armLost(); });
     listen(document, 'visibilitychange', function () { st.hidden = document.hidden; armLost(); if (st.hidden && SAL.active) salFinishNow(); if (!st.hidden) { lastDraw = 0; loop(); } });   /* 탭이 숨으면 미용실 연출은 끝 상태로 (돌아와서 다시 보이지 않는다 — 재생은 결정이 아니다) */
     var ro = null;
@@ -4343,7 +8440,7 @@ var SCENE3D = (function () {
     }
 
     /* ── 루프 ── */
-    var candleT = 0, loggedBy = { attic: false, exterior: false, play: false }, callsBy = { attic: 0, exterior: 0, play: 0 }, framesBy = { attic: 0, exterior: 0, play: 0 };
+    var candleT = 0, loggedBy = { attic: false, exterior: false, play: false, yard: false, inside: false }, callsBy = { attic: 0, exterior: 0, play: 0, yard: 0, inside: 0 }, framesBy = { attic: 0, exterior: 0, play: 0, yard: 0, inside: 0 };
     var perf = { ring: new Float32Array(60), n: 0, i: 0, sum: 0, cnt: 0, auto: 0 };   /* 디버그 통계 (룩 패스 7): 마지막 60 렌더 프레임의 ms/frame (stats().ms). sum/cnt = 첫 2 s 누적 (자동 픽셀 폴백, 룩 패스 8) */
     /* ── 입장 하늘: 구름 퍼프(알파 테스트 쿼드, 텍스처 1텍셀 = 아트 1px) · 하늘 비(1px 세로줄, 12 fps 스텝) / 눈 / 별. 연출 동안만 존재하고 착지하면 버린다 ──
        구름 색은 시각대로: 밤 = 남회색, 노을·새벽 = 웜 베이지, 낮 = 밝은 회색 (Apollo 칸). 노멀 패스에선 숨긴다 (쿼드 테두리가 노멀 하이라이트로 새지 않게) */
@@ -4600,7 +8697,7 @@ var SCENE3D = (function () {
       var idle = octQuiet && !PL.walking && !PL.stick && !PL_IN.v && !GEST.mode && !PAN.mode && !ZT && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !(CER.active && !isRoomP(PLACE.vis)) && !DQ.active && !SAL.active && !(SAL.spark > 0) && !(SAL.offerT >= 0);   /* 손가락·관성 · 미용실 연출 중엔 60 fps */
       /* 프레임 상한은 *시간* 기준 (docs/research/a11y-and-mobile-perf.md 1): 가만히(또는 화면 밖) 30fps · 그 밖 60fps — 120Hz 폰도 60. 건너뛴 콜백의 시간은 버리지 않고
          다음에 그리는 프레임의 dt 로 넘긴다 (예전 홀수 콜백 건너뛰기는 dt 째 버려서 가만히 있을 때 비·양초·먼지·깜빡임·커튼이 반속도였다). debugStep(st.force) 은 항상 주어진 dt 로 진행·렌더 */
-      if (!st.force && lastDraw && ts - lastDraw < (idle || st.offscreen ? 1000 / 30 : 1000 / 60) - 1) return;
+      if (!st.force && lastDraw && ts - lastDraw < (idle || st.offscreen || st.covered ? 1000 / 30 : 1000 / 60) - 1) return;
       var dt = lastDraw ? Math.min(0.1, (ts - lastDraw) / 1000) : 0.016; lastDraw = ts; time += dt; frameNo++;
       if (ctxLost()) return;
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
@@ -4622,14 +8719,15 @@ var SCENE3D = (function () {
       dither.still = Math.min(1, dither.still + dt);
       post.uniforms.uDither.value = ditherNow();
       stepTrans(dt); stepCer(dt); stepDQ(dt);   /* 장소 전환 · 출발/귀가 의식 (바깥·계절·전환) · 방 문 */
-      if (atticG.visible) stepWeather(dt); if (extG.visible) stepExt(dt); if (PROOM && PROOM.g.visible) stepPlayRoom(dt);
-      post.uniforms.uFade.value = PLACE.fade; if (PLACE.fade > 0) { var fk = hexToOklab(LIGHTS[phaseOf(st.hour)].bg); post.uniforms.uFadeOk.value.set(fk[0], fk[1], fk[2]); }
+      if (atticG.visible) stepWeather(dt); if (extG.visible || (YROOM && YROOM.g.visible)) stepExt(dt); if (PROOM && PROOM.g.visible) stepPlayRoom(dt);
+      post.uniforms.uFade.value = PLACE.fade; if (PLACE.fade > 0) { var fk = hexToOklab(light.to.bg); post.uniforms.uFadeOk.value.set(fk[0], fk[1], fk[2]); }
       stepSalon(dt);   /* 미용실 연출 (몸 층 SAL.body 를 stepOct 가 읽는다) · 거울 속 문어 */
-      stepOct(dt); stepPlayer(dt); stepCarry(dt); stepSofaSpot(); if (PLAY) PLAY.step(dt);   /* 놀이 kit: stepOct 가 매 프레임 새로 쓴 몸·팔 값 위에 덮어쓴다 */
+      stepOct(dt); stepPlayer(dt); stepTable(dt); stepAura(dt); stepSel(); stepSpotMarks(); stepFurnSel(); furnHide(); stepSofaSpot(); if (PLAY) PLAY.step(dt);   /* 놀이 kit: stepOct 가 매 프레임 새로 쓴 몸·팔 값 위에 덮어쓴다 */
       stepHang(dt); stepIntro(dt);
-      lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(camera.quaternion);
-      stepZoom(dt); stepPan(dt); placeCamera(); updateOverlay();
-      if (!st.offscreen || st.force) draw(t0);   /* 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 */
+      lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(candleG.quaternion).invert().multiply(camera.quaternion);   /* 11-15: 양초 그룹이 상자와 같이 돌아도 글로우는 화면을 본다 */
+      if (ATTIC_CUE) ATTIC_CUE.glow.quaternion.copy(camera.quaternion); if (LROOM) LROOM.cue.glow.quaternion.copy(camera.quaternion);   /* 11-15 계단 초롱 글로우도 늘 카메라 쪽으로 */
+      stepZoom(dt); stepPan(dt); placeCamera(); if (YARD_WIDE && PLACE.vis === 'yard') { wideHoldCentre(); fitShadowView(); wideCull(); wideStep(dt); } if (YARD_WIDE) { coverStep(dt); inFrame(dt); jumpFollow(dt); } updateOverlay();
+      if ((!st.offscreen || st.force) && !st.simOnly && !st.covered) draw(t0);   /* 덮임 (전체 화면 놀이, 11-22) 도 그리지 않는다 · 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 · simOnly = 시험의 debugSim (그리지 않고 민다) */
       if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
     }
     function draw(t0) {   /* 렌더 패스: 뷰티 → 노멀 → 발광(+블러) → 후처리 합성 · 프레임 ms · 드로우콜 로그 */
@@ -4652,7 +8750,8 @@ var SCENE3D = (function () {
         blurMat.uniforms.tSrc.value = rtB.texture; blurMat.uniforms.uDir.value.set(0, 1 / S.rh); renderer.setRenderTarget(rtE); renderer.render(quadScene, quadCam);
         quad.material = post; calls += 2;
       }
-      post.uniforms.uSky.value = (PLACE.vis === 'exterior' || INTRO.on) ? 0 : 1; post.uniforms.uStars.value = clamp((light.em - 0.6) / 0.4, 0, 1); if (light.out) { var so = hexToOklab('#' + light.out.getHexString()); post.uniforms.uSkyOk.value.set(Math.max(so[0] * 0.62, 0.3), so[1] * 0.8, so[2] * 0.8);   /* 창밖 빛(out)을 한 톤 가라앉힌 색 — 밤엔 남색이 팔레트 맨 아래 칸에 묻히지 않게 밝기 바닥 0.3 */ }   /* 허공 하늘: 다락 · 놀이방만 · 별은 밤(자체광 em 1)에만 */
+      post.uniforms.uSky.value = (outdoorP(PLACE.vis) || INTRO.on) ? 0 : 1; post.uniforms.uStars.value = clamp((light.em - 0.6) / 0.4, 0, 1); if (light.out) { var so = hexToOklab('#' + light.out.getHexString()); post.uniforms.uSkyOk.value.set(Math.max(so[0] * 0.62, 0.3), so[1] * 0.8, so[2] * 0.8);   /* 창밖 빛(out)을 한 톤 가라앉힌 색 — 밤엔 남색이 팔레트 맨 아래 칸에 묻히지 않게 밝기 바닥 0.3 */ }   /* 허공 하늘: 다락 · 놀이방만 · 별은 밤(자체광 em 1)에만 */
+      vistaStep();   /* 11-21: 실내의 허공에 먼 풍경 (위 [7-U]) */
       renderer.setRenderTarget(null); renderer.render(quadScene, quadCam); probeSky();
       calls += 1;
       if (t0) { var ms = performance.now() - t0; perf.ring[perf.i] = ms; perf.i = (perf.i + 1) % 60; if (perf.n < 60) perf.n++; perf.sum += ms; perf.cnt++; }
@@ -4690,6 +8789,7 @@ var SCENE3D = (function () {
       try {
         renderer.setRenderTarget(rt);
         putExt = lift(extG); atticG.visible = true; renderer.compile(scene, camera); putExt(); putExt = null;
+        var tw0 = new T.Scene(); tw0.add(new T.Points(AU.me.twin.geometry, AU.me.twin.material)); renderer.setRenderTarget(rtE); renderer.compile(tw0, camera); renderer.setRenderTarget(rt);   /* 11-18 발광 패스(레이어 1 — 조명이 안 모인다)의 점 쌍둥이 변형: 오라 쌍둥이 · 반딧불 쌍둥이 */
         putOct = lift(octG); extG.add(octG); putAttic = lift(atticG); extG.visible = true; renderer.compile(scene, camera);
         renderer.shadowMap.needsUpdate = true; scene.overrideMaterial = normalMat; scene.background = null;   /* draw() 의 노멀 패스와 같은 조건 */
         renderer.setRenderTarget(rtN); renderer.clear(true, true, false); renderer.render(scene, camera);
@@ -5461,7 +9561,7 @@ var SCENE3D = (function () {
       setExpression: setExpression, expression: function () { return face.expr; }, EXPRESSIONS: EXPRESSIONS.slice(),
       faceShown: function () { return { expr: face.expr, applied: face.applied, arcs: arcs.visible, smile: smile.visible, blush: blush.visible, eyes: pupils[0].visible, hex: oct.curHex || st.color, color: st.color }; },   /* 시험용 (11-14 주인 O2 c): 지금 장면 얼굴에 보이는 부품 · 몸에 칠한 색 (hex 가 color 와 다르면 몸빛이 바뀐 것 — 잠 · 미용실 · 놀이 위장) */   /* 룩 패스 8: 표정은 상태와 별개 (상태가 기본 표정을 고르고, app.js 가 덮어쓴다) */
       portraitShown: function () { return PORT.last ? Object.assign({}, PORT.last) : null; },   /* 시험용: 마지막으로 찍은 초상의 몸색 · 얼굴 부품 (11-14 O2 c) */
-      portrait: portrait, portraitURL: portraitURL,   /* 64×64 초상 캔버스 / data URL (표정·몸색·팔레트·배경 키 캐시, opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb') */
+      portrait: portrait, portraitURL: portraitURL, walkPortrait: walkPortrait,   /* walkPortrait(위상, { yaw°, hw, ty, tilt°, still, bg, color }) → 64×64 걷는 옆모습 · still = 서 있는 몸 전체 (11-15 로딩 문어 · 앱 아이콘 만들기 도구 전용) */   /* 64×64 초상 캔버스 / data URL (표정·몸색·팔레트·배경 키 캐시, opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb') */
       moveTo: moveTo, jumpTo: jumpTo, finishWalk: function () { if (oct.walking && oct.walking.finish) oct.walking.finish(); },   /* 건너뛰기: 걷던 길을 지금 도착시키고 moveTo 의 Promise 를 푼다 (2D 와 같은 API) */
       intro: startIntro, introSkip: finishIntro, introRelease: introRelease, introActive: function () { return INTRO.on; }, introProgress: function () { return INTRO.on ? clamp(INTRO.t / INTRO.dur, 0, 1) : 1; },   /* 입장 연출: intro({ dur, height, instant, hold }) → Promise(착지) · introSkip() 바로 착지 · introRelease() 비네트 복귀 */
       skyHex: skyHex, skyCut: skyCut,   /* 지금 허공(배경)이 화면에 찍히는 색 — 입장 레이어가 장면 밖을 같은 색으로 덮는다 · skyCut = 그 덮개를 두 색으로 나눌 높이 (11-12) */
@@ -5470,41 +9570,131 @@ var SCENE3D = (function () {
       /* 놀이방 (8물결, scratchpad scene-api.md · docs/SCENE.md '놀이방'): view() 지금 그려지는 장소 'attic'|'exterior'|'play' · room() 내가 들어가 있는 방 'play'|null ·
          goRoom('play'|'attic', { walkFirst, instant, onDoor }) → Promise<{ ok, reason?, view, room, place }> · playerWalkTo(anchor) → Promise<{ ok, walked, anchor, at }> (내 캐릭터가 문 앞까지 걷는다) · player() → { place, at, walking, pending, yaw, frame, group, visible, walks, height, look } ·
          hotspots({ atticPlay, playAttic, machine }, { edge }) 진짜 <button> 을 문·기계 위에 · spotRect(id) → {mode, x, y, w, h, art, client} | null (#scene 안쪽 CSS px) · finishRoom() 문 작업 즉시 끝 */
+      setYaw: setYaw, yaw: function () { return +(yawDrag / DEG).toFixed(2); },   /* 11-15 돌려 보기: 도 (0 = 기본 구도, 끝 없음, 저장 안 함) */
+      voidAt: function (x, y) {   /* 11-15 검사용: 클라이언트 px 의 그 픽셀이 허공인가 (지금 장소에서 보이고 그려지는 메시에 하나도 안 맞는다 — 숨김 · 잘림(layers 0) · 그림자 전용 · 발광 쌍둥이는 뺀다) */
+        var g = groupOf(PLACE.vis), r = canvas.getBoundingClientRect(), objs = []; scene.updateMatrixWorld(); camera.updateMatrixWorld();
+        ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
+        g.traverseVisible(function (o) { if (o.isMesh && (o.layers.mask & 1) && o.material && o.material.colorWrite !== false && o.material.visible !== false) objs.push(o); });
+        return ray.intersectObjects(objs, false).length === 0;
+      },
+      yawInfo: function () { var c = {}; (CUTS[PLACE.vis] || []).forEach(function (e, i) { c[e.key || i] = e.cut; }); return { yaw: +(yawDrag / DEG).toFixed(2), shown: +(yawDelta() / DEG).toFixed(2), v: +YAWX.v.toFixed(3), held: YAWX.held, easing: YAWX.ease || YAWX.kt != null || !!YAWX.v, mode: GEST.mode, cut: c }; },
       view: function () { return PLACE.vis; }, room: function () { return PLACE.room; }, goRoom: goRoom, playerWalkTo: playerWalkTo, player: plInfo, finishRoom: dqFinish,
       /* 내 캐릭터 파츠 (docs/PLAYER_PARTS.md §3): setPlayer(cfg) → 정규화된 cfg (지오메트리만 교체, 위치·걷기 그대로) · player().look · playerPortrait({ bg }) → 64×64 캔버스 (레이어 2 조명, 캐시) ·
          debugPlayerYaw(deg | null) 8방향 샷용 (null = 다시 카메라 쪽) · debugPlayerBlink(s) 깜빡임 강제 (tools/player-shots.js) */
-      setPlayer: setPlayer, setPlayerDye: setPlayerDye, playerDye: function () { return PL_DYE; }, playerPortrait: playerPortrait, playerShot: playerShot,
+      setPlayer: setPlayer, setPlayerDye: setPlayerDye, playerDye: function () { return plDyeOf('outfit', PL.look); }, setPlayerDyes: setPlayerDyes, playerDyes: function () { return JSON.parse(JSON.stringify(PL_DYES)); }, dyeable: plDyeable,   /* 11-18: 물건별 색 (옷 · 신발 · 머리 장식) · playerDye() = 지금 입은 옷의 색 */ playerPortrait: playerPortrait, playerShot: playerShot,
       setLayout: setLayout, layout: layoutNow, playerSit: playerSit, playerSitting: function () { return !!PL.sit; },
-      furnCarry: furnCarry, furnRotate: furnRotate, furnScale: furnScale, furnSetRot: furnSetRot, furnSetScale: furnSetScale, furnConfirm: furnConfirm, furnCancel: furnCancel, furnEditing: furnState, furnItems: furnItems,   /* 11-10 인테리어 v0: 가구 자리 되살리기 · 지금 자리 · 소파에 앉기 */
+      furnMode: furnMode, furnSelect: furnSelect, furnRotate: furnRotate, furnScale: furnScale, furnNudge: furnNudge, furnSave: furnSave, furnCancel: furnCancel, furnEditing: furnState, furnSelRect: furnSelRect, furnRectOf: furnRectOf, octSpot: function (k) { var a = ANCHORS[k]; return a ? [a[0], a[2]] : null; }, furnFoot: function (id) { var f = FURN[id]; return f ? { x: f.m.position.x, z: f.m.position.z, hw: f.hw, hd: f.hd, rot: f.rot, sc: f.sc, flat: !!f.flat } : null; }, furnCandle: function () { return { x: candleG.position.x, y: candleG.position.y, z: candleG.position.z, ry: candleG.rotation.y, sc: candleG.scale.x, lx: candleLight.position.x, ly: candleLight.position.y, lz: candleLight.position.z }; }, furnDragTest: function (id, x, z) { return FURN[id] ? furnOk(id, x, z) : false; }, furnLook: function () { return { oct: octG.visible, pl: plG.visible, yaw: yawDelta(), yawDrag: yawDrag, zoom: st.zoomF, sel: selG.visible, nope: selG.visible && selG.children[0].scale.y > SEL_T && selMat.color.getHexString() === C(PAL.white).getHexString() }; },   /* 11-15 가구 모드 시험용 */ furnItems: furnItems,   /* 11-10 인테리어 v0: 가구 자리 되살리기 · 지금 자리 · 소파에 앉기 */
       /* 움직이기 (brief MOVE.md · docs/SCENE.md '내 캐릭터 · 움직이기'): setPlayerInput({ x, y } | null) 화면 축 벡터(오른쪽 +x · 위 +y · 길이 0..1) → 매 프레임 1.2 m/s · playerInputAllowed() 보이는 때 규칙 ·
          on.playerInput(allowed) 바뀔 때만 · on.playerStep() 걸음마다 · player().input / footprints · debugPlayerAt(x, z) 자리 옮김 (검사용) */
-      setPlayerInput: setPlayerInput, playerInputAllowed: playerInputAllowed,
-      debugPlayerAt: function (x, z) { plStop(); PL.pending = ''; PL.pos.set(+x || 0, 0, +z || 0); PL.moving = false; plSnap(); return plInfo(); },
+      setPlayerInput: setPlayerInput, playerInputAllowed: playerInputAllowed, playerInputPause: playerInputPause,
+      /* 디버그 (시험): n 프레임을 dt 초씩 **그리지 않고** 민다 — 걷기 · 몸짓 · 따라오는 화면 · 단추 자리는 다 돌고 렌더 패스만 건너뛴다 (dt 는 debugStep 처럼 아무 값 — 1/60 도 된다). 그린 화면이 필요하면 뒤에 debugStep 한 번.
+         소프트웨어 렌더 (시험 · CI) 에선 debugStep 을 한 호출 안에서 백 번쯤 이어 부르면 그릴 것이 밀려, 바로 뒤의 캡처 · 누름이 30 s 제한을 넘긴다 (11-18 CI: '저녁 빛 · 계단' L8 · 스모크 T 의 '톡마다 몸이 작게 톡' 이 그렇게 멈췄다 — CPU 한 코어에 묶으면 로컬에서도 재현) */
+      debugSim: function (dt, n) { st.paused = true; cancelAnimationFrame(raf); st.force = true; st.simOnly = true; try { for (var i = 0, m = Math.max(1, n | 0); i < m; i++) frame((lastDraw || 0) + Math.max(0.001, +dt || 1 / 12) * 1000); } finally { st.simOnly = false; st.force = false; } },
+      wide: function () { return YARD_WIDE ? { on: true, T: WIDE.T, S_OUT: WIDE.S_OUT, S1: WIDE.S1, gate: WIDE.gate, trees: WIDE_IM ? WIDE_IM.map(function (w) { return [w.im.count - w.base, w.list.length]; }) : null, shadow: [sun.shadow.camera.left, sun.shadow.camera.right, sun.shadow.camera.bottom, sun.shadow.camera.top] } : { on: false }; },   /* 11-18 넓은 바깥 (시험 중 — ?wide=1) */
+      debugPlayerAt: function (x, z) { plStop(); PL.pending = ''; PL.pos.set(+x || 0, 0, +z || 0); PL.moving = false; plSnap(); if (YARD_WIDE && PLACE.vis === 'yard' && PL.place === 'yard' && yardOut(PL.pos.x, PL.pos.z)) { wideCentreOn(); placeCamera(); } return plInfo(); },   /* 11-21 7차: 울타리 밖으로 옮기면 넓은 바깥의 화면도 따라온다 (시험이 멀리 옮긴 뒤 화면 밖을 재지 않게) */
       debugPlayerYaw: function (deg) { if (deg == null) { PL.faceCam = true; return; } PL.faceCam = false; PL.wantYaw = PL.yaw = deg * DEG; },
       debugPlayerBlink: function (s) { PL.blinkLeft = s == null ? 0.12 : Math.max(0, +s || 0); if (!PL.blinkLeft) PL.blinkT = 9; },   /* 0 = 눈을 뜨고 9 s 동안 안 감는다 (파츠 시트 칸이 깜빡임 프레임에 찍히지 않게) */
       debugPlayerEyes: function (v) { plEyes.visible = v !== false; return { lod: PL.lod, shut: PL.shut }; },
       debugPlayerHide: function (v) { plG.visible = v === false; },   /* 눈 조각 숨기기/보이기 · 캐릭터 통째 숨기기(true = 숨김) — player-shots 의 '눈이 머리 윤곽 밖으로 나오나' 검사: 눈 켠 프레임 − 끈 프레임 의 차이 픽셀이 전부 캐릭터(끈 프레임 − 숨긴 프레임) 위에 있어야 한다 */
       hotspots: setHotspots,
+      /* 11-18 식탁 (6차 §10.3) */
+      debugBoothVisible: function () {   /* 시험용: 식탁 · 소파 둘의 가운데로 카메라 광선을 쏘아 처음 맞는 게 식탁 자리 상자 안이면 보인다 (돌려 보기 잘림에 안 숨었다) */
+        if (!PROOM || !PROOM.g.visible) return null; scene.updateMatrixWorld(true); camera.updateMatrixWorld();
+        var ms = []; PROOM.g.traverseVisible(function (o) { if (o.isMesh && o.material === lambert && o !== TB.mesh) ms.push(o); });
+        return [[BOOTH_DISH[0], BOOTH.table.top, BOOTH_DISH[2]], [(BOOTH.oct.face + BOOTH.oct.front) / 2, BOOTH.seatY, BOOTH.oct.z], [(BOOTH.me.face + BOOTH.me.front) / 2, BOOTH.seatY, BOOTH.me.z]].map(function (q) {
+          _tbw.set(q[0], q[1], q[2]); PROOM.g.localToWorld(_tbw).project(camera); ndc.set(_tbw.x, _tbw.y); ray.setFromCamera(ndc, camera);
+          var bb = PROOM.boothBox.clone().expandByScalar(0.02); return ray.intersectObjects(ms, false).some(function (h) { return bb.containsPoint(PROOM.g.worldToLocal(h.point.clone())); });   /* 앞에 다른 것이 가려도 식탁 자리 면이 그 광선 위에 있으면 (잘려 숨지 않았다) */
+        });
+      },
+      setTableDish: setTableDish, tableInfo: tableInfo, playerSitTable: playerSitTable, playerStandTable: playerStandTable, octCanCome: octCanCome, octToTable: octToTable,
+      octTableBeat: octTableBeat, mealBite: mealBite, octLeaveTable: octLeaveTable, octAtTable: octAtTable, setAura: setAura, auraInfo: auraInfo, debugTableBodies: tableBodies,
+      /* 7차 갈래가 장면 API 에 더하는 것 (11-21): 제 표시 줄 바로 아래에 '이름: 값,' 줄로 (쉼표까지) */
+      /* [7-T] */
+      playerCarryDish: playerCarryDish, playerCarryCut: playerCarryCut, playerCarry: playerCarry, spriteProp: spriteProp, debugSprites: sprInfo,
+      debugDishSprite: function () { var o = TB.sprObj; if (!o || !o.visible || !TB.sprOn) return null; o.updateMatrixWorld(true); var pa = o.geometry.attributes.position.array, pts = []; for (var i = 0; i < (TB.sprN || 0); i++) { _tbw.set(pa[i * 3], pa[i * 3 + 1], pa[i * 3 + 2]).applyMatrix4(o.matrixWorld).project(camera); pts.push([(_tbw.x * 0.5 + 0.5) * S.rw, (1 - (_tbw.y * 0.5 + 0.5)) * S.rh]); } return { n: TB.sprN || 0, pts: pts, rw: S.rw, rh: S.rh, eaten: TB.eaten.slice() }; },
+
+      /* [7-P] */
+      playerSpeeds: playerSpeeds, itemTags: itemTags, debugItemColour: function (cat, id, look) { var h = plMainHex(cat, id, look); return { hex: h, family: plFamilyOf(cat, id, h), varies: plTagVaries(cat, id), table: !!PL_ITEM_FAMILY[cat + ':' + id] }; }, mannequins: mannequins, mannequinInfo: mannequinInfo, playerPose: playerPose, playerCloseup: playerCloseup, playerWalkPath: playerWalkPath, playerPlace: playerPlace,
+
+      /* [7-W] */
+      area: wideArea, goPlace: wideGo, beachShells: wideShells, beachShellNear: wideShellNear, beachShellGo: wideShellGo, groundY: function (x, z) { return YARD_WIDE ? wideGroundY(+x || 0, +z || 0) : 0; },   /* 11-21 7차 바깥 한 장: 선 곳 · 빠른 이동 · 조개 · 땅 높이 */
+      walkEta: function () { return oct.walking && oct.walking.eta ? +oct.walking.eta().toFixed(2) : 0; },   /* [7-W] 지금 문어 걸음이 끝나기까지 남은 초 (앱의 지킴이 시간 — 길이 돌아가면 그만큼) */
+      octNav: function (from, to) {   /* [7-W] 다섯째 바퀴 시험: 문어 길 찾기 — 지금 문어 (자리 · 몸이 뜬 높이 m · 위층인가 · 걷는 중 · 가구 위로 폴짝 중 — 웅크림부터 내려앉음까지) · 칸 지도 (지은 횟수 · 가구 상자 [x0, x1, z0, z1, 키, 넘지 못함]) · 마지막 길 · from · to ([x, z]) 를 주면 그 길 */
+        var sp = navSpecNow(), o = { at: [+oct.pos.x.toFixed(3), +oct.pos.y.toFixed(3), +oct.pos.z.toFixed(3)], hop: +(oct.hop * OCT_R).toFixed(3), up: octUp(), attic: octG.parent === atticG, walking: !!oct.walking, cer: !!(CER && CER.active), hopNow: NAV.hopNow, builds: NAV.builds, last: NAV.last,
+          rects: sp ? sp.rects.map(function (r) { return r.b.map(function (v) { return +v.toFixed(3); }).concat([+r.h.toFixed(2), !!r.hard]); }) : null, lim: sp ? [sp.x0, sp.x1, sp.z0, sp.z1] : null };
+        if (from && to) { var nav = navNow(); o.plan = nav ? navPlan(nav, from, to) : null; }
+        return o;
+      },
+      camTrace: function () {   /* [7-W] 다섯째 바퀴 시험: 이 프레임의 카메라 (그려진 자리 · 아트px, 화면 축) · 밀기 (반올림 전) · 내 캐릭터의 그려진 화면 자리 (아트px, 카메라 기준) */
+        camera.updateMatrixWorld(); _r.setFromMatrixColumn(camera.matrixWorld, 0); _u.setFromMatrixColumn(camera.matrixWorld, 1);
+        var N = 1 / S.pw, c = camera.position, w = plG.getWorldPosition(new T.Vector3());
+        return { cam: [+(c.dot(_r) * N).toFixed(3), +(c.dot(_u) * N).toFixed(3)], pan: [+(PAN.x * S.N).toFixed(3), +(PAN.y * S.N).toFixed(3)], pl: [+((w.dot(_r) - c.dot(_r)) * N).toFixed(3), +((w.dot(_u) - c.dot(_u)) * N).toFixed(3)], n: S.N, p: S.p, mode: PAN.mode, place: PLACE.vis, run: !!PL.dashing };
+      },
+      wideFocus: function () { if (YARD_WIDE && PLACE.vis === 'yard' && PL.place === 'yard') { wideCentreOn(); placeCamera(); } },   /* 시험: 화면 가운데를 내 캐릭터로 (debugPlayerAt 으로 멀리 옮긴 뒤) */
+      roomSpotGo: function (btnId) { var k = WIDE_SPOT_KEYS.filter(function (q) { return WIDE_SPOT[q].room === IN.key && WIDE_SPOT[q].sp.btn === btnId; })[0], el = k && SPOTS[k]; return !!(k && el && PLACE.vis === 'inside' && inSpotWalk(k, el)); },   /* 단추를 바로 누른 때 (키보드): 멀면 걸어간 뒤 다시 누른다 → 걷기 시작했나 */
+      roomFocus: viewFocus, roomHome: viewHome,   /* roomHome(): 카드 · 결과를 닫은 뒤 화면을 캐릭터 쪽으로 (0.3 s) */   /* roomFocus(x, z[, y]): 그 자리를 화면 위쪽 3분의 1 에 (방 안 · 넓은 바깥 둘 다) */
+      roomReg: ROOM_REG, enterRoom: enterRoom, leaveRoom: leaveRoom, inRoom: function () { return PLACE.vis === 'inside' ? IN.key : null; }, roomSlots: inSlots, debugRoomStub: inStub,   /* 11-22 계약 C9: 걸어 들어가는 방 */
+      project: function (x, y, z) { var g = groupOf(PLACE.vis), p = _hp.set(+x || 0, +y || 0, +z || 0); if (g) p.add(g.position); p.project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 지금 보이는 장소의 좌표 → #scene 안 CSS px (카드 · 표를 붙일 자리) */
+      wideReg: WIDE_REG,   /* 시험 · 다른 스크립트가 등록부에 얹을 때 (갈래 V 는 이 파일 안에서 바로 쓴다) */
+      wideMap: function () { return YARD_WIDE ? { areas: WIDE.AREAS.map(function (a) { return a.slice(); }), signs: WIDE.SIGNS.map(function (q) { return wideXZ(q[0], q[1]); }), arrive: WIDE.ARRIVE, shells: WIDE.SHELLS.map(function (q) { return wideXZ(q[0], q[1]); }), shellOn: WSTATE.shellOn.slice(), spots: WIDE_SPOT_KEYS.slice(), segments: WIDE_REG.segments.map(function (o) { return [o.s0, o.s1, !!(o.obj && o.obj.visible)]; }), cols: [wideCols().boxes.length, wideCols().circles.length], jump: !!WSTATE.jump, vmax: WSTATE.vmax, wave: WSTATE.waveF, centre: wideCentre(_svc) ? [_svc.x, _svc.z] : null } : null; },
+
+      /* [7-V] */
+      /* 11-21 마을 (docs/VILLAGE.md): npcSpots() → [{ id, x, y, z, face }] · npcSet([{ id, color, hat, pose }]) → 그린 수 · npcMark(id, on) · cafeSit(on) → Promise<bool> · cafeCup(on) · cafeSeated() ·
+         villageGo(단추 id | 자리 key) → Promise<가까이 섰나> · villageNear(…) · villageInfo() (시험) · debugVillageStub() / debugVillageFrame(dt) (갈래 W 가 합쳐지기 전의 시험 스텁) */
+      npcSpots: vilNpcSpots, npcSet: vilNpcSet, npcMark: vilNpcMark, cafeSit: vilCafeSit, cafeCup: vilCafeCup, cafeSeated: function () { vilSeatSync(); return VIL.cafe.seated && !!PL.sit; },
+      stage: vilStageInfo, stageDress: vilStageDress, npcPlace: vilNpcPlace, npcPose: vilNpcPoseSet,
+      cafeRecord: vilCafeRecord, debugVillageRoom: vilRoomDebug, villageRooms: function () { var o = {}, hn = Object.keys(VR.hallNpc).map(function (id) { var q = VR.hallNpc[id]; return { id: id, pose: q.pose, at: [q.m.position.x, q.y, q.m.position.z] }; }); Object.keys(VR.rooms).forEach(function (k) { var RM = VR.rooms[k]; o[k] = { keeper: !!VR.npc[k], guests: Object.keys(RM.guests || {}), lamps: !!(RM.lamp && RM.lamp.visible), cup: !!(RM.cup && RM.cup.visible), record: !!(RM.rec && RM.rec.on), look: RM.look || null, frontHigh: RM.frontHigh || 0, shelf: RM.shelfGoods ? RM.shelfGoods.geometry.attributes.position.count : 0 }; }); return { cur: vilRoomKey(), rooms: o, hallNpcs: hn, lift: +plG.position.y.toFixed(3), reg: typeof ROOM_REG !== 'undefined' && !!ROOM_REG }; },
+      villageGo: vilGo, villageNear: vilNear, roomLeaving: function (key) { return vilLeaving(key || vilRoomKey()); }, goodsShelf: vilGoodsShelf, homeOpen: vilHomeOpen, salonSit: vilSalonSit, salonSeated: function () { vilSalonSync(); return !!(VIL.salon && VIL.salon.seated); }, npcWalk: vilNpcWalk, npcWalking: vilHallWalking, debugVillageCols: vilCols, debugVillageWalk: function () { return { end: VIL.walkEnd, again: VIL.walkAgain || 0, due: VIL.walkDue, t: VIL.t, walking: !!PL.walking, d: VIL.walkD, place: PL.place, inp: !!PL_IN.v }; }, debugVillageStub: vilStub, debugVillageFrame: vilStubFrame, debugVillageHide: function (on) { if (VIL.root) { VIL.root.visible = !on; dither.still = 0; } return !!VIL.root; },
+      villageInfo: function () { var c = {}; (CUTS.yard || []).forEach(function (e) { if (/^vil/.test(e.key)) c[e.key] = e.cut; }); return { on: VIL.on, built: VIL.built, stub: VIL.stub, npcs: Object.keys(VIL.npcs).map(function (id) { var o = VIL.npcs[id]; return { id: id, pose: o.pose, at: [o.m.position.x, o.m.position.y, o.m.position.z], visible: o.m.visible }; }), marks: Object.keys(VIL.marks).filter(function (id) { return VIL.marks[id].visible; }), cut: c, cup: !!(VIL.cup && VIL.cup.visible), seated: VIL.cafe.seated, lamps: !!(VIL.lampGlow && VIL.lampGlow.visible), snow: !!VIL.snowOn && VIL.snow.length > 0, snowN: VIL.snowOn ? VIL.snow.filter(function (o) { return o.m.geometry.attributes.position.count > o.n; }).length : 0, calls: callsBy.yard || 0, reg: { builders: WIDE_REG.builders.length, spots: WIDE_REG.spots.length, boxes: WIDE_REG.boxes.length, circles: WIDE_REG.circles.length, segments: WIDE_REG.segments.length, frame: WIDE_REG.frame.length } }; },
+
+      /* [7-N] */
+      /* 11-24 (7차 N 다섯째 바퀴 · 주인 "문어 npc들은 안 보이고 창으로만 뜨는데"): 말하는 마을 문어가 지금 보이는 장소의 어디에 서 있나 → { x, y, z } (그 장소의 좌표 — roomFocus · project 에 그대로) | null.
+         방 안 = 그 방의 가게 문어 · 손님 자리 (카페의 자는 문어) · 공연장의 심사 · 경쟁 문어 / 바깥 = 마을 판매대 · 자는 자리. 그려져 있지 않거나 지금 안 보이는 장소에 있으면 null */
+      npcWhere: function (id) {
+        try {
+          var vis = groupOf(PLACE.vis), list = [];
+          if (typeof VR !== 'undefined' && VR) {
+            var rk = id === 'stylist' ? 'salon' : id;   /* 11-24: 가게 문어는 그 방 이름 칸에 (미용사는 미용실 salon 칸) */
+            if (VR.npc && VR.npc[rk]) list.push(VR.npc[rk].m);
+            Object.keys(VR.rooms || {}).forEach(function (k) { var g = VR.rooms[k].guests; if (g && g[id]) list.push(g[id].m); });
+            if (VR.hallNpc && VR.hallNpc[id]) list.push(VR.hallNpc[id].m);
+          }
+          if (typeof VIL !== 'undefined' && VIL && VIL.npcs && VIL.npcs[id]) list.push(VIL.npcs[id].m);
+          for (var i = 0; i < list.length; i++) {
+            var m = list[i], up = m, seen = false, shown = true;
+            for (; up; up = up.parent) { if (!up.visible) shown = false; if (up === vis) seen = true; }
+            if (!seen || !shown) continue;
+            var v = m.getWorldPosition(new T.Vector3()); v.sub(vis.position);
+            return { x: v.x, y: v.y, z: v.z };
+          }
+        } catch (e) { /* 장면이 덜 지어짐 */ }
+        return null;
+      },
+
+      /* [7-U] */
+      vista: function () { return { on: VST.on, shown: post.uniforms.uVista.value === 1, w: VST.w, h: VST.h, key: VST.key, frame: VST.frame, paints: VST.paints, off: post.uniforms.uVistaOff.value.x - VST.M }; },
+      setCovered: setCovered, covered: function () { return !!st.covered; }, clock: function () { return { time: time, frames: frameNo, draws: drawN }; },
+
       spotRect: function (id) { var s = spotInfo(id); if (!s || s.mode !== 'over') return s; var r = container.getBoundingClientRect(); s.client = { x: r.left + s.x, y: r.top + s.y, w: s.w, h: s.h }; return s; },
       doorAnchors: JSON.parse(JSON.stringify(DOOR_ANCHORS)),
       debugDoor: function (v) { ATTIC_DOOR.g.visible = v !== false; dither.still = 0; return ATTIC_DOOR.g.visible; },   /* 디버그 (덧그림 비교 캡처): 다락 문을 숨겼다 보였다 */
       setSeason: setSeason, season: function () { return SEASON.cur; }, seasonMode: function () { return SEASON.mode; },
       departCeremony: departCeremony, returnCeremony: returnCeremony, ceremony: function () { return CER.name; },
       /* 비상 정지: 프레임이 못 도는 동안(WebGL 컨텍스트 잃음) 남은 의식을 버리고 다락으로. onDone 은 부르지 않는다 (앱이 이미 정리) */
-      cancelCeremony: function () { CER.q = []; CER.cur = null; CER.active = false; CER.name = ''; CER.done = null; CER.walk = false; oct.hop = 0; WAVE.on = false; pkReset(); setOctFade(1); octG.visible = true; octDecal.visible = true; setPlace('attic', { instant: true }); },
+      cancelCeremony: function () { if (CER.cur && CER.cur.land) CER.cur.land(); CER.q = []; CER.cur = null; CER.active = false; CER.name = ''; CER.done = null; CER.walk = false; oct.hop = 0; WAVE.on = false; pkReset(); setOctFade(1); octG.visible = true; octDecal.visible = true; setPlace('attic', { instant: true }); },
       /* 바깥 기웃 (docs/SCENE.md "바깥 기웃"): extSpot(corner|roomId) → {key,x,y,z,face(rad),prop,act} · peekOutside({corner, roomId, status, first, emoji}, onDone) → Promise · leaveOutside(onDone) → Promise */
       extSpot: extSpot, peekOutside: peekOutside, leaveOutside: leaveOutside, EXT_SPOTS: Object.keys(EXT_SPOTS),
       peek: function () { return { on: PK.on, key: PK.key, hold: PK.hold, onSpot: PK.onSpot, status: PK.status, t: +PK.t.toFixed(2), lean: +(PK.leanQ / DEG).toFixed(1), sit: PK.sit, arm: PK.arm, mail: PK.mail, rustle: PK.rustle && rustleM.visible, ripple: rippleM.visible }; },
       setPosters: setPosters, setSouvenirs: setSouvenirs,
       bubble: bubble, nudge: function () { if (!st.reduced) { oct.nudgeT = 0.18; dither.still = 0; } },   /* 톡 받음 (APP 이 깨어 있는 톡마다 · 모션 감소면 APP 이 눈 깜빡으로) */
-      lookAt: function (x, y) { oct.lookTarget = { x: x, y: y }; }, octUp: function () { return octUp(); }, octDown: octUnmountLoft, setSheetInset: setSheetInset, lift: function () { return { y: +LIFT.y.toFixed(4), to: +LIFT.to.toFixed(4) }; }, octScreenPos: function () { if (isRoomP(PLACE.vis) && !octUp()) return null; var p = octScreen(), r = canvas.getBoundingClientRect(); return { x: r.left + p.x - S.offX, y: r.top + p.y - S.offY }; },   /* 놀이방: null (문어가 화면에 없다 — 말풍선·파티클·앨범 날기는 문어 자리에 안 붙는다) */
+      lookAt: function (x, y) { oct.lookTarget = { x: x, y: y }; }, octUp: function () { return octUp(); }, octDown: octUnmountLoft, setSheetInset: setSheetInset, lift: function () { return { y: +LIFT.y.toFixed(4), to: +LIFT.to.toFixed(4) }; }, octScreenPos: function () { if (isRoomP(PLACE.vis) && !octUp() && !(PLACE.vis === 'play' && TB.oct !== 'none')) return null; var p = octScreen(), r = canvas.getBoundingClientRect(); return { x: r.left + p.x - S.offX, y: r.top + p.y - S.offY }; },   /* 놀이방: null (문어가 화면에 없다 — 말풍선·파티클·앨범 날기는 문어 자리에 안 붙는다) */
       setReducedMotion: function (r) { st.reduced = !!r; lampDirty = true; },
       setLook: function (o) {
         var re = false;
         if (o.pixelSize != null && (o.pixelSize | 0) !== st.look.pixelSize) { st.look.pixelSize = clamp(o.pixelSize | 0, 1, 4); re = true; }
         if (o.dither != null) { st.look.dither = clamp(+o.dither, 0, 1); ditherBase(); }
         if (o.outline != null) { st.look.outline = !!o.outline; post.uniforms.uOutline.value = st.look.outline && hasDepthTex ? 1 : 0; }
-        if (o.yaw != null) { st.look.yaw = clamp(+o.yaw, -25, 25); dither.still = 0; }
+        if (o.yaw != null && isFinite(+o.yaw)) { st.look.yaw = +o.yaw; dither.still = 0; }   /* 11-15: 끝 없음 (데브 패널 · 도구) */
         if (o.zoom != null) { var zf = ZOOM_OLD[clamp(o.zoom | 0, 0, ZOOM_OLD.length - 1)]; if (zf !== st.zoomF) { ZT = null; st.zoomF = zf; re = true; touchMode(); } }   /* 옛 줌 단계 0..3 = 1·1.25·1.5·2× (look-shots close · play.html 호환). 핀치·휠은 7 멈춤 */
         if (o.focus !== undefined) { st.look.focus = o.focus === 'oct' ? 'oct' : null; dither.still = 0; }
         if (o.key != null || o.fill != null) { if (o.key != null) st.look.key = clamp(+o.key || LIGHTS.day.sunI, 0.5, 4); if (o.fill != null) st.look.fill = clamp(+o.fill, 0, 1); applyLight(); }   /* 키/필 비율 (룩 패스 4) */
@@ -5544,11 +9734,13 @@ var SCENE3D = (function () {
         if (PLACE.vis === 'attic') { add('window', 'window', [glass]); tapItems().forEach(function (m) { add(m.userData.kind, tapId(m), [m]); }); }
         return out;
       },
+      debugPlayTruth: function (x, y) { scene.updateMatrixWorld(); camera.updateMatrixWorld(); var r = canvas.getBoundingClientRect(); ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); return playSurface(); },   /* 11-18 시험용: 놀이방 그 자리에 보이는 것 */
+      spotTapAt: function (x, y) { scene.updateMatrixWorld(); camera.updateMatrixWorld(); var o = pick(+x, +y); if (!o || o.userData.kind !== 'spot') return false; spotTap(o.userData.spot); return true; },   /* 11-22: 스틱 칸 위의 그려진 자리를 짧게 톡 (앱의 스틱 구역이 넘겨준다) */
       pickAt: function (x, y) { scene.updateMatrixWorld(); camera.updateMatrixWorld(); var o = pick(+x, +y); return o ? { kind: o.userData.kind, id: tapId(o) } : null; },
       /* 디버그 (11-11 텃밭 시험, tools/smoke.js X): 바깥 원점 · 칸 흙 윗면 가운데 · 울타리 끝 기둥 (월드) · 흙 반폭 · 테 반폭 · 심은 것 지오메트리가 버릴 목록(keep)에 있나 · 목록 길이 · 내 캐릭터 머리 지오메트리 id (다시 지었나) */
       plotsDebug: function () {
-        extG.updateWorldMatrix(true, false); function w(x, y, z) { var v = extG.localToWorld(new T.Vector3(x, y, z)); return [v.x, v.y, v.z]; }
-        return { origin: w(0, 0, 0), c: PLOT.xs.map(function (x) { return w(x, 0.07, PLOT.z); }), half: PLOT.w / 2, frame: PLOT.w / 2 + 0.065, fence: w(EXT_FENCE_END[0], 0, EXT_FENCE_END[1]),
+        var yg = YROOM ? YROOM.g : extG; yg.updateWorldMatrix(true, false); function w(x, y, z) { var v = yg.localToWorld(new T.Vector3(x, y, z)); return [v.x, v.y, v.z]; }   /* 11-15: 밭은 마당에 (마당 전엔 원점 기준 — 그룹은 원점) */
+        return { origin: w(0, 0, 0), c: plotState.map(function (g0, i) { var q = plotXZ(i); return w(q[0], 0.07, q[1]); }), open: plotState.length, built: !!YROOM, half: YPLOT.w / 2, frame: YPLOT.w / 2 + 0.065, fence: w(EXT_FENCE_END[0], 0, EXT_FENCE_END[1]),
           plants: plotPlants ? { kept: disposables.indexOf(plotPlants.geometry) >= 0, id: plotPlants.geometry.uuid } : null, disposables: disposables.length, playerGeo: plMeshes[0] ? plMeshes[0].geometry.uuid : '' };
       },
       screenOf: function (x, y, z) { var p = _hp.set(x, y, z).project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 월드 → 컨테이너 CSS px (스트립 크롭 중심) */
@@ -5556,7 +9748,7 @@ var SCENE3D = (function () {
       loftProps: function () { return LROOM ? { cushions: LROOM.cushions.map(function (c) { return c.slice(); }) } : null; },   /* 위층 방석 [x, z, 아래 반지름] (검사용 — 11-12) */
       motion: function () { var vg = groupOf(PLACE.vis); return { salon: salMotion(), player: plInfo(), place: PLACE.vis, view: PLACE.vis, room: PLACE.room, dq: DQ.name, slidePx: Math.round(vg.position.dot(_r) / S.pw), slideUpPx: Math.round(vg.position.dot(_u) / S.pw), slideY: +vg.position.y.toFixed(4), transAxis: PLACE.trans ? PLACE.trans.axis : '', doorAttic: ATTIC_DOOR.f, doorPlay: PLAY_DOOR ? PLAY_DOOR.f : 0, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, octFade: FADE.d, wave: WAVE.on, peek: PK.on ? PK.key + (PK.hold ? ':hold' : ':walk') : '', extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
       gaitStyle: function (s) { if (s === 'stepped' || s === 'smooth') GAIT.stepped = s === 'stepped'; return GAIT.stepped ? 'stepped' : 'smooth'; },   /* 디버그: 걸음 굴림 3단 스텝(기본) / 매끈 — tools/walk-strip.js 비교용 */   /* 룩 패스 7·8 디버그 */
-      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: +(S.N / baseN()).toFixed(4), props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, view: PLACE.vis, room: PLACE.room, frameY: frameY(), season: SEASON.cur, offscreen: !!st.offscreen, draws: drawN, callsAttic: callsBy.attic, callsExt: callsBy.exterior, callsPlay: callsBy.play, extProps: extPropN, playBuilt: !!PROOM, playProps: PROOM ? PROOM.props : 0, programs: renderer.info.programs ? renderer.info.programs.length : 0 }; },
+      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: +(S.N / baseN()).toFixed(4), props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, view: PLACE.vis, room: PLACE.room, frameY: frameY(), season: SEASON.cur, offscreen: !!st.offscreen, draws: drawN, callsAttic: callsBy.attic, callsExt: callsBy.exterior, callsPlay: callsBy.play, extProps: extPropN, playBuilt: !!PROOM, playProps: PROOM ? PROOM.props : 0, programs: renderer.info.programs ? renderer.info.programs.length : 0, duskK: duskBlend(st.hour), lightKey: light.key, lampI: +lamp.intensity.toFixed(3), lampD: +lamp.distance.toFixed(2), lampBase: +(light.lamp || 0).toFixed(3), moonHemi: FIRST_LIGHT.hemiI, hemiNow: +hemi.intensity.toFixed(3), cueK: +stairCueK().toFixed(3), cueAttic: !!(ATTIC_CUE && ATTIC_CUE.lan.visible), cueLoft: !!(LROOM && LROOM.cue.lan.visible) }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastDraw = 0; loop(); },
       destroy: function () {
@@ -5577,6 +9769,6 @@ var SCENE3D = (function () {
     };
   }
 
-  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, DOOR_ANCHORS: DOOR_ANCHORS, ITEM_LEVEL: { salon: 2 },   /* ITEM_LEVEL = 장면이 그리는 새 소품의 등불 칸 (앱 ITEM_LEVEL 이 같은 값을 쓴다) */ PLAY_SIZE: { floor: 2 * PLAY_R, wall: PLAY_H }, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS, FIRST_LIGHT: FIRST_LIGHT, EXPRESSIONS: EXPRESSIONS.slice(),
-    PLAYER_PARTS: PLAYER_PARTS, PLAYER_DEFAULT: PLAYER_DEFAULT, normalizePlayer: normalizePlayer, COSTUMES: COSTUMES };   /* 내 캐릭터 파츠 카탈로그 · 기본값 · 정규화 (docs/PLAYER_PARTS.md §3) */
+  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, DOOR_ANCHORS: DOOR_ANCHORS, ITEM_LEVEL: { salon: 2 },   /* ITEM_LEVEL = 장면이 그리는 새 소품의 등불 칸 (앱 ITEM_LEVEL 이 같은 값을 쓴다) */ PLAY_SIZE: { floor: 2 * PLAY_R, wall: PLAY_H }, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS, FIRST_LIGHT: FIRST_LIGHT, duskBlend: duskBlend, lightKey: lightKey, EXPRESSIONS: EXPRESSIONS.slice(),
+    PLAYER_PARTS: PLAYER_PARTS, PLAYER_DEFAULT: PLAYER_DEFAULT, PLAYER_LEGACY: PLAYER_LEGACY, normalizePlayer: normalizePlayer, COSTUMES: COSTUMES };   /* 내 캐릭터 파츠 카탈로그 · 기본값 · 정규화 (docs/PLAYER_PARTS.md §3) */
 })();

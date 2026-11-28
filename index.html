@@ -7,6 +7,15 @@
 <meta name="theme-color" content="#d7b594" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#10141f" media="(prefers-color-scheme: dark)">
 <title>뽈뽈 문어</title>
+<!-- 11-15 홈 화면에 두기 (주인: PWA): 앱 목록 · 아이콘은 게임 3D 문어 (tools/make-app-icons.js). 서비스 워커는 없다 — 자주 배포하는 게임이라 옛 판에 갇히지 않게 (늘 네트워크) -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/app/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/app/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icons/app/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="뽈뽈 문어">
 <!-- 첫 화면 픽셀 글꼴 미리 받기: 첫 화면이 쓰는 Galmuri 부분집합 넷(본문 9 · 버튼 11 · 굵은 11 · 메타 7)을 스타일시트를 다 읽기 전에 받기 시작한다.
      스크립트로 넣는 까닭: file:// 에서는 crossorigin preload 가 CORS 로 막혀 오류·경고가 나고, 시스템 글꼴을 골랐으면 건너뛴다 (쓰지 않게 되면 "preload 했는데 안 씀" 경고가 난다).
      crossorigin 이 없으면 @font-face 요청이 preload 를 다시 쓰지 않고 또 받는다. 스타일시트보다 앞에 있어야 기다리지 않고 바로 돈다 -->
@@ -19,13 +28,52 @@
     document.head.appendChild(l);
   });
 })();</script>
+<!-- 11-15 (검증): 픽셀 글꼴을 껐으면 스타일시트보다 먼저 data-font 를 뗀다 (credits.html 과 같은 셈 · 전역 변수 없이) — 예전엔 부팅 뒤 applyFont 까지 픽셀 규칙이 살아 있어 Galmuri 부분집합을 매번 받았다. 기록이 없으면 그대로 픽셀 -->
+<script>(function () { try { var raw = localStorage.getItem('ppolppol_v2') || ''; if (raw.indexOf('"pixelFont":false') !== -1 || raw.indexOf('"font":"system"') !== -1) document.documentElement.removeAttribute('data-font'); } catch (e) { /* 저장소 없음 → 기본(픽셀 글꼴) */ } })();</script>
+<!-- 11-15 로딩 문어 (주인: "게임 속 문어가 오른쪽으로 뽈뽈 기어가는 반복 그림" · "빨간 문어 아이콘이 찰나에 뜨는 거"): 스크립트가 오기 전부터 장면 허공색 위로
+     게임 3D 문어의 걷는 옆모습 (assets/ui/loading_oct.png, 8칸 · tools/make-loading-oct.js) 이 기어간다. 앱이 첫 그림을 그리면 (html.booted) 걷힌다.
+     11-18 6차 (주인: "폰이랑 컴퓨터 기준 중앙에서 오른쪽으로 뽈뽈"): 화면 가운데에서 출발해 왼쪽 끝이 오른쪽 끝에 닿을 때까지, 다시 가운데부터 (반복).
+     속도는 문어 제 걸음 = 아트 52 px/초 (한 걸음 = 아트 1 px = 기기 px 정수 · steps(n)), 다리 한 바퀴 1.0 초 (steps(8)).
+     크기 (리드 선택): 아트 1 px = max(round(2·dpr), floor(짧은 변·dpr / 200)) 기기 px — 폰은 예전 그대로 2 CSS px 남짓, 큰 화면은 정수 기기 px 만큼 커진다 (1280×800@1 → 4).
+     최소 1.0 초 (리드 선택): 아래 스크립트가 1.0 초 뒤 boot-min 을 붙이고, 걷기는 booted 와 boot-min 이 둘 다 있을 때 — 빠른 컴퓨터에서도 몸 하나만큼은 기어가는 게 보인다 (느린 로딩은 그대로).
+     입장 레이어 (z 80) 아래 · 동작 줄이기 (기기 설정 또는 저장된 설정) 면 가운데 멈춘 한 칸 · 최소 시간 없음. 앱이 끝내 안 서면 load 뒤 12 s 에 스스로 걷는다 (예전 화면이라도 보이게) -->
+<link rel="preload" as="image" href="assets/ui/loading_oct.png">
+<script>(function () {
+  var de = document.documentElement, still = false;
+  try { if ((localStorage.getItem('ppolppol_v2') || '').indexOf('"motion":"reduce"') !== -1) { de.setAttribute('data-motion', 'reduce'); still = true; } } catch (e) { /* 저장소 없음 → 기기 설정만 */ }
+  try { if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) still = true; } catch (e) { /* 그대로 */ }
+  function place() {
+    var dpr = window.devicePixelRatio || 1, vw = window.innerWidth || de.clientWidth || 360, vh = window.innerHeight || de.clientHeight || 740;
+    var U = Math.max(Math.round(2 * dpr), Math.floor(Math.min(vw, vh) * dpr / 200)), u = U / dpr;
+    var x0 = Math.round((vw / 2 - 28 * u) * dpr) / dpr, y0 = Math.round((vh / 2 - 19.5 * u) * dpr) / dpr, n = Math.max(1, Math.ceil((vw - x0) / u));
+    var v = { u: u + 'px', x0: x0 + 'px', y0: y0 + 'px', dx: (n * u) + 'px', n: String(n), dur: (n / 52).toFixed(4) + 's' };
+    for (var k in v) de.style.setProperty('--boot-' + k, v[k]);
+  }
+  try { place(); window.addEventListener('resize', place); } catch (e) { /* CSS 기본값 */ }
+  if (still) de.classList.add('boot-min'); else setTimeout(function () { de.classList.add('boot-min'); }, 1000);
+})();</script>
+<style>
+#boot { position: fixed; inset: 0; z-index: 79; background: #090a14; overflow: hidden; pointer-events: none; }
+#boot .boot-oct { position: absolute; left: 0; top: 0; width: calc(56 * var(--boot-u, 2px)); height: calc(39 * var(--boot-u, 2px));
+  background: url("assets/ui/loading_oct.png") 0 0 / calc(448 * var(--boot-u, 2px)) calc(39 * var(--boot-u, 2px)) no-repeat; image-rendering: pixelated;
+  transform: translate(var(--boot-x0, calc(50vw - 56px)), var(--boot-y0, calc(50vh - 39px)));
+  animation: boot-walk 1s steps(8) infinite, boot-cross var(--boot-dur, 3.5s) steps(var(--boot-n, 180)) infinite; }
+@keyframes boot-walk { to { background-position: calc(-448 * var(--boot-u, 2px)) 0; } }
+@keyframes boot-cross { from { transform: translate(var(--boot-x0, calc(50vw - 56px)), var(--boot-y0, calc(50vh - 39px))); } to { transform: translate(calc(var(--boot-x0, calc(50vw - 56px)) + var(--boot-dx, 50vw + 56px)), var(--boot-y0, calc(50vh - 39px))); } }
+@media (prefers-reduced-motion: reduce) { #boot .boot-oct { animation: none; } }
+html[data-motion="reduce"] #boot .boot-oct { animation: none; }
+html.booted.boot-min #boot { display: none; }
+html:not(.booted) #oct-svg { visibility: hidden; }
+</style>
+<script>try { window.addEventListener('load', function () { setTimeout(function () { document.documentElement.classList.add('booted'); }, 12000); }); } catch (e) {}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!-- 11-15 (검증): 700 = 시스템 글꼴 소제목의 진짜 굵은 꼴 (없으면 브라우저가 가짜로 굵게 칠한다) -->
 <link rel="stylesheet" href="vendor/fonts/galmuri.css"><!-- 픽셀 글꼴 (Galmuri, OFL) · file:// 상대 경로 -->
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/ui-art.css">
 <link rel="stylesheet" href="css/runner.css">
 <link rel="stylesheet" href="css/intro.css"><!-- 입장 레이어 (js/intro.js) -->
+<script src="js/fs-snap.js"></script><!-- 11-15 5차: 픽셀 글꼴 크기를 기기 픽셀에 맞춘다 (credits.html 과 같이 쓴다) -->
 <script src="js/intro.js"></script><!-- head 에서 읽어 html.intro-on 을 먼저 붙인다 (UI 깜빡임 방지) -->
 <!-- 저장소 워밍업: 문서가 열리자마자 한 번 읽어 둔다. file:// 원점에서 새로고침 직후 첫 읽기가 직전 커밋을 놓치는 경우가 있어서 (R2) -->
 <script>try { localStorage.getItem('ppolppol_v2'); } catch (e) { /* 저장소 없음: app.js 가 메모리로 대신한다 */ }</script>
@@ -34,6 +82,7 @@
 <script>try { if (!/[?&]scene=2d(&|$)/.test(location.search)) document.documentElement.setAttribute('data-layout', 'one'); } catch (e) {}</script>
 </head>
 <body>
+<div id="boot" aria-hidden="true"><i class="boot-oct"></i></div>
 
 <!-- 저장 실패 경고 (조용히, 1회) -->
 <div id="save-warn" class="warn" hidden role="status"></div>
@@ -94,9 +143,9 @@
       <span class="ib-dot" aria-hidden="true" hidden></span>
       <span id="today-new" class="sr-only"></span>
     </button>
-    <!-- 가구 배치 (11-10 주인: "소파 모양을 포스터 아이콘 왼쪽에") — 누르면 배치 모드: 아래에 가구 줄, 고르면 캐릭터 앞에 붙는다. 다락이 보일 때만 (app.js furnBtnSync) -->
-    <button type="button" id="btn-furn" class="icon-btn furn-btn" aria-label="가구 배치" title="가구 배치" aria-pressed="false">
-      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M3 2h6v1H3zM2 3h1v3H2zM9 3h1v3H9zM3 3h6v2H3zM1 5h1v4H1zM10 5h1v4h-1zM2 6h8v3H2zM2 9h1v2H2zM9 9h1v2H9z"/></svg></span>
+    <!-- 가구 옮기기 (11-15 주인: 망치 그림 — 주황 자루 대각선 · 회색 머리 왼쪽 위, 색 있는 12×12 픽셀 · 다른 아이콘과 달리 일부러 색): 누르면 가구 모드 (app.js furnOpen). 한 화면 배치에서만 -->
+    <button type="button" id="btn-furn" class="icon-btn furn-btn" aria-label="가구 옮기기" title="가구 옮기기" aria-pressed="false">
+      <span class="snd-box" aria-hidden="true"><svg class="ham-ico" viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" focusable="false"><path fill="#2b1d22" d="M3 0h2v1H3zM2 1h1v1H2zM5 1h1v1H5zM1 2h1v1H1zM6 2h1v1H6zM0 3h1v1H0zM5 3h1v1H5zM0 4h1v1H0zM6 4h1v1H6zM1 5h1v1H1zM3 5h2v1H3zM7 5h1v1H7zM2 6h1v1H2zM5 6h1v1H5zM8 6h1v1H8zM6 7h1v1H6zM9 7h1v1H9zM7 8h1v1H7zM10 8h1v1H10zM8 9h1v1H8zM11 9h1v1H11zM9 10h2v1H9z"/><path fill="#e4e6ea" d="M3 1h1v1H3zM2 2h1v1H2zM1 3h1v1H1z"/><path fill="#a3a9b4" d="M4 1h1v1H4zM3 2h2v1H3zM2 3h2v1H2zM1 4h2v1H1z"/><path fill="#6e7480" d="M5 2h1v1H5zM4 3h1v1H4zM3 4h1v1H3zM2 5h1v1H2z"/><path fill="#f2913a" d="M5 4h1v1H5zM6 5h1v1H6zM7 6h1v1H7zM8 7h1v1H8zM9 8h1v1H9zM10 9h1v1H10z"/><path fill="#c2551e" d="M4 4h1v1H4zM5 5h1v1H5zM6 6h1v1H6zM7 7h1v1H7zM8 8h1v1H8zM9 9h1v1H9z"/></svg></span>
     </button>
     <button type="button" id="btn-album" class="icon-btn album-btn" aria-label="추억 앨범" title="추억 앨범" aria-haspopup="dialog" aria-controls="album-sheet" aria-describedby="album-new" hidden>
       <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M1 2h10v1H1zM1 10h10v1H1zM1 3h1v7H1zM10 3h1v7h-1z"/><path class="al-pic" d="M3 6h1v1H3zM2 7h3v1H2zM6 5h1v1H6zM5 6h3v1H5zM4 7h5v1H4zM2 8h8v2H2zM8 4h1v1H8z"/></svg></span>
@@ -116,28 +165,124 @@
     <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/home" alt="" width="32" height="32" draggable="false"><span class="door-txt">집</span></span>
   </button>
   <button type="button" id="btn-play-door" class="scene-spot" aria-label="문어 방" title="문어 방" aria-describedby="scene-desc" hidden></button>
+  <!-- 11-15 마당 문: #btn-yard = 다락 뒷벽 문간 (문어가 산책 나가는 문을 같이 쓴다) 위 투명 단추 · 산책 중 바깥이 보이는 동안은 data-spot="edge" 로 집 단추 옆 가장자리 단추 (그림 ctl/door, 안 오면 글자 '마당').
+       문어가 그 문으로 나가거나 들어오는 동안은 숨는다. #btn-yard-door = 마당 집 현관 → 집 (이야기 장소로) -->
+  <button type="button" id="btn-yard" class="scene-door scene-yard" aria-label="마당으로" title="마당으로" aria-describedby="scene-desc" hidden>
+    <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/door" alt="" width="32" height="32" draggable="false"><span class="door-txt">마당</span></span>
+  </button>
+  <button type="button" id="btn-yard-door" class="scene-spot" aria-label="집으로" title="집으로" aria-describedby="scene-desc" hidden></button>
   <!-- 소파 위 연한 노란 점 (11-10): 누르면 내 캐릭터가 소파 앞으로 걸어가 폴짝 뛰어 앉는다. 자리는 장면이 on.sofaSpot 으로 알려 준다 (app.js). 누르는 곳 44×44 · 보이는 점 10px -->
   <button type="button" id="btn-sofa" class="sofa-dot" aria-label="소파에 앉기" title="소파에 앉기" hidden><span aria-hidden="true"></span></button>
-  <!-- 가구 배치 모드 (11-10): 가구를 꾹 누르면 뜬다. 가구가 내 캐릭터 앞에 붙어 따라오고, 여기서 돌리기 · 크기 · 취소 · 놓기 (app.js furnUI · 장면 furnCarry) -->
+  <!-- 가구 모드 (11-15): 문어 · 캐릭터가 숨고 가구만 손가락으로 끌어 옮긴다. app.js furnUI · 장면 furnMode.
+       11-15 (주인 답: "가구 모드 화면 글자 0"): 위 = 양쪽 구석에 그림 단추 빨간 X (취소) · 플로피 디스크 (저장하기) — 11-15 주인 새 답: 색이 든 12×12 픽셀 그림 (망치처럼, 이모지 글자 아님) — 제목 · 판 없음, 이름은 aria-label 로만. 처음 한 번 안내는 손 그림이 소파를 끄는 2초 (읽어 주기 글은 sr-only 로 남김).
+       아래 = 한 판: 돌리기 · 작게 · 크기 눈금 9칸 · 크게 + 가구 줄 (톡 = 고르기). 그림은 게임 12×12 격자로 직접 그렸다 (작게 · 크게는 Pixelarticons minus · plus, MIT, credits.html) -->
   <div id="furn-ui" class="furn-ui" hidden>
-    <div class="furn-top"><button type="button" class="btn sm pressable" id="furn-done">끝내기</button><strong id="furn-title">가구 배치</strong></div>
-    <!-- 고른 가구가 있을 때만: 회전 · 크기 슬라이더 + 취소 · 놓기 (참고 화면의 오른쪽 세로 슬라이더 · ✕ ✓ 자리) -->
-    <div id="furn-tools" class="furn-tools" hidden>
-      <label class="furn-sl"><span>회전</span><input type="range" id="furn-rot" min="0" max="345" step="15" value="0" aria-label="회전"></label>
-      <label class="furn-sl"><span>크기</span><input type="range" id="furn-size" min="70" max="150" step="5" value="100" aria-label="크기"></label>
-      <div class="furn-yn"><button type="button" class="btn sm pressable" id="furn-x">취소</button><button type="button" class="btn sm primary pressable" id="furn-ok">놓기</button></div>
+    <div id="furn-top" class="furn-top"><button type="button" class="btn sm pressable furn-act" id="furn-x" aria-label="취소 (들어오기 전대로)"><svg class="furn-act-ico furn-pic" viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path fill="#2b1d22" d="M1 0h2v1H1zM9 0h2v1H9zM0 1h1v1H0zM3 1h1v1H3zM8 1h1v1H8zM11 1h1v1H11zM0 2h1v1H0zM4 2h1v1H4zM7 2h1v1H7zM11 2h1v1H11zM1 3h1v1H1zM5 3h2v1H5zM10 3h1v1H10zM2 4h1v1H2zM9 4h1v1H9zM3 5h1v1H3zM8 5h1v1H8zM3 6h1v1H3zM8 6h1v1H8zM2 7h1v1H2zM9 7h1v1H9zM1 8h1v1H1zM5 8h2v1H5zM10 8h1v1H10zM0 9h1v1H0zM4 9h1v1H4zM7 9h1v1H7zM11 9h1v1H11zM0 10h1v1H0zM3 10h1v1H3zM8 10h1v1H8zM11 10h1v1H11zM1 11h2v1H1zM9 11h2v1H9z"/><path fill="#e0564b" d="M1 1h2v1H1zM9 1h2v1H9zM1 2h3v1H1zM8 2h3v1H8zM2 3h1v1H2zM4 3h1v1H4zM7 3h1v1H7zM9 3h1v1H9zM3 4h1v1H3zM5 4h2v1H5zM8 4h1v1H8zM4 5h1v1H4zM7 5h1v1H7zM4 6h1v1H4zM7 6h1v1H7zM3 7h1v1H3zM5 7h2v1H5zM8 7h1v1H8zM2 8h1v1H2zM4 8h1v1H4zM7 8h1v1H7zM9 8h1v1H9zM1 9h1v1H1zM3 9h1v1H3zM8 9h1v1H8zM10 9h1v1H10z"/><path fill="#a53030" d="M3 3h1v1H3zM8 3h1v1H8zM4 4h1v1H4zM7 4h1v1H7zM5 5h2v1H5zM5 6h2v1H5zM4 7h1v1H4zM7 7h1v1H7zM3 8h1v1H3zM8 8h1v1H8zM2 9h1v1H2zM9 9h1v1H9zM1 10h2v1H1zM9 10h2v1H9z"/></svg></button><strong id="furn-title" class="sr-only">가구 옮기기</strong><button type="button" class="btn sm primary pressable furn-act" id="furn-ok" aria-label="저장하고 나가기"><svg class="furn-act-ico furn-pic" viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path fill="#10141f" d="M0 0h10v1H0zM0 1h1v1H0zM2 1h1v1H2zM8 1h1v1H8zM10 1h1v1H10zM0 2h1v1H0zM2 2h1v1H2zM8 2h1v1H8zM11 2h1v1H11zM0 3h1v1H0zM2 3h1v1H2zM8 3h1v1H8zM11 3h1v1H11zM0 4h1v1H0zM2 4h1v1H2zM8 4h1v1H8zM11 4h1v1H11zM0 5h1v1H0zM3 5h5v1H3zM11 5h1v1H11zM0 6h1v1H0zM11 6h1v1H11zM0 7h1v1H0zM2 7h8v1H2zM11 7h1v1H11zM0 8h1v1H0zM2 8h1v1H2zM9 8h1v1H9zM11 8h1v1H11zM0 9h1v1H0zM2 9h1v1H2zM9 9h1v1H9zM11 9h1v1H11zM0 10h1v1H0zM2 10h1v1H2zM9 10h1v1H9zM11 10h1v1H11zM0 11h12v1H0z"/><path fill="#253a5e" d="M1 1h1v1H1zM9 1h1v1H9zM1 2h1v1H1zM9 2h2v1H9zM1 3h1v1H1zM9 3h2v1H9zM1 4h1v1H1zM9 4h2v1H9zM1 5h2v1H1zM8 5h3v1H8zM1 6h10v1H1zM1 7h1v1H1zM10 7h1v1H10zM1 8h1v1H1zM10 8h1v1H10zM1 9h1v1H1zM10 9h1v1H10zM1 10h1v1H1zM10 10h1v1H10z"/><path fill="#c7cfcc" d="M3 1h5v1H3zM3 2h2v1H3zM6 2h2v1H6zM3 3h2v1H3zM6 3h2v1H6zM3 4h5v1H3z"/><path fill="#577277" d="M5 2h1v1H5zM5 3h1v1H5zM4 9h4v1H4z"/><path fill="#ebede9" d="M3 8h6v1H3zM3 9h1v1H3zM8 9h1v1H8zM3 10h6v1H3z"/></svg></button><p id="furn-hint" class="furn-hint sr-only" role="status">가구를 끌어서 옮겨</p></div>
+    <span id="furn-hand" class="furn-hand" aria-hidden="true" hidden><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" focusable="false"><path fill="#ebede9" d="M4 1h2v1H4zM4 2h2v1H4zM4 3h2v1H4zM4 4h2v1H4zM7 4h2v1H7zM4 5h2v1H4zM7 5h2v1H7zM10 5h1v1H10zM1 6h2v1H1zM4 6h7v1H4zM1 7h10v1H1zM2 8h9v1H2zM3 9h7v1H3zM4 10h6v1H4z"/><path fill="#2b1d22" d="M4 0h2v1H4zM3 1h1v1H3zM6 1h1v1H6zM3 2h1v1H3zM6 2h1v1H6zM3 3h1v1H3zM6 3h3v1H6zM3 4h1v1H3zM6 4h1v1H6zM9 4h2v1H9zM1 5h3v1H1zM6 5h1v1H6zM9 5h1v1H9zM11 5h1v1H11zM0 6h1v1H0zM3 6h1v1H3zM11 6h1v1H11zM0 7h1v1H0zM11 7h1v1H11zM1 8h1v1H1zM11 8h1v1H11zM2 9h1v1H2zM10 9h1v1H10zM3 10h1v1H3zM10 10h1v1H10zM3 11h7v1H3z"/></svg></span>
+    <div id="furn-bottom" class="furn-bottom">
+      <div id="furn-bar" class="furn-bar" role="group" aria-label="가구 바꾸기"><button type="button" class="btn sm pressable furn-act" id="furn-turn" aria-label="돌리기 (90도)"><svg class="furn-act-ico" viewBox="0 0 12 12" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M8 1h1v1H8zM3 2h6v1H3zM2 3h1v1H2zM8 3h3v1H8zM1 4h1v1H1zM8 4h2v1H8zM1 5h1v1H1zM8 5h1v1H8zM1 6h1v1H1zM1 7h1v1H1zM10 7h1v1H10zM1 8h1v1H1zM10 8h1v1H10zM2 9h1v1H2zM9 9h1v1H9zM3 10h6v1H3z"/></svg></button><span class="furn-size"><button type="button" class="btn sm pressable furn-act" id="furn-small" aria-label="작게"><svg class="furn-act-ico" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M4 11h16v2H4z"/></svg></button><span id="furn-meter" class="furn-meter" role="img" aria-label="크기"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><button type="button" class="btn sm pressable furn-act" id="furn-big" aria-label="크게"><svg class="furn-act-ico" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M13 11h7v2h-7v7h-2v-7H4v-2h7V4h2v7Z"/></svg></button></span></div>
+      <div id="furn-items" class="furn-strip" role="group" aria-label="가구 고르기"></div>
     </div>
-    <div id="furn-items" class="furn-strip" role="group" aria-label="가구"></div>
   </div>
-  <!-- 가방 꼬리표 (11-10): 위쪽 바 아래 오른쪽에 매달린 '조개 N' — 누르면 살림 시트 (조개 · 씨앗 · 들어온 날 · 텃밭 · 옷 물들이기). 이름을 지은 뒤부터 보인다 -->
-  <button type="button" id="btn-bag" class="bag-tag pressable" aria-haspopup="dialog" aria-controls="bag-sheet" hidden><span id="bag-n">조개 0</span></button>
+  <!-- 가방 꼬리표 (11-10): 위쪽 바 아래 오른쪽에 매달린 조개 그림 + N (11-15 주인 답: 글자 '조개' 대신 그림) — 누르면 살림 시트 (조개 · 씨앗 · 들어온 날 · 텃밭 · 옷 물들이기). 이름을 지은 뒤부터 보인다 -->
+  <button type="button" id="btn-bag" class="bag-tag pressable" aria-haspopup="dialog" aria-controls="bag-sheet" hidden><img class="bag-shell" data-icon="souvenir/shell" width="32" height="32" alt="" aria-hidden="true" draggable="false"><span class="sr-only">조개 </span><span id="bag-n">0</span></button>
   <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
+  <!-- 11-18 위층 계단: 계단 그림 위 투명 단추 (data-spot="over"). 11-21 (주인): 가장자리의 계단 그림 단추는 없앴다 — 계단이 화면 밖이면 가장자리의 안 보이는 칸 (data-spot="key": 키보드 · 낭독기만) -->
   <button type="button" id="btn-stair" class="scene-spot" aria-label="위층으로" title="위층으로" hidden></button>
   <button type="button" id="btn-loft-stair" class="scene-spot" aria-label="아래층으로" title="아래층으로" hidden></button>
   <button type="button" id="btn-plot0" class="scene-spot" aria-label="텃밭 첫째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-plot1" class="scene-spot" aria-label="텃밭 둘째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-plot2" class="scene-spot" aria-label="텃밭 셋째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot3" class="scene-spot" aria-label="텃밭 넷째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot4" class="scene-spot" aria-label="텃밭 다섯째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot5" class="scene-spot" aria-label="텃밭 여섯째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-sew" class="scene-spot" aria-label="재봉틀 · 옷 물들이기" title="재봉틀" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-sew-doll" class="scene-spot" aria-label="마네킹 · 옷 물들이기" aria-haspopup="dialog" hidden></button>
+  <!-- 11-15: 놀이방 조리대 → 부엌 (cook.html?embed=1 을 #cook-overlay 안 iframe 으로 — 처음 열 때 만든다) -->
+  <button type="button" id="btn-cook" class="scene-spot" aria-label="부엌" title="부엌" aria-haspopup="dialog" hidden></button>
+  <!-- 11-18 식탁 (docs/MEAL.md): 그림만 · 글자 0 · title 없음 (이름은 aria-label). #btn-table = 식탁 (장면 hotspot 'table' 이 자리 · hidden 을 쥔다) · #btn-seat = 내 자리 노란 점 ·
+       #btn-call = 문어 부르기 칩 (문어 머리 그림 — 부를 수 있을 때만). 점 · 칩 자리는 장면의 on.tableSpot (app.js mealUI) -->
+  <button type="button" id="btn-table" class="scene-spot" aria-label="식탁" hidden></button>
+  <button type="button" id="btn-seat" class="sofa-dot meal-seat" aria-label="식탁에 앉기" hidden><span aria-hidden="true"></span></button>
+  <button type="button" id="btn-call" class="meal-call" aria-label="문어 부르기" hidden></button>
+  <!-- 7차 갈래 자리 (11-21) · 장면 단추: 갈래마다 제 표시 줄 바로 아래에만 -->
+  <!-- [7-T] 단추 -->
+  <!-- 11-21 먹는 동안의 큰 요리 그림 (app.js mealCloseDraw): 그림뿐 · 글자 0 · 누를 수 없다 (식사 행은 로그가 읽어 준다) -->
+  <div id="meal-close" class="meal-close" aria-hidden="true" hidden><canvas width="80" height="56"></canvas></div>
+
+  <!-- [7-P] 단추 -->
+
+  <!-- [7-W] 단추 -->
+  <!-- 11-21 7차 바깥 한 장: 표지판 셋 (빠른 이동 창을 연다) · 해변의 조개 자리 다섯 (갈래 S 가 무엇을 줄지 정한다). 자리 · 보임은 장면이 맡는다 (js/scene3d.js WIDE_REG) -->
+  <button type="button" id="btn-sign-0" class="scene-spot" aria-label="표지판" hidden></button>
+  <button type="button" id="btn-sign-1" class="scene-spot" aria-label="표지판" hidden></button>
+  <button type="button" id="btn-sign-2" class="scene-spot" aria-label="표지판" hidden></button>
+  <button type="button" id="btn-beach-shell-0" class="scene-spot" aria-label="조개" hidden></button>
+  <button type="button" id="btn-beach-shell-1" class="scene-spot" aria-label="조개" hidden></button>
+  <button type="button" id="btn-beach-shell-2" class="scene-spot" aria-label="조개" hidden></button>
+  <button type="button" id="btn-beach-shell-3" class="scene-spot" aria-label="조개" hidden></button>
+  <button type="button" id="btn-beach-shell-4" class="scene-spot" aria-label="조개" hidden></button>
+
+  <!-- [7-V] 단추 -->
+  <!-- 11-21 마을 (docs/VILLAGE.md): 그림 위의 보이지 않는 단추 — 자리 · hidden 은 장면 (등록부 WIDE_REG.spots) 이 쥔다. 이름은 aria-label 뿐 (title 없음) -->
+  <button type="button" id="btn-shop-clothes" class="scene-spot" aria-label="옷가게" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-shop-goods" class="scene-spot" aria-label="잡화점" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-cafe-counter" class="scene-spot" aria-label="카페 주문" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-cafe-seat" class="scene-spot" aria-label="카페 자리" hidden></button>
+  <button type="button" id="btn-cafe-lp" class="scene-spot" aria-label="레코드" hidden></button>
+  <button type="button" id="btn-plaza-stage" class="scene-spot" aria-label="콘테스트 무대" hidden></button>
+  <button type="button" id="btn-plaza-board" class="scene-spot" aria-label="마을 게시판" hidden></button>
+  <button type="button" id="btn-npc-clothes" class="scene-spot" aria-label="가게 문어" hidden></button>
+  <button type="button" id="btn-npc-goods" class="scene-spot" aria-label="가게 문어" hidden></button>
+  <button type="button" id="btn-npc-cafe" class="scene-spot" aria-label="가게 문어" hidden></button>
+  <!-- 11-21 밤: 들어가는 가게 (문) 와 방 안의 자리 — 자리 · hidden 은 장면 (WIDE_REG / ROOM_REG 의 spots) 이 쥔다 -->
+  <button type="button" id="btn-in-clothes" class="scene-spot" aria-label="옷가게 들어가기" hidden></button>
+  <button type="button" id="btn-in-goods" class="scene-spot" aria-label="잡화점 들어가기" hidden></button>
+  <button type="button" id="btn-in-cafe" class="scene-spot" aria-label="카페 들어가기" hidden></button>
+  <button type="button" id="btn-in-hall" class="scene-spot" aria-label="공연장 들어가기" hidden></button>
+  <button type="button" id="btn-room-exit" class="scene-spot" aria-label="밖으로" hidden></button>
+  <button type="button" id="btn-hall-stage" class="scene-spot" aria-label="무대" hidden></button>
+  <button type="button" id="btn-hall-rack" class="scene-spot" aria-label="옷걸이와 거울" hidden></button>
+  <button type="button" id="btn-hall-board" class="scene-spot" aria-label="결과판" hidden></button>
+  <!-- [7-V] 다섯째 바퀴: 문어 집 넷 · 미용실 -->
+  <button type="button" id="btn-in-home-1" class="scene-spot" aria-label="숲길 집 들어가기" hidden></button>
+  <button type="button" id="btn-in-home-2" class="scene-spot" aria-label="마을 길 집 들어가기" hidden></button>
+  <button type="button" id="btn-in-home-3" class="scene-spot" aria-label="광장 집 들어가기" hidden></button>
+  <button type="button" id="btn-in-home-4" class="scene-spot" aria-label="숲길 건너 집 들어가기" hidden></button>
+  <button type="button" id="btn-in-salon" class="scene-spot" aria-label="미용실 들어가기" hidden></button>
+  <button type="button" id="btn-salon-chair" class="scene-spot" aria-label="미용 의자" hidden></button>
+  <button type="button" id="btn-npc-stylist" class="scene-spot" aria-label="미용사 문어" hidden></button>
+  <button type="button" id="btn-npc-sleep-1" class="scene-spot" aria-label="집 문어" hidden></button>
+  <button type="button" id="btn-npc-sleep-2" class="scene-spot" aria-label="집 문어" hidden></button>
+  <button type="button" id="btn-npc-sleep-3" class="scene-spot" aria-label="집 문어" hidden></button>
+  <button type="button" id="btn-npc-sleep-4" class="scene-spot" aria-label="집 문어" hidden></button>
+  <button type="button" id="btn-room-counter" class="scene-spot" aria-label="계산대" hidden></button>
+  <button type="button" id="btn-room-mirror" class="scene-spot" aria-label="거울" hidden></button>
+  <button type="button" id="btn-mq-0" class="scene-spot" aria-label="첫째 마네킹" hidden></button>
+  <button type="button" id="btn-mq-1" class="scene-spot" aria-label="둘째 마네킹" hidden></button>
+  <button type="button" id="btn-mq-2" class="scene-spot" aria-label="셋째 마네킹" hidden></button>
+  <button type="button" id="btn-mq-3" class="scene-spot" aria-label="넷째 마네킹" hidden></button>
+  <button type="button" id="btn-cafe-menu" class="scene-spot" aria-label="차림판" hidden></button>
+  <button type="button" id="btn-shelf-0" class="scene-spot" aria-label="첫째 선반" hidden></button>
+  <button type="button" id="btn-shelf-1" class="scene-spot" aria-label="둘째 선반" hidden></button>
+  <button type="button" id="btn-shelf-2" class="scene-spot" aria-label="셋째 선반" hidden></button>
+  <button type="button" id="btn-shelf-3" class="scene-spot" aria-label="넷째 선반" hidden></button>
+  <button type="button" id="btn-shelf-4" class="scene-spot" aria-label="다섯째 선반" hidden></button>
+  <button type="button" id="btn-shelf-5" class="scene-spot" aria-label="여섯째 선반" hidden></button>
+
+  <!-- [7-S] 단추 -->
+
+  <!-- [7-C] 단추 -->
+  <div id="cafe-tray" class="cafe-tray" hidden></div>
+  <button type="button" id="btn-cafe-plate" class="cafe-plate-btn" aria-label="접시" hidden></button>
+  <div id="cafe-card" class="cafe-card cafe-sheet" role="group" aria-label="메뉴 칠판" data-npc-avoid hidden><div id="cafe-card-body"></div><button type="button" class="btn sm pressable" id="cafe-card-close">닫기</button></div>
+
+  <!-- [7-N] 단추 -->
+
+  <!-- [7-F] 단추 -->
+
+  <!-- [7-U] 단추 -->
+
   <!-- 발자국 손잡이 (가상 스틱, 주인 11-08 "바닥 톡보다 훨씬 자연스럽다"): 장면 왼쪽 아래 72px 고리 + 28px 손잡이. 끌면 그 화면 방향으로 내 캐릭터가 걷는다 (js/app.js stick 절 · scene.setPlayerInput).
        다락 · 놀이방이 보일 때만 — hidden 은 장면의 on.playerInput(allowed) 로 앱이 쥔다 (바깥 · 입장 연출 · 문 작업 · 전환 · 2D 폴백에선 숨김). 바깥의 집 단추(#btn-door edge)와 자리는 같은 왼쪽 아래지만 보이는 때가 서로 배타적이다.
        키보드 포커스는 받지 않는다 (aria-hidden — 키보드는 방향키 · WASD). 그림은 16×16 ×2 'ctl.walk' (발자국 둘), 안 오면 글자 '걷기'. 발자국 그림이 곧 손잡이다 (--kx · --ky) — 그 밑의 회색 네모 손잡이는 뺐다 (주인 11-10) -->
@@ -162,7 +307,7 @@
 <div id="status">
   <div class="srow">
     <!-- #brain-tag: 데모 두뇌(규칙)가 고르는 동안 늘 보이는 아주 작은 표시 (정직 표기). 모델(MCP) 여행을 재생하는 동안만 숨긴다 (app.js renderBrainTag) -->
-    <span class="who"><span id="oct-name" class="name">이름 없는 문어</span><button type="button" id="brain-tag" class="brain-tag"><span aria-hidden="true">데모</span><span class="sr-only">데모 규칙이 움직이는 중</span></button><span id="room-title" class="room-title">불씨 하나 켜진 다락</span></span>
+    <span class="who"><span id="oct-name" class="name">이름 없는 문어</span><button type="button" id="brain-tag" class="brain-tag"><span aria-hidden="true">데모</span><span class="sr-only">데모 규칙이 움직이는 중</span></button><span id="day-n" class="day-n" hidden></span></span>
     <button type="button" id="pips" class="pips" aria-label="등불 0/8"><span class="pips-lbl" aria-hidden="true">등불</span><span class="pip-row" aria-hidden="true"></span><span class="pips-n" aria-hidden="true">0/8</span></button>
   </div>
   <p id="tip" class="tip" role="status" aria-live="polite"></p>
@@ -189,7 +334,7 @@
   <!-- 큰 도서관 '오늘의 서가' (js/shelf.js): 날짜로 정해지는 위키백과 알찬·좋은 글 8편. MCP 서버도 같은 날 같은 8편을 문어에게 보여 준다 -->
   <details id="shelf-today" class="shelf-today" hidden>
     <summary>오늘의 서가</summary>
-    <p class="shelf-note">날마다 바뀌는 위키백과 알찬 글·좋은 글 8편. 모델이 고르는 날엔 문어도 같은 서가를 본다.</p>
+    <p class="shelf-note">날마다 바뀌는 위키백과 알찬 글·좋은 글 8편. 모델이 고르는 날엔 문어도 이 서가를 봐.</p>
     <ul id="shelf-list"></ul>
   </details>
 </section>
@@ -228,9 +373,9 @@
 <!-- 먼 바다 문 (11-10): 등불 4칸 뒤 문어가 제안하면 사람이 한 번 고른다. 두 단추는 크기·모양이 같고 미리 골라진 쪽이 없다. 타이머 없음 (ROOM_EXPANSION 제안과 같은 틀). 11-13 (금지선 1): 첫 줄은 한 일(제안)만 — 예전 '가 보고 싶대' 는 코드가 문어 마음을 지어낸 말이라 뺐다 -->
 <dialog id="far-dialog" class="modal" aria-labelledby="far-h">
   <h2 id="far-h">먼 바다 문</h2>
-  <p class="name-lead">문어가 먼 바다 문 너머까지 가 보자고 했어. 열면 영어 위키백과도 읽을 수 있어.</p>
+  <p class="name-lead">문어가 먼 바다 문 너머로 가 보자고 했어. 열면 영어 위키백과도 읽을 수 있어.</p>
   <p id="far-line" class="far-line" hidden></p>
-  <p class="honest">한 번만 정하면 돼. 그대로 두어도 문어는 조르지 않아.</p>
+  <p class="honest">한 번만 정하면 돼. 그대로 둬도 조르지 않아.</p>
   <div class="btn-row far-btns"><button type="button" class="btn wide pressable" id="far-open">열어 줘</button><button type="button" class="btn wide pressable" id="far-keep">지금은 그대로</button></div>
 </dialog>
 <!-- ══ 이름 모달 = 첫 실행 (§7.8 · docs/SALON.md §1.1): 제목 → 한 줄 → 초상 → 몸 색 6칸 → 이름 칸 → 저장 → 정직 줄.
@@ -288,7 +433,7 @@
 <!-- ══ 내 모습 옷장 (11-09 주인: "외관도 이런 느낌 ui로 각 항목별로 고를 수 있게 카테고리 나눠도 좋을 듯") — 설정 › 내 모습 › '모습 바꾸기' 로 연다 (설정 시트 위에 겹친다).
      왼쪽 세로 탭(갈래 여섯: 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식) · 가운데 썸네일 타일 · 오른쪽 전신 미리보기(앞 · 뒤). 고르면 바로 입는다 (app.js openLook · docs/PLAYER_PARTS.md §3).
      본문(#look-body)은 app.js 가 채운다. 폰은 바텀시트, ≥600px 은 가운데 ══ -->
-<!-- ══ 살림 시트 (11-10): 조개 · 씨앗 · 들어온 날 · 텃밭 세 칸 · 옷 물들이기 — 본문은 app.js renderBag ══ -->
+<!-- ══ 살림 시트 (11-10): 조개 · 씨앗 · 들어온 날 · 텃밭 (11-15: 밭은 마당에 — 2D 폴백에서만 칸 단추) · 옷 물들이기 — 본문은 app.js renderBag ══ -->
 <dialog id="bag-sheet" class="sheet bag-sheet" aria-labelledby="bag-h">
   <div class="handle" aria-hidden="true"></div>
   <h2 id="bag-h" class="set-h dlg-top" tabindex="-1">살림</h2>
@@ -296,9 +441,78 @@
   <button type="button" class="btn wide pressable" id="bag-close">닫기</button>
 </dialog>
 
-<dialog id="sew-sheet" class="sheet bag-sheet" aria-labelledby="sew-h">
+<!-- 11-15: 부엌 (조리대 톡). 화면 가득 · 안은 cook.html?embed=1 (닫기 · Esc 는 부엌 쪽이 받아 postMessage 로 알린다) -->
+<dialog id="cook-overlay" class="cook-overlay" aria-label="부엌"><div id="cook-wait" class="cook-wait" hidden><i class="cw-oct" aria-hidden="true"></i><button type="button" id="cook-close" class="cw-close" aria-label="닫기"><img src="assets/icons/dish/close.png" alt="" width="16" height="16"></button></div></dialog>
+<!-- 11-18 6차: 부엌이 아직 안 열렸을 때 (점검 rel-01) 300 ms 뒤 기어가는 문어 + 닫기 (그림뿐) · 6 초면 닫고 토스트. 요리 쟁반: 조리대 톡 → 그림 칩 셋 (보이는 글자 0 · title 없음) -->
+
+<!-- 7차 갈래 자리 (11-21) · 창과 시트: 갈래마다 제 표시 줄 바로 아래에만 -->
+<!-- [7-T] 창 -->
+
+<!-- [7-P] 창 -->
+
+<!-- [7-W] 창 -->
+<!-- 11-21 7차 빠른 이동 (#travel-pick): 표지판 톡 → 그림 칩 (집 · 마을 · 바닷가 — 지금 선 곳은 숨긴다). 보이는 글자 0 · title 없음. 요리 쟁반 (#dish-pick) 과 같은 칩 -->
+<dialog id="travel-pick" class="dish-pick travel-pick" aria-label="어디로 갈까" tabindex="-1"><div class="dp-row"><button type="button" class="dp-chip" data-place="home" aria-label="집"><canvas width="16" height="16" aria-hidden="true"></canvas></button><button type="button" class="dp-chip" data-place="village" aria-label="마을"><canvas width="16" height="16" aria-hidden="true"></canvas></button><button type="button" class="dp-chip" data-place="beach" aria-label="바닷가"><canvas width="16" height="16" aria-hidden="true"></canvas></button></div></dialog>
+
+<!-- [7-V] 창 -->
+
+<!-- [7-S] 창 -->
+<dialog id="shop-sheet" class="sheet bag-sheet sew-sheet shop-sheet" aria-labelledby="shop-h">
   <div class="handle" aria-hidden="true"></div>
-  <h2 id="sew-h" class="set-h dlg-top" tabindex="-1">옷방 재봉틀</h2>
+  <h2 id="shop-h" class="set-h dlg-top" tabindex="-1">가게</h2>
+  <div id="shop-body"></div>
+  <button type="button" class="btn wide pressable" id="shop-close">닫기</button>
+</dialog>
+
+<!-- [7-C] 창 -->
+<dialog id="cafe-sheet" class="sheet bag-sheet cafe-sheet" aria-labelledby="cafe-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="cafe-h" class="set-h dlg-top" tabindex="-1">카페</h2>
+  <div id="cafe-body"></div>
+  <button type="button" class="btn wide pressable" id="cafe-close">닫기</button>
+</dialog>
+<dialog id="lp-sheet" class="sheet bag-sheet cafe-sheet" aria-labelledby="lp-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="lp-h" class="set-h dlg-top" tabindex="-1">레코드</h2>
+  <div id="lp-body"></div>
+  <button type="button" class="btn wide pressable" id="lp-close">닫기</button>
+</dialog>
+
+<!-- [7-N] 창 -->
+<!-- 11-21 마을 문어의 말 (app.js npcSay): 대본을 읽는 인물 — 이름표는 늘 '이름 · 대본'. 모달이 아니다 (포커스를 가두지 않는다) -->
+<div id="npc-box" class="npc-box" role="group" aria-label="마을 문어의 말" hidden>
+  <span class="npc-frame" aria-hidden="true"><canvas id="npc-face" class="npc-face" width="16" height="16"></canvas></span>
+  <div class="npc-say" aria-live="polite" aria-atomic="true"><span id="npc-tag" class="npc-tag"></span><p id="npc-text" class="npc-text"></p></div>
+  <button type="button" id="npc-next" class="npc-next" aria-label="다음 말"></button>
+</div>
+<!-- 11-21 게시판 (광장 #btn-plaza-board): 낡은 쪽지 넷 — 그림 + 한 줄 (app.js openStory) -->
+<dialog id="story-sheet" class="sheet story-sheet" aria-labelledby="story-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="story-h" class="story-h dlg-top" tabindex="-1">게시판</h2>
+  <div class="story-board"><ol id="story-notes" class="story-notes"></ol></div>
+  <div class="story-btns"><button type="button" class="btn pressable" id="story-close">닫기</button></div>
+</dialog>
+<!-- 11-21 처음 한 번 보는 세 줄 (app.js storyIntro · js/intro.js 가 타이틀 뒤에 부른다) -->
+<div id="story-intro" class="story-intro" role="group" aria-label="이야기" hidden>
+  <button type="button" id="story-next" class="story-next" aria-label="다음 줄"></button>
+  <canvas id="story-vig" class="story-vig" width="80" height="60" aria-hidden="true"></canvas>
+  <p id="story-line" class="story-line" aria-live="polite"></p>
+  <button type="button" id="story-skip" class="story-skip pressable">건너뛰기</button>
+</div>
+
+<!-- [7-F] 창 -->
+<dialog id="contest-sheet" class="sheet bag-sheet contest-sheet" aria-labelledby="contest-h">
+  <div class="handle" aria-hidden="true"></div>
+  <div class="ct-band"><span id="ct-keeper" class="ct-keeper"></span><h2 id="contest-h" class="set-h dlg-top ct-sign" tabindex="-1">주말 콘테스트</h2><span id="ct-purse" class="ct-purse"></span></div>
+  <div id="contest-body"></div>
+  <button type="button" class="btn wide pressable" id="contest-close">닫기</button>
+</dialog>
+
+<!-- [7-U] 창 -->
+
+<dialog id="sew-sheet" class="sheet bag-sheet sew-sheet" aria-labelledby="sew-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="sew-h" class="set-h dlg-top" tabindex="-1">재봉틀</h2>
   <div id="sew-body"></div>
   <button type="button" class="btn wide pressable" id="sew-close">닫기</button>
 </dialog>
@@ -354,14 +568,45 @@
 <script src="js/brain.js"></script>
 <script src="js/shelf.js"></script>
 <script src="js/salon.js"></script><!-- 미용실 규칙 (전역 SALON, DOM 없음): 몸 색은 처음 한 번만 · 그 뒤엔 미용실에서 문어에게 묻는다 (docs/SALON.md) -->
+<script src="js/meal.js"></script><!-- 11-18 식탁 규칙 (전역 MEAL, DOM 없음): 같이 먹을지는 문어가 그때 고른다 (지금은 데모 규칙) · 효과는 그날 하루 (docs/MEAL.md) -->
 <script src="js/palettes.js"></script>
 <script src="js/clouds.js"></script><!-- 입장 하늘의 몽글한 픽셀 구름 (2D 캔버스, 날씨 × 시각대) -->
 <script src="js/scene3d.js"></script>
 <script src="js/scene2d.js"></script>
+<script src="js/haptics.js"></script><!-- 진동 (전역 HAPTICS, 11-15 5차): 기본 켬 · 설정 › 화면 › 진동 으로 끄기. 안 되는 기기면 조용히 아무 일 없음 -->
 <script src="js/audio.js"></script><!-- 소리 (전역 AUDIO): app.js 의 boot 가 AUDIO.init 을 부른다. 없거나 실패해도 게임은 그대로 -->
 <script src="js/dialogue-stub.js"></script><!-- 대사창 가짜 (전역 DLG — 카드 13 의 얼린 표). 진짜 js/dialogue.js 가 오면 이 줄만 바꾼다. 한 화면 배치의 대사 자리(#dlg-host)가 쓴다 -->
 <script src="js/poster-art-data.js"></script><!-- 포스터 픽셀 그림 (만든 파일, data URI) -->
 <script src="js/poster-art.js"></script><!-- 전역 POSTER_ART: 포스터 앞면에 방 그림을 붙인다 (없어도 게임은 그대로 — 예전처럼 사진) -->
+<!-- 7차 갈래 자리 (11-21) · app.js 앞에 싣는 규칙 파일 (DOM 없는 전역): 갈래마다 제 표시 줄 바로 아래에만 -->
+<!-- [7-T] 스크립트 -->
+<script src="js/recipes.js"></script><!-- 11-21 레시피 규칙 (전역 RECIPES, DOM 없음): 처음부터 셋 · 카페 선물 둘 -->
+<script src="js/cook-sprites.js"></script><!-- 11-21 음식 그림 (전역 COOK_SPR, DOM 없음): 식탁 위 작은 그림 · 먹는 동안의 큰 그림. 없으면 예전 모양 -->
+
+<!-- [7-P] 스크립트 -->
+
+<!-- [7-W] 스크립트 -->
+
+<!-- [7-V] 스크립트 -->
+<script src="js/village.js"></script>
+
+<!-- [7-S] 스크립트 -->
+<script src="js/shop.js"></script>
+<!-- 가게 카드의 그림 (값표 · 팔림 도장 · 영수증 · 씨앗) 은 COOK_SPR — js/cook-sprites.js 는 위 [7-T] 스크립트 자리에서 한 번만 싣는다 (11-22 합치기: 두 번 실리던 것을 하나로). 없으면 CSS 로 그린 것이 남는다 -->
+
+<!-- [7-C] 스크립트 -->
+<script src="js/cafe.js"></script>
+<script src="js/cafe-music.js"></script>
+
+<!-- [7-N] 스크립트 -->
+<script src="js/npc.js"></script><!-- 마을 문어 (전역 NPC, 11-21): 명단 · 대본 · 게시판 쪽지 · 처음 세 줄. DOM 없음 -->
+
+<!-- [7-F] 스크립트 -->
+<script src="js/contest.js"></script><!-- 11-21 주말 콘테스트 규칙 (전역 CONTEST, DOM 없음): 주제 · 채점 · 경쟁자 · 하루 한 번 (docs/CONTEST.md) -->
+
+<!-- [7-U] 스크립트 -->
+<script src="js/vista.js"></script>
+
 <script src="js/app.js"></script>
 <script src="js/ui-art.js"></script>
 <script src="js/runner.js"></script>

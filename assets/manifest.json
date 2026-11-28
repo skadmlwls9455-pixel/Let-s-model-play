@@ -673,10 +673,10 @@
   },
   "ui.bubble.think": {
     "src": "assets/ui/bubble_think.png",
-    "w": 24,
-    "h": 24,
-    "slice": 8,
-    "note": "생각 풍선 9-slice (구름 가장자리 — 혼잣말·기억)"
+    "w": 16,
+    "h": 16,
+    "slice": 6,
+    "note": "생각 풍선 9-slice 16×16 · 슬라이스 6 (11-15: 둥근 네모, 계단 모서리 · 옅은 남색 1px 선 — 혼잣말·기억). CSS: 6 fill / 12px. 꼬리는 둥근 점 둘"
   },
   "ui.bubble.whisper": {
     "src": "assets/ui/bubble_whisper.png",
@@ -695,7 +695,7 @@
     "src": "assets/ui/tail_think.png",
     "w": 8,
     "h": 8,
-    "note": "말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다"
+    "note": "생각 풍선 꼬리 — 둥근 점 둘 (위가 크고 아래가 작다), 풍선 아랫변 가운데 1칸 아래 (11-15)"
   },
   "ui.tail.whisper": {
     "src": "assets/ui/tail_whisper.png",
@@ -1235,6 +1235,30 @@
     "h": 8,
     "note": "조개 동전 8×8 (×2 = 16px, 글줄 안)."
   },
+  "icon.dish.jeon": {
+    "src": "assets/icons/dish/jeon.png",
+    "w": 16,
+    "h": 16,
+    "note": "놀이방 요리 쟁반 (#dish-pick) 해초전 칩 그림 16×16 — floor(3·dpr) 기기 px 배로만 (tools/make-dish-icons.js)"
+  },
+  "icon.dish.jumeokbap": {
+    "src": "assets/icons/dish/jumeokbap.png",
+    "w": 16,
+    "h": 16,
+    "note": "놀이방 요리 쟁반 (#dish-pick) 주먹밥 칩 그림 16×16 — floor(3·dpr) 기기 px 배로만 (tools/make-dish-icons.js)"
+  },
+  "icon.dish.kkochi": {
+    "src": "assets/icons/dish/kkochi.png",
+    "w": 16,
+    "h": 16,
+    "note": "놀이방 요리 쟁반 (#dish-pick) 과일 꼬치 칩 그림 16×16 — floor(3·dpr) 기기 px 배로만 (tools/make-dish-icons.js)"
+  },
+  "icon.dish.close": {
+    "src": "assets/icons/dish/close.png",
+    "w": 16,
+    "h": 16,
+    "note": "부엌이 아직 안 열렸을 때 게임 쪽 닫기 단추 (#cook-close) 그림 16×16 = 부엌 안 닫기 그림 (COOK_ART.icon close) — floor(2·dpr) 기기 px 배로만"
+  },
   "prop.badge.bell": {
     "src": "assets/badges/prop_bell.png",
     "w": 24,
@@ -1342,5 +1366,13 @@
     "w": 32,
     "h": 32,
     "note": "기념품 「색유리」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.stained_glass."
+  },
+  "ui.loading.oct": {
+    "src": "assets/ui/loading_oct.png",
+    "w": 448,
+    "h": 39,
+    "frames": 8,
+    "cell": 56,
+    "note": "로딩 문어 (11-15): 게임 3D 문어의 걷는 옆모습 8칸 가로 띠 (tools/make-loading-oct.js 가 walkPortrait 로 굽는다). index.html #boot 가 steps(8) 로 돌린다"
   }
 }

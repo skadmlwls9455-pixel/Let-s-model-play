@@ -130,8 +130,8 @@ var UIART = (function () {
   }
   function layoutOne() { return document.documentElement.getAttribute('data-layout') === 'one'; }
   function ctlGroups() {
-    var door = $('btn-door'), stick = $('stick');   /* 왼쪽 아래 발자국 손잡이(11-08)도 왼쪽 무리 — 보일 때만 (바깥의 집 단추와는 같은 자리 · 배타적) */
-    return [layoutOne() ? null : boxesOf($('scene-ctl'), '.icon-btn:not([hidden]) .snd-box'), door && !door.hidden ? boxesOf(door, '.door-box') : null, stick && !stick.hidden ? boxesOf(stick) : null].filter(Boolean);
+    var door = $('btn-door'), yard = $('btn-yard'), stick = $('stick');   /* 왼쪽 아래 발자국 손잡이(11-08)도 왼쪽 무리 — 보일 때만 (바깥의 집 단추와는 같은 자리 · 배타적) · 11-15 마당 가장자리 단추 */
+    return [layoutOne() ? null : boxesOf($('scene-ctl'), '.icon-btn:not([hidden]) .snd-box'), door && !door.hidden ? boxesOf(door, '.door-box') : null, yard && !yard.hidden ? boxesOf(yard, '.door-box') : null, stick && !stick.hidden ? boxesOf(stick) : null].filter(Boolean);
   }
   /* 한 화면 배치 (주인 11-08): 장면 위에 왼쪽 상태 줄 · 오른쪽 아이콘이 한 띠로 얹혀 옆으로 비킬 틈이 없다 (360 폭에서 둘 사이 89px < 풍선 최소 96px).
      그래서 옆이 아니라 아래로 — 풍선이 띠의 어느 상자와 옆으로 겹치면 그 상자 밑(+pad)이 풍선의 위 한계. 안 겹치면 0 (장면 위 가장자리 규칙 그대로) */
@@ -156,7 +156,7 @@ var UIART = (function () {
      예전처럼 옅게(0.3) 두면 아이콘(앨범 · 설정 — 11-08 까지는 소리도)이 말풍선 글자 위에 그려졌다. 겹치지 않는 버튼은 그대로. 말풍선이 사라지면 돌아온다.
      r = 비킨 뒤의 풍선 상자 { left, right, top, bottom } (true = 모두 · false = 모두 되돌림) */
   function ctlYield(r) {
-    [].forEach.call(document.querySelectorAll('#scene-ctl .icon-btn, #btn-door'), function (btn) {
+    [].forEach.call(document.querySelectorAll('#scene-ctl .icon-btn, #btn-door, #btn-yard'), function (btn) {
       var on = false;
       if (r && !btn.hidden) {
         if (r === true) on = true;
@@ -173,9 +173,9 @@ var UIART = (function () {
   function liftY(b) { try { var tf = getComputedStyle(b).transform; return tf && tf !== 'none' && typeof DOMMatrixReadOnly === 'function' ? new DOMMatrixReadOnly(tf).m42 : 0; } catch (e) { return 0; } }   /* transform 의 세로 몫 (bubble-in 이 4px 아래에서 올라온다) */
   function keepInside(b) {
     var sc = $('scene'); if (!sc || !b.closest('#scene3d')) { b.style.marginLeft = ''; b.style.maxWidth = ''; b.style.removeProperty('--ua-tail'); b.removeAttribute('data-tail'); return; }   /* 2D 무대는 app.js keepBubble2D (--bub-dy 도 거기서) */
-    b.style.marginLeft = ''; b.style.removeProperty('--ua-tail'); b.style.removeProperty('--bub-dy'); b.removeAttribute('data-tail');
+    b.style.marginLeft = ''; b.style.removeProperty('translate'); b.style.removeProperty('--ua-tail'); b.style.removeProperty('--bub-dy'); b.removeAttribute('data-tail');
     var s = sc.getBoundingClientRect(), P = 4, px = pixel(), shift = 0;
-    var mw = Math.max(96, Math.min(220, Math.floor(s.width - 2 * P))) + 'px';
+    var mw = Math.max(150, Math.min(220, Math.floor(s.width * 0.6), Math.floor(s.width - 2 * P))) + 'px';   /* 11-15 (주인: 말풍선이 화면을 가린다) → 5차 (주인: 글자 조금 키움 · 4차 전보다는 작게): 폭은 장면 폭의 60% (150~220px) — 360 폭에서 216px, 글 약 16~18px 라 톡 한 줄이 두세 줄 */
     if (b.style.maxWidth !== mw) b.style.maxWidth = mw;
     /* 등장 애니메이션(아래 4px → 0) 도중에 재도 끝난 자리로 — 위 잘림만이 아니라 아이콘 피하기 · 숨기기도 (검증 11-08: 도중에 재면 아이콘과 위아래로 비껴 보여 그대로 두었다가 0.1 s 뒤 80px 옆으로 튀었다) */
     var r0 = b.getBoundingClientRect(), ly = liftY(b), r = { left: r0.left, right: r0.right, top: r0.top - ly, bottom: r0.bottom - ly, width: r0.width, height: r0.height };
@@ -190,10 +190,24 @@ var UIART = (function () {
       shift = Math.round(e);
     } else shift = Math.round(shift);
     var need = Math.max(s.top + P + 2, topBand({ left: r.left + shift, right: r.right + shift }, P)) - r.top, dy = need > 0 ? (px ? Math.ceil(need / 2) * 2 : Math.ceil(need)) : 0;   /* +2 = 숨쉬기로 머리 자리가 1px 오르내려도 4px 안 */
+    /* 11-15 (UI 점검): 글 첫 줄 시작 (테두리 + 안쪽 여백 안) 을 기기 px 에 맞춘다 — 가운데 정렬 풍선은 배율 2 에서 .47 · 2.625 에서 .56~.73 기기 px 에서 시작해 획마다 회색 테가 생겼다. 꼬리는 맞추기 전 shift 로 */
+    var dpr = window.devicePixelRatio || 1, bcs = getComputedStyle(b), cl = r.left + shift + (parseFloat(bcs.borderLeftWidth) || 0) + (parseFloat(bcs.paddingLeft) || 0), fx = Math.round(cl * dpr) / dpr - cl;
+    if (Math.abs(fx) < 1e-4) fx = 0;
     if (shift) b.style.marginLeft = shift + 'px';
+    if (fx) b.style.translate = fx + 'px 0';   /* 소수 몫은 translate 로 (margin 은 1/64 px 단위로 잘려 2.625 배율에서 .04 기기 px 남았다) */
     if (px && shift) { var lim = Math.max(0, r.width / 2 - 20), tail = even(Math.max(-lim, Math.min(lim, -shift))); if (tail) b.style.setProperty('--ua-tail', tail + 'px'); }
     if (dy) { b.style.setProperty('--bub-dy', dy + 'px'); if (px && dy > 12) b.setAttribute('data-tail', 'off'); }
     ctlYield({ left: r.left + shift, right: r.right + shift, top: r.top + dy, bottom: r.bottom + dy });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 */
+  }
+  /* 11-15 (UI 점검): 가운데 맞춤 (translate -50%) · 정수 CSS px left 로 놓인 글 상자 (토스트 · 등불 쪽지 · 이름표) 의 글 시작을 기기 px 에 맞춘다.
+     translate 속성으로 (요소의 transform · margin 과 따로 겹친다) — 지금 민 몫 (인라인 translate) 을 뺀 원래 자리를 반올림하므로 몇 번 불러도 같다.
+     5차 검증: 예전엔 민 자리를 다시 반올림해, 글이 바뀌거나 상자가 움직일 때마다 부르면 몫이 조금씩 쌓여 1px 넘게 밀렸다 (2D 말풍선 · 달리기 결과 줄) */
+  function snapLeft(el) {
+    if (!el || !el.getBoundingClientRect) return;
+    var d = window.devicePixelRatio || 1, prev = parseFloat(el.style.translate) || 0, r = el.getBoundingClientRect(); if (!r.width) return;
+    var cs = getComputedStyle(el), base = r.left + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0) - prev, tot = Math.round(base * d) / d - base;
+    if (Math.abs(tot) < 1e-4) { el.style.removeProperty('translate'); el.removeAttribute('data-ua-snap'); return; }
+    el.style.translate = tot + 'px 0'; el.setAttribute('data-ua-snap', String(tot));
   }
   var bubRaf = 0;
   function onBubble(text, kind) {
@@ -209,7 +223,7 @@ var UIART = (function () {
     bubRaf = requestAnimationFrame(function follow(ts) {
       if (b.hidden) { bubRaf = 0; ctlYield(false); return; }
       var p = octPos(), moved = !!p && (!lastPos || Math.abs(p.x - lastPos.x) + Math.abs(p.y - lastPos.y) >= 1);
-      if (moved || !last || ts - last >= 200) { keepInside(b); last = ts; lastPos = p; }
+      if (moved || !last || ts - last >= 200) { keepInside(b); var lb = $('oct-label'); if (lb && lb.textContent) snapLeft(lb); last = ts; lastPos = p; }
       bubRaf = requestAnimationFrame(follow);
     });
     if (kind === 'curious') fx('question');   /* 톡 누름 ('응?') — 픽셀 테마 물음표 파티클 */
@@ -328,6 +342,6 @@ var UIART = (function () {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
-  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, topBand: topBand, ctlYield: ctlYield, liftY: liftY,
+  return { snapLeft: snapLeft, onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, topBand: topBand, ctlYield: ctlYield, liftY: liftY,
     iconSrc: iconSrc, icon: icon, iconHTML: iconHTML, iconBad: iconBad };
 })();

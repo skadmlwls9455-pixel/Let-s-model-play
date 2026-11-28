@@ -20,7 +20,32 @@ var A = loadFresh(), B = loadFresh();
 console.log('== 로드 (DOM 없음)');
 check(A && typeof A.simulate === 'function', 'RUNNER.simulate 있음');
 check(typeof A.open === 'undefined', 'DOM 없으면 라이브 부분(open)은 붙지 않음');
-check(A.VERSION === 'runner-1', 'VERSION runner-1');
+check(A.VERSION === 'runner-3', 'VERSION runner-3 (11-24: 부딪힘 칸을 그려진 문어 몸에 맞춘 판 — 칸 · 점프가 바뀌어 runner-2 기록과 다르다)');
+check(A.C.OCT_X === 2 && A.C.OCT_W === 30 && A.C.OCT_CX === 17 && A.C.V0 === 224 && A.C.VMAX === 358 && A.C.RAMP === 24 && A.KINDS.rain.w === 20 && A.KINDS.rain.hi === 3 && A.C.SPAWN_X > A.C.W, 'runner-3 숫자 (부딪힘 앞 끝 32 · 그림 가운데 17 · 속도 0.875→1.4 px/틱 · 24틱마다 · 물웅덩이 20) · 보이는 폭 최대 < 생기는 자리');
+/* 11-24 runner-3: 부딪힘 칸 (그려진 몸 — 스모크 R 이 실제 구운 그림과 잰다) · 점프 (체공 1.6 배 · 높이 1.1 배) */
+check(A.C.JV === 523 && A.C.G === 19 && A.C.GH === 9 && A.C.HOLD_MAX === 19 && A.C.CUT === 468 && A.C.GF === 60, 'runner-3 점프 수 (523 · 19 · 9 · 19 · 468 · 60)');
+check(JSON.stringify(A.C.BOX) === JSON.stringify({ stand: [[7, 27, 6, 22], [4, 30, 0, 6]], land: [[8, 30, 6, 19], [4, 34, 0, 6]], air: [[8, 26, 7, 23], [5, 29, 1, 7]], duck: [[6, 33, 5, 12], [3, 36, 1, 6]] }), 'runner-3 부딪힘 칸 (머리 + 다리 · 상태 넷)');
+check(A.C.BOX.duck.every(function (b) { return b[3] <= A.KINDS.web.lo; }) && A.C.BOX.stand.some(function (b) { return b[3] > A.KINDS.web.lo; }), '숙이면 거미줄 아래 (칸 꼭대기 ≤ 거미줄 lo 13) · 서 있으면 거미줄에 닿는다');
+(function () {   /* 상태 고르기 = 그림 고르기 (drawOct 와 같은 boxState) */
+  var s = A.createSim(1); var st = [A.boxState(s)]; s.dHeld = true; st.push(A.boxState(s)); s.dHeld = false; A.applyInput(s, 'jd'); A.step(s); st.push(A.boxState(s));
+  while (!s.ground) A.step(s); st.push(A.boxState(s)); for (var i = 0; i < 6; i++) A.step(s); st.push(A.boxState(s));
+  check(st.join() === 'stand,duck,air,land,stand', '몸 상태 서기 → 숙이기 → 뛰기 → 착지 6 틱 → 서기 (' + st.join() + ')');
+})();
+/* 하나씩 넘기: 그 장애물이 처음 나오는 속도에서 톡 (1 틱) 으로 상자를, 짧은 꾹 (4 틱) 으로 촛대를, 꾹으로 책 · 겹친 상자 · 물웅덩이를, 숙여서 거미줄을 넘을 수 있다 (손맛이 runner-2 와 같은 쪽) */
+function lone(kind, speed, hold, duck) {
+  var best = 0;
+  for (var st = 0; st < 140; st++) {
+    var s = A.createSim(1), V0 = A.C.V0, VM = A.C.VMAX; s.gap = 1e12; var K = A.KINDS[kind]; s.obs.push({ k: kind, x: 80 * 256, w: K.w, lo: K.lo, hi: K.hi, id: 1, got: false });
+    A.C.V0 = speed; A.C.VMAX = speed; var dead = false;
+    for (var t = 0; t < 400 && !dead; t++) { if (t === st) A.applyInput(s, duck ? 'dd' : 'jd'); if (t === st + hold) A.applyInput(s, duck ? 'du' : 'ju'); A.step(s); dead = s.dead; }
+    A.C.V0 = V0; A.C.VMAX = VM; if (!dead) best++;
+  }
+  return best;   /* 넘는 시작 틱 수 (타이밍 여유) */
+}
+var lw = { crate: lone('crate', 224, 1), candle: lone('candle', 224, 4), books: lone('books', 224, 19), crate2: lone('crate2', 274, 19), rain: lone('rain', 249, 19), web: lone('web', 224, 70, true) };   /* runner-2 의 같은 잼: 5 · 12 · 14 · 14 · 15 · 46 */
+console.log('   하나씩 넘기 (넘는 시작 틱 수): ' + JSON.stringify(lw));
+var LWMIN = { crate: 4, candle: 8, books: 12, crate2: 12, rain: 12, web: 25 };   /* runner-2 보다 크게 빡빡해지지 않게 */
+check(Object.keys(LWMIN).every(function (k) { return lw[k] >= LWMIN[k]; }), '모든 장애물을 넘을 수 있고 타이밍 여유가 runner-2 와 비슷 (' + JSON.stringify(lw) + ' ≥ ' + JSON.stringify(LWMIN) + ')');
 
 /* 무작위 입력 스크립트 (테스트용 PRNG 도 mulberry32) */
 function script(rnd, n) {
@@ -48,12 +73,14 @@ for (var k = 0; k < 200; k++) {
 console.log('   200판: 부딪힘 ' + deaths + ' · 최고 ' + maxScore + ' · 평균 ' + Math.round(totalTicks / 200) + ' 틱');
 
 console.log('== 1b. 앞을 보는 봇 4판 (긴 판: 거미줄·물웅덩이·이끼까지)');
-function bot(R, seed, night, limit) {
-  var cands = [[['jd', 0], ['ju', 1]], [['jd', 0], ['ju', 6]], [['jd', 0], ['ju', 14]], [['dd', 0], ['du', 40]], [['dd', 0], ['du', 20]]], plan = [];
+function bot(R, seed, night, limit) {   /* 11-24 runner-3: 몸이 넓어 더 일찍 · 길게 (24 틱 앞 · 숙이기 최대 80 틱 · 뛰고 빨리 내려오기) */
+  var cands = [[['jd', 0], ['ju', 1]], [['jd', 0], ['ju', 3]], [['jd', 0], ['ju', 6]], [['jd', 0], ['ju', 10]], [['jd', 0], ['ju', 14]], [['jd', 0], ['ju', 19]],
+    [['dd', 0], ['du', 20]], [['dd', 0], ['du', 30]], [['dd', 0], ['du', 40]], [['dd', 0], ['du', 60]], [['dd', 0], ['du', 80]],
+    [['jd', 0], ['ju', 1], ['dd', 25], ['du', 90]], [['jd', 0], ['ju', 6], ['dd', 35], ['du', 100]]], plan = [];
   for (var t = 0; t < limit; t++) {
-    if (!R.simulate(seed, plan, { night: night, until: t + 18 }).dead) continue;
+    if (!R.simulate(seed, plan, { night: night, until: t + 24 }).dead) continue;
     var best = null, bt = -1;
-    cands.forEach(function (c) { var ev = plan.concat(c.map(function (x) { return { t: t + x[1], a: x[0] }; })); var r = R.simulate(seed, ev, { night: night, until: t + 70 }); if (r.ticks > bt) { bt = r.ticks; best = ev; } });
+    cands.forEach(function (c) { var ev = plan.concat(c.map(function (x) { return { t: t + x[1], a: x[0] }; })); var r = R.simulate(seed, ev, { night: night, until: t + 110 }); if (r.ticks > bt) { bt = r.ticks; best = ev; } });
     plan = best;
   }
   return plan.sort(function (a, b) { return a.t - b.t; });
@@ -87,11 +114,13 @@ scripts.slice(0, 40).forEach(function (sc, idx) {
 console.log('== 3. 골든 값 (바뀌면 VERSION 올리기)');
 check(A.seedFor('2026-11-04', 0) === 126531367, 'seedFor(2026-11-04, 0) = 126531367');
 var g1 = A.simulate(A.seedFor('2026-11-04', 0), []);
-check(g1.score === 25 && g1.ticks === 157 && g1.hit === 'crate', '입력 없음 → 157 틱에 상자, 25점 (' + JSON.stringify(g1) + ')');
+check(g1.score === 26 && g1.ticks === 238 && g1.hit === 'crate', '입력 없음 → 238 틱에 상자, 26점 (runner-3 — 넓은 몸이 더 일찍 닿는다, runner-2 는 247) (' + JSON.stringify(g1) + ')');
 var g2 = A.simulate(12345, [{ t: 100, a: 'jd' }, { t: 110, a: 'ju' }, { t: 300, a: 'dd' }, { t: 340, a: 'du' }], { night: true });
-check(g2.score === 25 && g2.ticks === 157 && g2.hit === 'candle', '시드 12345 짧은 스크립트 → 157 틱에 촛대 (' + JSON.stringify(g2) + ')');
-check(A.verify({ version: 'runner-1', seed: 7, inputs: [], score: A.simulate(7, []).score, ticks: A.simulate(7, []).ticks, end: 'hit', night: false }), 'verify(): 맞는 기록 통과');
-check(!A.verify({ version: 'runner-1', seed: 7, inputs: [], score: 9999, ticks: 10, end: 'hit', night: false }), 'verify(): 부풀린 점수 거절');
+check(g2.score === 26 && g2.ticks === 237 && g2.hit === 'candle', '시드 12345 짧은 스크립트 → 237 틱에 촛대 (runner-3) (' + JSON.stringify(g2) + ')');
+check(A.verify({ version: 'runner-3', seed: 7, inputs: [], score: A.simulate(7, []).score, ticks: A.simulate(7, []).ticks, end: 'hit', night: false }), 'verify(): 맞는 기록 통과');
+check(!A.verify({ version: 'runner-1', seed: 7, inputs: [], score: A.simulate(7, []).score, ticks: A.simulate(7, []).ticks, end: 'hit', night: false }), 'verify(): 옛 판(runner-1) 기록은 거절 (점수가 맞아 보여도)');
+check(!A.verify({ version: 'runner-2', seed: 7, inputs: [], score: A.simulate(7, []).score, ticks: A.simulate(7, []).ticks, end: 'hit', night: false }), 'verify(): 옛 판(runner-2) 기록도 거절');
+check(!A.verify({ version: 'runner-3', seed: 7, inputs: [], score: 9999, ticks: 10, end: 'hit', night: false }), 'verify(): 부풀린 점수 거절');
 /* 잘못된/뒤섞인 입력도 죽지 않고 결정적으로 */
 var junk = [{ t: 5, a: 'xx' }, { t: 3, a: 'jd' }, { t: -1, a: 'ju' }, { t: 'a', a: 'dd' }, null && 0].filter(Boolean);
 check(JSON.stringify(A.simulate(9, junk)) === JSON.stringify(B.simulate(9, junk)), '이상한 입력도 같은 결과');
@@ -102,6 +131,7 @@ if (fs.existsSync(live)) {
   var run = JSON.parse(fs.readFileSync(live, 'utf8'));
   var rr = A.simulate(run.seed, run.inputs, { night: run.night, until: run.end === 'hit' ? null : run.ticks });
   console.log('   기록: seed ' + run.seed + ' · 입력 ' + run.inputs.length + '개 · ' + run.end + ' · 화면 점수 ' + run.displayed + ' · 저장 점수 ' + run.score + ' → 재시뮬 ' + rr.score + ' (' + rr.ticks + ' 틱)');
+  check(run.version === A.VERSION, '라이브 기록이 지금 판 (' + run.version + ') — 아니면 SMOKE_ONLY=R 로 다시 남길 것');
   check(rr.score === run.score && rr.ticks === run.ticks, '라이브 기록 재시뮬 점수·틱 일치');
   check(run.displayed == null || String(rr.score) === String(run.displayed), '재시뮬 점수 = 화면에 보인 점수');
   check(A.verify(run), 'verify(라이브 기록) 통과');
@@ -160,7 +190,7 @@ function liveHarness(T0) {
   }
   var R = sb.RUNNER;
   return {
-    R: R, clk: clk, net: net, byId: byId, flush: flush, advance: advance,
+    R: R, sb: sb, clk: clk, net: net, byId: byId, flush: flush, advance: advance,
     net_: function () { var o = JSON.parse(ls.get('ppolppol_runner') || '{}'); return o.net || null; },
     storeObj: function () { return JSON.parse(ls.get('ppolppol_runner') || 'null'); },
     setStore: function (o) { ls.set('ppolppol_runner', JSON.stringify(o)); },
@@ -172,10 +202,12 @@ function liveHarness(T0) {
       for (var i = 0; i < 400 && R.live().state !== 'over'; i++) { await advance(50); var f = raf; raf = null; if (f) f(clk.t - T0 + 1000); }
       await advance(500);   /* 또 할래?/그만 버튼이 켜지는 450 ms */
     },
+    frames: async function (n) { for (var i = 0; i < n; i++) { await advance(50); var f = raf; raf = null; if (f) f(clk.t - T0 + 1000); } },
     submit: async function (nick) { byId['rn-nick'].value = nick; byId['rn-submit'].fire('click'); await flush(); }
   };
 }
 function deferred() { var d = {}; d.p = new Promise(function (r) { d.resolve = r; }); return d; }
+function txt(e) { return e ? (e.textContent || (e.children || []).map(txt).join('')) : ''; }   /* 가짜 DOM: 글이 안쪽 칸(.rn-snap)에 있어도 (11-15 검증 R-1) */
 (async function live() {
   delete process.env.RUNNER_EVENT_WEEKS;
   var core = require(path.join(ROOT, 'api/_lib/core.js'));
@@ -183,12 +215,41 @@ function deferred() { var d = {}; d.p = new Promise(function (r) { d.resolve = r
   var T0 = Date.UTC(2026, 10, 4, 3, 0, 0);   /* 2026-11-04 12:00 KST, W45 */
   function fresh() { var h = liveHarness(T0); h.net.H = H; core.setSecret('live-test'); var mem = core.memoryStore(); core.setStore(mem); core.setClock(function () { return h.clk.t; }); h.mem = mem; return h; }
 
+  /* 11-15 5차 (주인 답 a): 안내 글 → 그림. 준비 · 쉬는 중 = 손 그림 (쉴 땐 일시정지 그림), 글은 #rn-msg 읽어 주기에만. 결과 판 = 수 + 그림, 조개는 판 안 (알림 없이 quiet) */
+  var hp = fresh(), earnCalls = [];
+  hp.sb.APP = { earnFromPlay: function (r, o) { earnCalls.push(o || null); return 3; } };
+  var seedGate = deferred(); hp.net.gate.seed = function () { return seedGate.p; };   /* 시드 응답을 붙잡아 '고르는 중' 을 본다 */
+  await hp.open();
+  check(/고르는/.test(hp.byId['rn-msg'].textContent) && hp.byId['rn-hand'].hidden, '그림: 판을 고르는 중(탭 안 받음)엔 손 그림 없음');
+  seedGate.resolve(); delete hp.net.gate.seed; await hp.readyNet();
+  check(hp.R.live().state === 'ready' && !hp.byId['rn-hand'].hidden && hp.byId['rn-pause'].hidden && /출발/.test(hp.byId['rn-msg'].textContent), '그림: 준비 = 손 그림 보임 · 일시정지 그림 숨김 · 읽어 주기 글은 그대로');
+  hp.key(' '); hp.key(' ', 'keyup'); await hp.advance(50);
+  check(hp.R.live().state === 'run' && hp.byId['rn-hand'].hidden && hp.byId['rn-pause'].hidden && hp.byId['rn-msg'].textContent === '', '그림: 달리는 중 = 그림 없음');
+  check(/^\d+$/.test(hp.byId['rn-best'].textContent), "그림: 위 최고는 수만 ('최고' 글자 → 왕관 그림) (" + hp.byId['rn-best'].textContent + ')');
+  hp.R.close(); earnCalls.length = 0;
+  var buzzes = []; hp.sb.HAPTICS = { buzz: function (n) { buzzes.push(n); return true; } };   /* 11-15 (검증 O-5): 주인이 고른 때만 — 달리기는 점프 · 부딪힘 */
+  await hp.open(); await hp.readyNet(); await hp.runToOver();
+  var hpScore = hp.R.live().score;
+  check(buzzes.indexOf('jump') >= 0 && buzzes[buzzes.length - 1] === 'hit' && buzzes.every(function (n) { return n === 'jump' || n === 'hit'; }), '진동: 점프 · 부딪힘만 (착지 · 이끼 없음) (' + buzzes.join(',') + ')');
+  var buzzNames = (SRC.match(/HAPTICS\.buzz\('(\w+)'\)/g) || []).map(function (m) { return m.slice(14, -2); }).sort().join(',');
+  check(buzzNames === 'hit,jump', "runner.js 가 부르는 진동은 'hit' · 'jump' 둘뿐 (" + buzzNames + ')');
+  delete hp.sb.HAPTICS;
+  check(hp.byId['rn-final-n'].textContent === String(hpScore) && /^\d+$/.test(hp.byId['rn-final-bn'].textContent), '결과 판: 큰 점수 수 · 최고 수 (' + hpScore + ')');
+  check(!hp.byId['rn-final-shell'].hidden && hp.byId['rn-shell-n'].textContent === '+3', "결과 판: 조개 그림 + '+3' (" + hp.byId['rn-shell-n'].textContent + ')');
+  check(earnCalls.length === 1 && earnCalls[0] && earnCalls[0].quiet === true, '부딪혀 끝난 판은 earnFromPlay(…, { quiet: true }) — 따로 뜨는 조개 알림 없음');
+  check(new RegExp('^' + hpScore + '만큼 달렸어.*최고 \\d+\\. 조개 3개$').test(hp.byId['rn-final-sr'].textContent), '결과 판 읽어 주기 = 예전 문장 (' + hp.byId['rn-final-sr'].textContent + ')');
+  check(hp.byId['rn-hand'].hidden && hp.byId['rn-pause'].hidden, '결과 판: 손 · 일시정지 그림 없음');
+  hp.byId['rn-again'].fire('click'); await hp.readyNet();
+  hp.key(' '); hp.key(' ', 'keyup'); await hp.frames(3);
+  earnCalls.length = 0; hp.R.close();
+  check(earnCalls.length === 1 && earnCalls[0] && earnCalls[0].quiet === true, '달리다 닫은 판도 earnFromPlay(…, { quiet: true }) — 조개 알림 글 없음, 위 조개 칸 수만 (11-15 검증 R-3)');
+
   /* #24: 열 때 찾은 황제 망토·지난 올리기를 출발(start)이 ready() 때 사본으로 덮어쓰면 안 된다 */
   var h = fresh();
   await h.mem.put(core.encodePath({ week: '2026-W44', score: 300, ticks: 1500, runId: 'aaaaaaaaaaaa', nick: 'me' }), {});
   h.setStore({ v: 1, best: 0, runs: 0, day: '', dayN: 0, last: null, net: { subs: [{ runId: 'aaaaaaaaaaaa', week: '2026-W44', score: 300, rank: 1, at: 0 }], awards: { paper_crown: ['2026-W44'], emperor_cape: [] } } });
   await h.open(); await h.readyNet();
-  check(/황제 망토/.test(h.byId['rn-award'].textContent) && !h.byId['rn-award'].hidden, '열 때 지난주 망토 알림 (' + h.byId['rn-award'].textContent + ')');
+  check(/황제 망토/.test(txt(h.byId['rn-award'])) && !h.byId['rn-award'].hidden, '열 때 지난주 망토 알림 (' + txt(h.byId['rn-award']) + ')');
   check(h.net_().awards.emperor_cape[0] === '2026-W44' && h.net_().subs[0].done === true, '망토 저장됨 (출발 전)');
   await h.runToOver();
   check(h.net_() && h.net_().awards.emperor_cape.indexOf('2026-W44') >= 0 && h.net_().subs[0].done === true, '#24 출발해도 망토·done 이 남아 있음 ' + JSON.stringify(h.net_() && h.net_().awards));
@@ -253,7 +314,7 @@ function deferred() { var d = {}; d.p = new Promise(function (r) { d.resolve = r
   h.byId['rn-again'].fire('click'); await h.readyNet(); await h.runToOver();
   await h.advance(31 * 60000);
   await h.submit('late');
-  check(/시간이 너무 지나서/.test(h.byId['rn-net-msg'].textContent) && h.byId['rn-submit'].disabled, '#30 401 만료 → 같은 오류로 되풀이하지 않게 버튼 꺼짐');
+  check(/너무 늦어서 못 올렸어/.test(h.byId['rn-net-msg'].textContent) && h.byId['rn-submit'].disabled, '#30 401 만료 → 같은 오류로 되풀이하지 않게 버튼 꺼짐');
 
   /* #28 (클라이언트 쪽): final:false 응답은 done 으로 적지 않는다 → 닫힌 뒤 다시 물어 망토를 받는다 */
   var MON = Date.UTC(2026, 10, 8, 15, 5);   /* 월 00:05 KST: W45 는 아직 안 닫힘 */
@@ -264,7 +325,7 @@ function deferred() { var d = {}; d.p = new Promise(function (r) { d.resolve = r
   check(!h.net_().subs[0].done && h.net_().awards.emperor_cape.length === 0 && h.byId['rn-award'].hidden, '#28 월 00:05 → final:false 라 done 아님, 망토 알림 없음');
   h.R.close(); h.clk.t = MON + 30 * 60000;
   await h.open(); await h.readyNet();
-  check(h.net_().subs[0].done === true && h.net_().awards.emperor_cape[0] === '2026-W45' && /1등! 황제 망토/.test(h.byId['rn-award'].textContent), '#28 닫힌 뒤 다시 물어 망토 (' + h.byId['rn-award'].textContent + ')');
+  check(h.net_().subs[0].done === true && h.net_().awards.emperor_cape[0] === '2026-W45' && /1등! 황제 망토/.test(txt(h.byId['rn-award'])), '#28 닫힌 뒤 다시 물어 망토 (' + txt(h.byId['rn-award']) + ')');
   h.R.close();
 
   console.log('\n' + passes + ' passed, ' + fails + ' failed');

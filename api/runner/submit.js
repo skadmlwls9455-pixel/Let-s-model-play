@@ -1,7 +1,7 @@
 /* POST /api/runner/submit  { token, inputs:[{t,a}], score, ticks, nick } → { ok, rank, week, runId, award }
  *   검증: 서명 · 30분 안 · 입력 형식(≤ 20000, t 정수 ≥ 0 비감소, a ∈ jd|ju|dd|du, t ≤ ticks)
  *        · 실시간보다 빠를 수 없음(ticks/60 ≤ 경과 초 + 3) · 토큰의 seed/night 로 재시뮬(끝까지 + until=ticks) = 주장한 score·ticks
- *        · 시드당 한 번(runner-ids/{week}/{runId}.json { runId, at, score, ticks }, 덮어쓰기 금지 — 먼저 쓴 판이 이 토큰의 판).
+ *        · 시드당 한 번(runner2-ids/{week}/{runId}.json — 판마다 따로, core.idPath { runId, at, score, ticks }, 덮어쓰기 금지 — 먼저 쓴 판이 이 토큰의 판).
  *   다시 보내기는 멱등: 같은 runId 가 같은 score·ticks 로 이미 순위표에 있으면 그 결과를 200 으로 그대로 (응답을 잃었을 때 · 만료 뒤라도).
  *        같은 runId 인데 다른 점수면 409 duplicate. 표시만 있고 기록이 없으면(지난번에 중간에 실패, 또는 먼저 온 요청이 아직 쓰는 중)
  *        표시에 적힌 판과 같은 판일 때만 기록을 이어서 쓴다 — 다른 판이면 409.

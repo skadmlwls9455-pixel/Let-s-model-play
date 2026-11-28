@@ -18,15 +18,17 @@
  *                 the stage, so box = stage - box0. Up to 9. toFood(x, y) / fromFood(fx, fy) convert.
  *          band   0 soft, 1 golden, 2 crisp  (face colors #e8c170 / #de9e41 / #be772b, edge #884b2b).
  *          cuts   per cut line: signed deviation from that line's guide angle, a multiple of 6, drawn clamped to +-30.
- *                 jeon guides are GEO.cross = [0, 90] (horizontal line first, then vertical): the dish shows a cross.
- *          offs   per cut line: its seeded guide offset in art px (-4..4), down for line 0, right for line 1.
+ *                 jeon guides are GEO.cross = [0, 90] (look index 0 horizontal, 1 vertical): the dish shows a cross.
+ *          offs   per cut line: its guide offset in art px (-4..4), down for line 0, right for line 1. 11-18: a new
+ *                 dish always has cuts and offs 0 (an exact '+'); old book looks keep theirs.
  *          plate  0 paper, 1 sky, 2 pink.     herb ('parae' | 'tot') comes from the run's swaps and is passed as o.herb.
  *          Unknown look.v or broken fields fall back to the default look (dish() and dishSmall() never throw).
  *
  * HELPERS  blank(w, h) clone(b) copy(dst, src) clear(b) put(b, x, y, hex) get(b, x, y) -> hex | null
  *          rect(b, x, y, w, h, hex) line(b, x0, y0, x1, y1, hex) ellipse(b, cx, cy, rx, ry, hex)
  *          dither(b, x, y, w, h, hex, phase) (50 % checker)   blit(dst, src, x, y) (painted pixels only, clipped)
- *          shake(b, dx, dy) moves everything inside the frame by 1..2 px (slice end, flip, reveal jiggle), frame stays
+ *          shake(b, dx, dy, m) moves everything inside a margin of m px by 1..2 px, edges repeat (slice end, flip, reveal
+ *                 jiggle). m defaults to 2 (the stage frame stays); m = 0 moves the whole buffer (the close-up view, 11-15)
  *          hash(b) -> uint32 (FNV-1a over w, h, bytes)   colors(b) -> [hex]   sin(deg) cos(deg) -> integer x 4096
  *          imageData(b) / toCanvas(b, scale)   browser only (the only DOM users in this file)
  *
@@ -41,10 +43,11 @@
  *                      marks (st.marks: { x, y, n } logical + o.per, or [x, y, left] art px; a finished mark is not drawn),
  *                      herb, flash (1-frame #ebede9 rim), squash 0 | 1 (wide) | 2 (tall) (the 2 pre-drawn frames, bottom
  *                      anchored), dust ([x, y] art px or { x, y } logical: a crumb that stays), f }
- *   flipScene(b, o)    o = { heat (st.heat), band (st.band), res (st.res: band it was flipped at, or null) | flipped,
+ *   flipScene(b, o)    on the stove (11-15: bgStove, the right knob and its dot follow heat; arrow at GEO.flipArrow).
+ *                      o = { heat (st.heat), band (st.band), res (st.res: band it was flipped at, or null) | flipped,
  *                      arc: null | { f: 0..3, lift: 1..3 (the flip event's level; > 3 = art px) }, herb, dents,
  *                      spatula: undefined (rest pose) | null (hidden) | [x, y] art px (blade centre, follows the hand),
- *                      arrow: null | 0 | 1 (bob frame; drawn above the spatula), bump (1-frame hop), flash, still, f }
+ *                      arrow: null | 0 | 1 (bob frame; tip at GEO.flipArrow, on top), bump (1-frame hop), flash, still, f }
  *                      heat off: the raw batter palette (nothing browns yet); heat on, before the flip: the raw side is
  *                      up and its rim shows the band; after the flip the cooked face is up.
  *                      arc frames: 0 tilt (raw side), 1 edge-on, 2 tilt (cooked side), 3 landing squash.
@@ -54,7 +57,27 @@
  *                      | knife ([x, y, deg] art px; null = hidden; neither = resting on the board), trail [[x, y]], f }
  *                      painted bins become the kerf and drop their guide dashes; a cut line splits the jeon at
  *                      guide angle + ang through the line's centre and the pieces part 1 art px each way.
+ *                      11-18: o.pop (with flash = i) = the cut frame: line i parts 2 px each way, the rest stay at 1.
  *   revealScene(b, o)  o = { look, herb, f 0..5 }: the plate rises 2 px per frame (6 frames at 12 fps), f >= 5 = at rest.
+ *                      o.geo = 'close' (11-15): the close-up plate GEO.rev2 driven by o.t (12 fps frames since the reveal):
+ *                      t null rest frame | t <= 3 the board's cut jeon at lift 2 with a checker shadow | t 4 lift 1 |
+ *                      t 5 the plated look (garnish 8, quarters at sep 2) squashed rx + 2 / ry - 1 | t >= 6 rest with steam,
+ *                      twinkles and the flare on the 96-frame loop. Plate and jeon stay in stage x 33..111.
+ * CLOSE-UP (11-15; js/cook.js composes a canvas wider and taller than the stage around it)
+ *   view(b, o)         o = { station 'counter' | 'stove' | 'board' | 'plate', ox, oy, x0 = 0, x1 = b.w }: that station's
+ *                      background only, over every row of b and columns x0..x1-1, in stage coordinates shifted by
+ *                      (ox, oy), for any b size and offsets. The pattern functions take stage coordinates (any integers),
+ *                      so inside the stage interior it equals bgStep (counter, board, plate) or bgStove(knobs off).
+ *                      Wall: 7-row period anchored at stage row 2, upward without end; trim rows 18-20; wood strips
+ *                      continue at 11 rows; stove: enamel to row 135, lip 136-139, knob panel 140-157, oven door below.
+ *   base(b, o)         o = { station, pan, heat, f, still, look }: a still station for the slides, frame included.
+ *                      counter = bgStep | stove = bgStove (+ the pan, + flames and the knob on) | board = the board with
+ *                      the knife at rest | plate = bgStep + the REV2 plate and soy dish (no jeon)
+ *   carry(b, o)        o = { what 'pan' | 'jeon' | 'cut', x, y (food centre in b), lift = 2, shadow = true, herb, dents,
+ *                      band, look, seed }: the object exactly as the still scenes paint it (pan = cold flipScene's pan
+ *                      and raw batter; jeon = sliceScene before a cut; cut = sliceScene with both lines cut), drawn at
+ *                      y - lift, with a 50 % checker shadow 3 px right and 3 px down where the object is not. Clipped.
+ *   bgStove(b, on)     the stove's stage background (interior only): enamel, grates, both knobs (on = burner on)
  *   frame(b)           2-art-px stage frame (the scenes already call it last).
  * PIECES   pan(b, P) panHeat(b, P, f) (P = PAN_STEP | PAN_COUNTER) board(b, x, y, w, h, small, handle) batter(b, o)
  *          marks(b, list, f) (each mark stays a whole ring: arcs still wanted amber, arcs already hit sunk in)
@@ -62,12 +85,14 @@
  *          dents: hits within 3 px are one round dimple that grows with its count; herbs: wavy strands + clumps
  *          bubbles(b, list, f, still) spatula(b, x, y) arrow(b, x, y, f) guide(b, x, y, deg, len, f, cells)
  *          knife(b, x, y, deg) (x, y = edge point under the finger; handle always to the right / below)
+ *          bell(b, x, y, f, still) (11-18: the 13 x 13 golden desk bell at GEO.bell; f frames since golden)
  *          plate(b, color, o) dish(b, look, o) (o = { herb, x, y }; GEO.dish 96 x 66, centred in b unless x / y given)
  *          dishSmall(b, look, o) (GEO.small 40 x 26). js/cook.js drawDish() calls these two with o = { herb, ... }.
  *          hand(b, o)  ghost hand (solid slate outline, 50 % checker fill). o = { kind: 'tap', x, y, f } |
  *                      { kind: 'flick', x, y (start), f } | { kind: 'line', x0, y0, x1, y1, f }   f 0..3 at 12 fps,
  *                      o.still = true for the reduced-motion pose. The hot spot is the index fingertip.
- *          icon(name) -> 16 x 16 buffer   names: 'tap' (pointer hand pressing), 'flip' (spatula), 'slice' (knife), 'close'
+ *          icon(name) -> 16 x 16 buffer   names: 'tap' (pointer hand pressing), 'flip' (spatula), 'slice' (knife), 'close',
+ *                      'heat' (flame), 'again' (loop arrow, HUD only); an unknown name gives 'tap'
  *          wallTile(dark) -> 8 x 7 buffer: the dialog's backdrop (the play room's plank wall; dark = at night)
  *          particles(b, list)   list = [{ x, y, k, a, life }]  k = 'crumb' | 'drop' | 'steam' | 'dust' | 'spark' | 'herb'
  *                               1 x 1 art px each, color by age (PART[k][0] young .. [2] old); old steam thins out.
@@ -133,7 +158,13 @@ var COOK_ART = (function () {
     box0: [40, 62], boxW: 64, boxH: 48,                         /* food box (dents live here) = food centre - [32, 24] */
     board: { x: 10, y: 36, w: 124, h: 100 },                    /* slice scene board (top face) */
     cross: [0, 90],                                             /* jeon guide angles, in order */
-    rest: { spatula: [112, 92], knife: [100, 124, 0] },        /* tools at rest: spatula blade centre, knife [x, y, deg] */
+    rest: { spatula: [100, 114], knife: [100, 124, 0] },       /* tools at rest: spatula blade centre, knife [x, y, deg] (11-18: the
+                                                                  bigger spatula rests low right on the stove, blade x 88..111, y 108..119) */
+    bell: [102, 44],                                            /* 11-18 desk bell (13 x 13) centre: on the stove behind the pan's upper right rim */
+    flipArrow: [72, 110],                                       /* 11-15 flip glyph: the up-arrow's tip, on the pan floor under the jeon */
+    knob: [96, 148], knob0: [48, 148], knobDot: [106, 142],     /* 11-15 stove knobs (right = the burner) and the burner's 2x2 dot */
+    rev2: { pcx: 72, pcy: 89, prx: 39, pry: 26, rim: 5, pth: 3, jcx: 72, jcy: 86, jrx: 29, jry: 19, soy: [98, 54, 9, 5],
+      glints: [3, 9], garnish: 8, shadow: 2, thick: 2 },        /* 11-15 close-up plate: the jeon keeps its pan size */
     markBase: [[-14, -5], [15, -6], [1, 8]],                   /* suggested tap marks (from the food centre), sim may jitter +-3 */
     dish: { w: 96, h: 66, cx: 48, cy: 30 },                     /* dish() buffer size and jeon centre inside it */
     small: { w: 40, h: 26 },                                    /* dishSmall() buffer */
@@ -371,11 +402,108 @@ var COOK_ART = (function () {
     for (var x = 2; x < W - 2; x++) { put(b, x, y, C.w4); put(b, x, y + 1, C.w2); put(b, x, y + 2, C.w1); }
   }
 
+  /* ---------- station backgrounds as functions of the STAGE pixel (11-15 close-up) ----------
+   * Every station background is a pure function of the stage coordinate (sx, sy), any integers (negative or past
+   * 144 / 160 too), so the bleed around the stage (view()) and the stage itself (bgStep / bgStove) are the same picture
+   * pixel for pixel. Wall: a 7-row plank period anchored at stage row 2, unlit (the lamp is off stage), running upward
+   * without end. Trim: rows 18-20. Counter wood from row 21: strip heights follow WOOD_H, then stay 11 rows; seed 31;
+   * the lamp pool from (6, 10), r 40. The stove (13.2): light enamel, front lip, knob panel, oven door below. */
+  var WALL_Y = 2 + GEO.wallH, WOOD_Y = WALL_Y + 3, WOOD_SEED = 31, WOOD_L = { x: 6, y: 10, sy: 1, r1: 40 };
+  var WOOD_H = [7, 7, 7, 8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11];
+  function imod(a, n) { return ((a % n) + n) % n; }
+  function wallAt(sx, sy) {
+    var r = imod(sy - 2, 7);
+    return r === 6 ? C.s2 : r === 0 ? C.s5 : r === 5 ? C.s3 : C.s4;
+  }
+  function trimAt(sy) { return sy === WALL_Y ? C.w4 : sy === WALL_Y + 1 ? C.w2 : C.w1; }
+  var WOOD_K = {};   /* per strip: [deep, groove row, grain offset] (the same hashes counterWood uses) */
+  function woodStrip(k) {
+    var v = WOOD_K[k];
+    if (!v) { var ph = k < WOOD_H.length ? WOOD_H[k] : 11; v = WOOD_K[k] = [(ih(k, WOOD_SEED, 5) % 3) === 0, 2 + ih(k, WOOD_SEED, 11) % Math.max(1, ph - 3), ih(k, WOOD_SEED, 7) % 61]; }
+    return v;
+  }
+  function woodAt(sx, sy) {
+    var d = sy - WOOD_Y, k = 0;
+    while (k < WOOD_H.length && d >= WOOD_H[k]) { d -= WOOD_H[k]; k++; }
+    if (k >= WOOD_H.length) { k += idiv(d, 11); d = imod(d, 11); }
+    var S = woodStrip(k), deep = S[0], lit = pool(sx, sy, WOOD_L.x, WOOD_L.y, WOOD_L.sy, WOOD_L.r1, WOOD_L.r1) === 2, body = deep ? C.w3 : C.w4;
+    if (d === 0) return deep ? C.w2 : C.w3;                                              /* glue line */
+    if (d === 1) return lit ? C.w5 : body;                                               /* strip edge, lit near the lamp */
+    if (d === S[1] && (ih(k * 7 + d, (sx + S[2]) >> 3, WOOD_SEED) & 3) === 0) return deep ? C.w2 : C.w3;   /* grain streak */
+    return body;
+  }
+  var STOVE_LIP = 136, STOVE_PANEL = 140, STOVE_DOOR = 158;
+  function stoveAt(sx, sy) {
+    if (sy === WOOD_Y) return C.s4;                                                      /* the trim's shadow on the enamel */
+    /* the lamp pool: solid s6 with a 3-px dithered edge (round 5 check K-7: a 50 % checker over the whole pool read as an
+       editor's transparency grid) */
+    if (sy < STOVE_LIP) return pool(sx, sy, WOOD_L.x, WOOD_L.y, 1, WOOD_L.r1 - 3, WOOD_L.r1) === 2 ? C.s6 : C.s5;
+    if (sy < STOVE_PANEL) return [C.s6, C.s5, C.s4, C.s3][sy - STOVE_LIP];               /* the rounded front lip */
+    if (sy < STOVE_DOOR) return sy === STOVE_DOOR - 1 ? C.s2 : C.s3;                     /* knob panel */
+    return ovenAt(sx, sy - STOVE_DOOR);                                                  /* oven door (bleed only) */
+  }
+  /* the oven door below the knob panel (round 5 check K-8: a flat s4 band in the dialog's own colour read as empty page):
+     a dark gap, a lit top edge, an s3 face with a handle bar (lit top, shaded under) and a dark window under it, then a
+     plinth. d = rows below STOVE_DOOR; the handle and the window are centred under the pan (stage x 72) */
+  function ovenAt(sx, d) {
+    var hx = sx >= 44 && sx <= 100, wx = sx >= 38 && sx <= 106;
+    if (d === 0) return C.s1;                                                            /* the gap under the panel */
+    if (d === 1) return C.s5;                                                            /* the door's lit top edge */
+    if (d === 3 && hx) return sx === 44 || sx === 100 ? C.s2 : C.s6;                     /* handle bar: lit top, dark ends */
+    if (d === 4 && hx) return C.s1;                                                      /* ... its shaded underside */
+    if (d >= 7 && d <= 19 && wx) {                                                       /* the window: s2 frame, dark glass, one glint */
+      if (d === 7 || sx === 38 || sx === 106) return C.s2;
+      return (sx - 41 === d - 8 || sx - 42 === d - 8) && d <= 11 ? C.s1 : C.s0;
+    }
+    if (d === 22) return C.s2;                                                           /* the door's bottom edge */
+    return d > 22 ? C.s1 : C.s3;                                                         /* door face, then the plinth */
+  }
+  function bgAt(station, sx, sy) {
+    if (sy < WALL_Y) return wallAt(sx, sy);
+    if (sy < WOOD_Y) return trimAt(sy);
+    return station === 'stove' ? stoveAt(sx, sy) : woodAt(sx, sy);
+  }
+  /* paint columns x0..x1-1 of b with a station background, stage shifted by (ox, oy) */
+  function paintBg(b, station, ox, oy, x0, x1, y0, y1) {
+    for (var y = y0; y < y1; y++) for (var x = x0; x < x1; x++) put(b, x, y, bgAt(station, x - ox, y - oy));
+  }
+  /* stove props in stage coordinates through p(sx, sy, hex): four coal grate bars (3 x 8, a slate highlight on the lamp
+     side) that peek out above and below the pan, and two 11 x 11 knobs (ink outline, light face, lit arc upper left,
+     shade lower right, a 1 x 4 ink pointer: up when off, 2 o'clock when the burner is on) plus the burner's 2 x 2 dot */
+  var KNOB_OFF = [[0, -1], [0, -2], [0, -3], [0, -4]], KNOB_ON = [[1, -1], [2, -1], [3, -2], [4, -2]];
+  function stoveProps(p, on) {
+    [52, 92].forEach(function (gx) {
+      [40, 127].forEach(function (gy) { for (var j = 0; j < 8; j++) for (var i = 0; i < 3; i++) p(gx + i, gy + j, i === 0 ? C.s2 : C.coal); });
+    });
+    [[GEO.knob0, false], [GEO.knob, !!on]].forEach(function (K) {
+      var kx = K[0][0], ky = K[0][1];
+      for (var dy = -5; dy <= 5; dy++) for (var dx = -5; dx <= 5; dx++) {
+        if (!inE(dx, dy, 5, 5)) continue;
+        var col = !inE(dx, dy, 4, 4) ? C.ink : !inE(dx + 1, dy + 1, 4, 4) ? C.s6 : !inE(dx - 1, dy - 1, 4, 4) ? C.s2 : C.s5;
+        p(kx + dx, ky + dy, col);
+      }
+      (K[1] ? KNOB_ON : KNOB_OFF).forEach(function (q) { p(kx + q[0], ky + q[1], C.ink); });
+    });
+    var d = GEO.knobDot, dc = on ? C.a2 : C.s2;
+    p(d[0], d[1], dc); p(d[0] + 1, d[1], dc); p(d[0], d[1] + 1, dc); p(d[0] + 1, d[1] + 1, dc);
+  }
   /* close stage background for the step scenes: wall strip + counter planks (lamp off-stage, upper left) */
-  function bgStep(b) {
-    wallPlanks(b, 2, 2, W - 2, 2 + GEO.wallH, 6, -10, 0, 0);   /* the lamp is off stage: no light pool on this strip */
-    trim(b, 2 + GEO.wallH);
-    counterWood(b, 2, 5 + GEO.wallH, W - 2, H - 2, [7, 7, 7, 8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11], 31, { x: 6, y: 10, sy: 1, r1: 40 });
+  function bgStep(b) { paintBg(b, 'counter', 0, 0, 2, W - 2, 2, H - 2); }
+  /* the stove station's stage (13.2); on = the burner knob turned on, its dot lit */
+  function bgStove(b, on) {
+    paintBg(b, 'stove', 0, 0, 2, W - 2, 2, H - 2);
+    stoveProps(function (x, y, c) { if (x >= 2 && y >= 2 && x < W - 2 && y < H - 2) put(b, x, y, c); }, on);
+  }
+  /* view(b, o): a station's background over the whole of b (any size), stage shifted by (ox, oy), columns x0..x1-1.
+     o = { station 'counter' | 'stove' | 'board' | 'plate', ox, oy, x0 = 0, x1 = b.w }. No pan, board or plate: inside the
+     stage interior it equals bgStep (bgStove with the knobs off for the stove), outside it continues the same pattern. */
+  function view(b, o) {
+    o = o || {};
+    var st = o.station === 'stove' ? 'stove' : 'counter', ox = o.ox | 0, oy = o.oy | 0;
+    var x0 = Math.max(0, o.x0 == null ? 0 : o.x0 | 0), x1 = Math.min(b.w, o.x1 == null ? b.w : o.x1 | 0);
+    paintBg(b, st, ox, oy, x0, x1, 0, b.h);
+    if (st === 'stove') stoveProps(function (x, y, c) { var X = x + ox; if (X >= x0 && X < x1) put(b, X, y + oy, c); }, false);
+    return b;
   }
 
   /* =====================================================================================
@@ -1008,7 +1136,11 @@ var COOK_ART = (function () {
     var rx = o.rx || GEO.food.rx[2], ry = o.ry || GEO.food.ry[2], cx = o.cx == null ? GEO.food.cx : o.cx | 0, cy = o.cy == null ? GEO.food.cy : o.cy | 0;
     var dl = (o.dents || []).slice(0, 9);
     var ds = dl.map(function (d) { return [idiv(((d[0] | 0) - 32) * rx, GEO.food.rx[2]), idiv(((d[1] | 0) - 24) * ry, GEO.food.ry[2])]; });
-    var cuts = (o.cuts || []).map(function (c) { return [Math.round(+c.deg || 0), c.x == null ? 0 : (c.x | 0) - cx, c.y == null ? 0 : (c.y | 0) - cy]; });
+    var cuts = (o.cuts || []).map(function (c) {   /* [deg, dx, dy] + an optional per-cut sep (11-18: the '+' pop) */
+      var a = [Math.round(+c.deg || 0), c.x == null ? 0 : (c.x | 0) - cx, c.y == null ? 0 : (c.y | 0) - cy];
+      if (c.sep != null) a.push(c.sep | 0);
+      return a;
+    });
     var face = o.face === 'top' || o.face === 'raw' ? o.face : 'bottom', band = clampI(o.band, 0, 2), herb = o.herb === 'tot' ? 'tot' : 'parae', th = o.thick == null ? 2 : o.thick | 0;
     var sep = o.sep == null ? 1 : o.sep | 0, seed = o.seed == null ? texSeed(dl) : o.seed | 0;
     var fk = faceKey(rx, ry, face, band, herb, th, ds, seed, o);
@@ -1033,7 +1165,10 @@ var COOK_ART = (function () {
       if ((x + 1 < w && K[y * w + x + 1]) || (x > 0 && K[y * w + x - 1]) || (y + 1 < h && K[(y + 1) * w + x]) || (y > 0 && K[(y - 1) * w + x])) put(b, ox + x, oy + y, C.s6);
     }
   }
-  /* split a jeon by straight cuts: every piece moves `sep` px away from each cut (normal snapped to 8 directions); with
+  /* split a jeon by straight cuts: every piece moves `sep` px away from each cut (normal snapped to 8 directions; a cut
+     [deg, dx, dy, sep] has its own sep, 11-18). A cut at 0 / 90 / 180 / 270 deg runs through a row / column of pixels:
+     that row / column is the knife's kerf and is left out, so the two sides are mirror images and the opened gap is
+     2 x sep + 1 px (an odd jeon cannot part evenly round a 2-px gap). With
      `nudge` each piece also slides 0..1 px further out by the seed, so four pieces never line up into a perfect cross.
      Cut faces read as food, never as a plate-coloured line: the piece above a gap shows its soft inside (batter with a
      seaweed fleck) and, if the gap is wide, the crust under it; the piece below shows a crust line; the left piece a
@@ -1045,19 +1180,22 @@ var COOK_ART = (function () {
     var L = cuts.map(function (c) {
       var s = isin(c[0]), co = icos(c[0]);
       var nx = -s > 1567 ? 1 : -s < -1567 ? -1 : 0, ny = co > 1567 ? 1 : co < -1567 ? -1 : 0;
-      return { s: s, c: co, x: J.cx + c[1], y: J.cy + c[2], nx: nx, ny: ny };
+      var a = ((c[0] % 180) + 180) % 180;
+      return { s: s, c: co, x: J.cx + c[1], y: J.cy + c[2], nx: nx, ny: ny, sep: c[3] == null ? sep : c[3], kerf: a === 0 ? 1 : a === 90 ? 2 : 0 };
     });
     var piece = new Uint8Array(src.w * src.h), NUD = {};
     for (j = 0; j < src.h; j++) for (i = 0; i < src.w; i++) {
       var si = (j * src.w + i) << 2; if (!src.d[si + 3]) continue;
-      var mx = 0, my = 0, key = 0, ox2 = 0, oy2 = 0;
+      var mx = 0, my = 0, key = 0, ox2 = 0, oy2 = 0, cutAway = false;
+      for (k = 0; k < L.length; k++) if ((L[k].kerf === 1 && j === L[k].y) || (L[k].kerf === 2 && i === L[k].x)) cutAway = true;
+      if (cutAway) continue;   /* the kerf: it shows as part of the opened gap */
       for (k = 0; k < L.length; k++) {
         var X = 2 * (i - L[k].x) + 1, Y = 2 * (j - L[k].y) + 1, neg = X * L[k].s - Y * L[k].c < 0;
         var vx = neg ? L[k].nx : -L[k].nx, vy = neg ? L[k].ny : -L[k].ny;
         if (neg) key |= 1 << k;
         ox2 += vx; oy2 += vy;
         if (half && vx + vy >= 0) continue;   /* half: only the piece moving up / left moves -> a 1-px gap */
-        mx += vx * sep; my += vy * sep;
+        mx += vx * L[k].sep; my += vy * L[k].sep;
       }
       if (nudge) {
         var nd = NUD[key];
@@ -1078,15 +1216,15 @@ var COOK_ART = (function () {
       for (var q = 0; q < 4; q++) { var gx = i + N4[q][0], gy = j + N4[q][1]; if (gx >= 0 && gy >= 0 && gx < W2 && gy < out.h && !occ[gy * W2 + gx] && inSil(gx, gy)) { faces.push([i, j, q]); break; } }
     }
     for (j = 0; j < out.h; j++) for (i = 0; i < W2; i++) if (!occ[j * W2 + i] && inSil(i, j)) gaps.push([i, j]);
-    /* the opened cut: a 1-px crack is the gap colour (J1); a wider opening shows the far piece's cut wall (its soft inside,
-       a seaweed fleck, then its bottom crust) and, where the opening is wider still, a warm dark shadow (never the plate) */
+    /* the opened cut: a 1-px crack is the gap colour (J1); a wider opening is a warm dark shadow (never the plate). 11-18:
+       the far piece's cut wall (soft inside, crust) is no longer painted inside the opening: the horizontal arm of a '+'
+       read 1 px dark against the vertical arm's 3 px */
     var isOcc = function (x, y) { return x >= 0 && y >= 0 && x < W2 && y < out.h && occ[y * W2 + x] === 1; };
     if (gap) gaps.forEach(function (g) {
       var x = g[0], y = g[1], col;
       if ((isOcc(x - 1, y) && isOcc(x + 1, y)) || (isOcc(x, y - 1) && isOcc(x, y + 1))) col = gap;
-      else if (isOcc(x, y - 1)) col = fc(ih(x, y, seed + 9) % 5 === 0 ? (J.herb === 'tot' ? 'T1' : 'P1') : 'J5');
-      else if (isOcc(x, y - 2) && !isOcc(x, y - 1)) col = fc(T.side[0]);
-      else col = C.w1;
+      else col = C.w1;   /* 11-18: the whole opening is dark, so both arms of a '+' read with the same weight (the cut face
+                            sits on the piece above the gap, painted by the faces pass below, not inside the gap) */
       put(out, x, y, col);
     });
     faces.forEach(function (f) {
@@ -1484,33 +1622,85 @@ var COOK_ART = (function () {
       } else { [[-1, -1], [2, -1], [-1, 2], [2, 2]].forEach(function (p) { put(b, x + p[0], y + p[1], C.s3); }); }
     });
   }
-  /* spatula (turner): slotted blade with its centre at (x, y), handle down-right */
+  /* spatula (turner): slotted blade with its centre at (x, y), handle down-right. 11-18: bigger (blade 24 x 12 with 5
+     slots, handle 38 long and 3 thick + outline at 40 deg), so it reads as a tool next to the jeon. */
   var SPATULA = [
-    '.oooooooooooooo.',
-    'oWWWWWWWWWWWWWYo',
-    'oWYYYYYYYYYYYYXo',
-    'oWYVYYVYYVYYVYXo',
-    'oWYVYYVYYVYYVYXo',
-    'oWYVYYVYYVYYVYXo',
-    'oYYYYYYYYYYYYYXo',
-    '.oXXXXXXXXXXXXo.',
-    '..ooooooXXoooo..'];
+    '.oooooooooooooooooooooo.',
+    'oWWWWWWWWWWWWWWWWWWWWWYo',
+    'oWYYYYYYYYYYYYYYYYYYYYXo',
+    'oWYVVYYVVYYVVYYVVYYVVYXo',
+    'oWYVVYYVVYYVVYYVVYYVVYXo',
+    'oWYVVYYVVYYVVYYVVYYVVYXo',
+    'oWYVVYYVVYYVVYYVVYYVVYXo',
+    'oWYVVYYVVYYVVYYVVYYVVYXo',
+    'oWYVVYYVVYYVVYYVVYYVVYXo',
+    'oYYYYYYYYYYYYYYYYYYYYYXo',
+    '.oXXXXXXXXXXXXXXXXXXXXo.',
+    '..oooooooooXXooooooooo..'];
   function spatula(b, x, y) {
     x |= 0; y |= 0;
     var sp = remember('spatula', function () {
-      var R = 40, spr = blank(2 * R + 1, 2 * R + 1), sh = [];
-      stick(spr, R + 3, R + 8, 40, 30, 2, function (u, v) { return v < -2 || v > 1 || u < 3 ? null : '#000'; }, null, function (px, py) { sh.push([px - R + 2, py - R + 3]); });
-      stick(spr, R + 2, R + 5, 40, 30, 2, function (u, v) {
-        if (u < 9) return v < -1 || v > 0 ? null : v === -1 ? C.s3 : C.s2;
-        if (v < -2 || v > 1) return null;
-        if (u > 28 && (v === -2 || v === 1)) return null;
-        return v === -2 ? C.w4 : v === 1 ? C.w1 : v === -1 ? C.w3 : C.w2;
+      var R = 48, spr = blank(2 * R + 1, 2 * R + 1), sh = [];
+      stick(spr, R + 3, R + 9, 40, 38, 3, function (u, v) { return v < -3 || v > 2 || u < 3 ? null : '#000'; }, null, function (px, py) { sh.push([px - R + 2, py - R + 3]); });
+      stick(spr, R + 2, R + 6, 40, 38, 3, function (u, v) {
+        if (u < 11) return v < -1 || v > 1 ? null : v === -1 ? C.s3 : C.s2;   /* steel shank */
+        if (v < -3 || v > 2) return null;
+        if (u > 36 && (v === -3 || v === 2)) return null;                 /* rounded end */
+        return v === -3 ? C.w4 : v === 2 ? C.w1 : v === -2 ? C.w3 : C.w2;
       }, C.ink);
-      sprite(spr, SPATULA, { o: C.ink, W: C.s6, Y: C.s5, X: C.s4, V: C.s1 }, R - 8, R - 4);
+      sprite(spr, SPATULA, { o: C.ink, W: C.s6, Y: C.s5, X: C.s4, V: C.s1 }, R - 12, R - 6);
       return { spr: spr, sh: sh, R: R };
     });
     sp.sh.forEach(function (q) { shadeAt(b, x + q[0], y + q[1]); });
     blit(b, sp.spr, x - sp.R, y - sp.R);
+  }
+  /* 11-18 desk bell (13 x 13, Apollo only), centre (x, y) = GEO.bell. f = 12 fps frames since the golden moment:
+     0 pop (2 px higher, a 1-frame bright rim) | 1..7 swing (rows 0..6 lean 1 px left on odd frames, right on even) with
+     ring marks (a 1 x 3 stroke 2 px outside each side of the dome and a dot above) on odd frames | >= 8 still.
+     still (reduced motion): the bell at rest from f 0, the ring marks held for f 0..7. */
+  var BELL = [
+    '.....BBB.....',
+    '.....BBB.....',
+    '....ooooo....',
+    '..ooLLLMMoo..',
+    '.oLLSSLMMMDo.',
+    '.oLLLLMMMMDo.',
+    'oLLLMMMMMMMDo',
+    'oLLMMMMMMMMDo',
+    'oLMMMMMMMMDDo',
+    'oMMMMMMMMMDDo',
+    'ooooooooooooo',
+    '.WWWWWWWWWWW.',
+    '.VVVVVVVVVVV.'];
+  function bellSprite(lean, rim) {
+    return remember('bell|' + lean + '|' + (rim ? 1 : 0), function () {
+      var P = 1, s = blank(13 + 2 * P, 13 + 2 * P), K = { B: C.a1, o: C.r1, L: C.a3, M: C.a2, D: C.a1, S: C.s6, W: C.w2, V: C.w1 };
+      for (var j = 0; j < 13; j++) for (var i = 0; i < 13; i++) {
+        var c = K[BELL[j].charAt(i)]; if (!c) continue;
+        put(s, P + i + (j <= 6 ? lean : 0), P + j, c);
+      }
+      if (rim) {   /* one-frame bright rim: the ring of empty pixels round the bell */
+        var src = clone(s);
+        for (var y = 0; y < s.h; y++) for (var x = 0; x < s.w; x++) {
+          if (get(src, x, y)) continue;
+          if (get(src, x + 1, y) || get(src, x - 1, y) || get(src, x, y + 1) || get(src, x, y - 1)) put(s, x, y, C.s6);
+        }
+      }
+      return s;
+    });
+  }
+  function bell(b, x, y, f, still) {
+    f = Math.max(0, f | 0);
+    var x0 = (x | 0) - 6, y0 = (y | 0) - 6, lean = 0, up = 0, rim = false, marks = false;
+    if (still) marks = f <= 7;
+    else if (f === 0) { up = 2; rim = true; }
+    else if (f <= 7) { lean = f & 1 ? -1 : 1; marks = (f & 1) === 1; }
+    blit(b, bellSprite(lean, rim), x0 - 1, y0 - 1 - up);
+    if (marks) {
+      for (var k = 0; k < 3; k++) { put(b, x0 - 3, y0 + 4 + k, C.a3); put(b, x0 + 15, y0 + 4 + k, C.a3); }
+      put(b, x0 + 6, y0 - 2, C.a3);
+    }
+    return b;
   }
   /* pixel up-arrow, 2-frame bob (f 0 | 1) */
   var ARROW = [
@@ -1538,25 +1728,31 @@ var COOK_ART = (function () {
     mEach(D, function (px, py) { [[1, 0], [0, 1], [1, 1]].forEach(function (q) { if (!mhas(D, px + q[0], py + q[1])) put(b, px + q[0], py + q[1], C.w1); }); });
     mEach(D, function (px, py, v) { put(b, px, py, v === 2 && lit ? C.a3 : C.a2); });
   }
-  /* kitchen knife along deg; (x, y) = point of the edge under the finger. The handle always points right / down. */
+  /* kitchen knife along deg; (x, y) = point of the edge under the finger (14 px from the tip). The handle always points
+     right / down. 11-18: bigger, 49 x 7 at 0 deg: blade 30 (2 tall at the tip, 6 at the heel, the edge on the axis
+     row, the spine on the -v side), a 3 x 7 bolster, a 16 x 5 handle with two rivets. Outline painted in, so the box is
+     exact. Cuts are exact now, so the live knife is at 0 or 90 deg; other angles still draw (old callers). */
+  function knifeProf(u, v) {
+    if (u <= 29) {   /* blade: height 2 at the tip rising to 6 by u 14 */
+      var h = Math.min(6, 2 + idiv(u * 4, 14)), top = 2 - h;
+      if (v < top || v > 1) return null;
+      if (v === top || v === 1) return C.ink;
+      if (v === 0) return C.s6;                       /* the bright edge sits on the cut */
+      return v === top + 1 ? C.s4 : C.s5;
+    }
+    if (u <= 32) { if (v < -4 || v > 2) return null; return v === -4 || v === 2 || u === 32 ? C.ink : v === -3 ? C.s3 : C.s2; }   /* bolster */
+    if (v < -3 || v > 1) return null;                 /* handle */
+    if (v === -3 || v === 1 || u === 48) return C.ink;
+    if ((u === 37 || u === 44) && v === -1) return C.s5;   /* rivets */
+    return v === -2 ? C.w2 : C.w1;
+  }
   function knife(b, x, y, deg) {
     deg = Math.round(+deg || 0) % 180; if (deg < 0) deg += 180;
     if (deg > 100) deg -= 180;                       /* keep the handle on the right / lower side */
-    var c = icos(deg), s2 = isin(deg), tipx = (x | 0) - iround(12 * c, 4096), tipy = (y | 0) - iround(12 * s2, 4096), R = 42;
+    var c = icos(deg), s2 = isin(deg), tipx = (x | 0) - iround(14 * c, 4096), tipy = (y | 0) - iround(14 * s2, 4096), R = 54;
     var spr = remember('knife|' + deg, function () {
       var k = blank(2 * R + 1, 2 * R + 1);
-      stick(k, R, R, deg, 36, 3, function (u, v) {
-        if (u <= 22) {
-          var top = u < 3 ? 0 : -1, bot = u < 2 ? 0 : u < 5 ? 1 : 2;
-          if (v < top || v > bot) return null;
-          if (v === bot && u > 1) return C.s6;
-          return v === top ? C.s3 : C.s5;
-        }
-        if (u <= 24) return v < -1 || v > 2 ? null : C.s2;
-        if (v < -1 || v > 1) return null;
-        if ((u === 28 || u === 33) && v === 0) return C.s5;
-        return v === -1 ? C.w2 : C.w1;
-      }, C.ink);
+      stick(k, R, R, deg, 48, 4, knifeProf, null);
       return k;
     });
     blit(b, spr, tipx - R, tipy - R);
@@ -1713,8 +1909,9 @@ var COOK_ART = (function () {
   function plated(b, L, herb, G) {
     plate(b, L.plate, { cx: G.pcx, cy: G.pcy, rx: G.prx, ry: G.pry, th: G.pth, rim: G.rim, deco: G.deco });
     var soy = G.soy ? soyDish(b, G.soy[0], G.soy[1], G.soy[2], G.soy[3], texSeed(L.dents)) : null;
-    var cuts = GEO.cross.map(function (g, i) { return { deg: g + L.cuts[i], x: G.jcx + (i === 1 ? idiv(L.offs[i] * G.jrx, 29) : 0), y: G.jcy - 1 + (i === 0 ? idiv(L.offs[i] * G.jry, 19) : 0) }; });
-    var o = platedFace(L, herb, G); o.cx = G.jcx; o.cy = G.jcy; o.cuts = cuts; o.sep = 1; o.half = G.half == null ? 1 : G.half; o.nudge = G.nudge; o.gap = G.gap || F.J1;
+    /* 11-18: symmetric '+' (no half, no nudge) unless G asks for the old look (REV, tests only) */
+    var cuts = GEO.cross.map(function (g, i) { return { deg: g + L.cuts[i], x: G.jcx + (i === 1 ? idiv(L.offs[i] * G.jrx, 29) : 0), y: G.jcy - (G.half ? 1 : 0) + (i === 0 ? idiv(L.offs[i] * G.jry, 19) : 0) }; });
+    var o = platedFace(L, herb, G); o.cx = G.jcx; o.cy = G.jcy; o.cuts = cuts; o.sep = 1; o.half = G.half ? 1 : 0; o.nudge = G.nudge; o.gap = G.gap || F.J1;
     var R = jeonComp(o);
     var x0 = G.jcx + R.ox, y0 = G.jcy + R.oy, rb = R.buf, i, j;
     for (j = 0; j < rb.h; j++) for (i = 0; i < rb.w; i++) {   /* contact shadow: down-right, one step darker */
@@ -1728,7 +1925,7 @@ var COOK_ART = (function () {
   }
   /* the finished jeon as the player's hands left it (96 x 66, no soy dish). b = any buffer. o = { herb, x, y } (o.seed is
      ignored for the picture: the dents pick the texture, so this matches the reveal and the counter) */
-  var DISHG = { pcx: 48, pcy: 31, prx: 44, pry: 27, pth: 3, rim: 5, jcx: 48, jcy: 29, jrx: 29, jry: 19, glints: [3, 9], garnish: 8, shadow: 2, thick: 2, nudge: 1 };
+  var DISHG = { pcx: 48, pcy: 31, prx: 44, pry: 27, pth: 3, rim: 5, jcx: 48, jcy: 29, jrx: 29, jry: 19, glints: [3, 9], garnish: 8, shadow: 2, thick: 2 };
   function dish(b, look, o) {
     o = o || {};
     var L = safeLook(look), D = GEO.dish, ox = o.x == null ? (b.w - D.w) >> 1 : o.x | 0, oy = o.y == null ? (b.h - D.h) >> 1 : o.y | 0;
@@ -1889,7 +2086,44 @@ var COOK_ART = (function () {
       '.oXXo......oXXo.',
       '..oo........oo..',
       '................',
-      '................']
+      '................'],
+    heat: [           /* 11-15: a flame (the burner), amber with a pale core, a small lick on the right */
+      '.......o........',
+      '......oFo.......',
+      '......oFEo......',
+      '.....oFEEo......',
+      '.....oFEEDo.....',
+      '....oFEEEDo..o..',
+      '....oFEEEEDooDo.',
+      '...oFEEFEEEDoDo.',
+      '...oFEEFFEEEDDo.',
+      '..oFEEFFFFEEEDo.',
+      '..oFEEFWWFEEEDo.',
+      '..oFEEFWWFFEEDo.',
+      '..oDEEEFFFEEEDo.',
+      '...oDEEEEEEEDo..',
+      '....ooDDDDDDo...',
+      '......oooooo....'],
+    again: [          /* 11-15: a loop arrow (again, HUD only; a later stir glyph must not be a loop arrow). Round 5 check
+                         K-3: the old thick hook into the middle read as G or 6. Now an open ring (about 300 deg, 2-px
+                         stroke) and a separate solid head at the upper right pointing clockwise, nothing in the middle
+                         (the furniture turn arrow's shape, at 16 x 16) */
+      '........ooo.....',
+      '........oWoo....',
+      '....oooooWWoo...',
+      '..oooWWWWYYYo...',
+      '..oWWWWWYYYXo...',
+      '.ooWWooooYXoo...',
+      '.oWWoo..oXoo....',
+      '.oWWo...ooo.....',
+      '.oWWo......oooo.',
+      '.oWYo......oXXo.',
+      '.oYYo......oXXo.',
+      '.oYYoo....ooXXo.',
+      '.ooYYooooooXXoo.',
+      '..oYYXXXXXXXXo..',
+      '..oooXXXXXXooo..',
+      '....oooooooo....']
   };
   var ICON_K = { o: C.ink, W: C.s6, Y: C.s5, X: C.s4, Z: C.s6, V: C.s1, b: C.w2, c: C.w3, d: C.w4, a: C.w1, F: C.a3, E: C.a2, D: C.a1 };
   var iconCache = {};
@@ -1964,6 +2198,11 @@ var COOK_ART = (function () {
   function stepBase(key, extra) {
     return cached(key, function (c) { bgStep(c); pan(c, PAN_STEP); if (extra) extra(c); });
   }
+  /* 11-15: the flip step stands on the stove. ph = flame flicker phase 0 | 1, null = heat off (knob off, no flames) */
+  function stoveBase(ph) {
+    var on = ph === 0 || ph === 1;
+    return cached(on ? 'stove-heat-' + ph : 'stove', function (c) { bgStove(c, on); pan(c, PAN_STEP); if (on) panHeat(c, PAN_STEP, ph * 2); });
+  }
   /* marks: [x, y, left] in art px, or the sim's { x, y (logical px), n (hits so far) } with o.per (default 3) */
   function markList(list, per) {
     per = per || 3;
@@ -1991,8 +2230,8 @@ var COOK_ART = (function () {
   /* fill the caches the flip step will need next (one face per call, only while nothing is being built): the raw side at
      every band, the cooked face, the tilted arc faces. Output bytes never change; it only moves the work off the beats. */
   function prewarmFlip(band, herb, dl, seed) {
-    if (!cache['pan-heat-0']) { stepBase('pan-heat-0', function (c) { panHeat(c, PAN_STEP, 0); }); return; }
-    if (!cache['pan-heat-1']) { stepBase('pan-heat-1', function (c) { panHeat(c, PAN_STEP, 2); }); return; }
+    if (!cache['stove-heat-0']) { stoveBase(0); return; }
+    if (!cache['stove-heat-1']) { stoveBase(1); return; }
     var need = [['top', band], ['top', Math.min(2, band + 1)], ['bottom', band], ['bottom', Math.min(2, band + 1)]];
     for (var i = 0; i < need.length; i++) {
       var o = { face: need[i][0], band: need[i][1], herb: herb, dents: dl, seed: seed }, k = faceKey(GEO.food.rx[2], GEO.food.ry[2], o.face, o.band, herb, 2, scaleDents(dl, GEO.food.rx[2], GEO.food.ry[2]), seed, o);
@@ -2017,6 +2256,7 @@ var COOK_ART = (function () {
   var TAPWARM = blank(1, 1);
   function prewarmTap() {
     if (!cache.pan) { stepBase('pan'); return; }
+    if (!cache.stove) { stoveBase(null); return; }
     batter(TAPWARM, { shape: 0, dents: [] });
   }
   function scaleDents(dl, rx, ry) { return dl.slice(0, 9).map(function (d) { return [idiv(((d[0] | 0) - 32) * rx, GEO.food.rx[2]), idiv(((d[1] | 0) - 24) * ry, GEO.food.ry[2])]; }); }
@@ -2036,7 +2276,7 @@ var COOK_ART = (function () {
     var fl = o.fl != null ? o.fl | 0 : arc ? (clampI(arc.f, 0, 3) === 3 ? 0 : -1) : flipped && heat ? 1 : -1;   /* today's cook.js shows the rest frame right after the landing */
     var fw = o.fh != null ? fh : heat && o.flash && !flipped && !arc ? 0 : -1;   /* heat-on beat frame */
     var ph = still ? 0 : (f >> 1) & 1;
-    copy(b, heat ? stepBase('pan-heat-' + ph, function (c) { panHeat(c, PAN_STEP, ph * 2); }) : stepBase('pan'));
+    copy(b, stoveBase(heat ? ph : null));   /* 11-15: always on the stove; the burner knob and its dot follow heat */
     var cx = GEO.food.cx, cy = GEO.food.cy, rx = GEO.food.rx[2], ry = GEO.food.ry[2];
     var face = flipped ? 'bottom' : heat ? 'top' : 'raw';
     var HK = kitFor(face, band, herb, dl, tseed, !heat), J = HK.J, kit = HK.kit, ox = cx - J.cx, oy = cy - J.cy, gate = gateOf(fh, fbc, band);
@@ -2116,9 +2356,9 @@ var COOK_ART = (function () {
         if (!flipped && !arc) fxBandPuff(fbc, band, seed, cx, cy, rx, ry);
         if (fl >= 0 && fl < 36) fxBloom(fl, band, seed, cx, cy, rx, ry);
       }
-      steamPass(b, food);
+      steamPass(b, food, true);   /* round 5 check K-4: on the light enamel the board's veil, never a solid white curl (read as S, C, <) */
     }
-    if (o.arrow === 0 || o.arrow === 1) arrow(b, (sp ? sp[0] : GEO.rest.spatula[0]) + 1, (sp ? sp[1] : GEO.rest.spatula[1]) - 18, o.arrow);
+    if (o.arrow === 0 || o.arrow === 1) arrow(b, GEO.flipArrow[0], GEO.flipArrow[1], o.arrow);   /* 11-15: fixed, where the flick demo starts */
     frame(b);
     if (!arc) prewarmFlip(band, herb, dl, tseed);
     return b;
@@ -2143,7 +2383,8 @@ var COOK_ART = (function () {
     var dl = (o.dents || []).slice(0, 9), tseed = texSeed(dl), seed = o.seed == null ? tseed : o.seed | 0;
     copy(b, cached('board', function (c) { bgStep(c); board(c, G.x, G.y, G.w, G.h, false); }));
     var lines = (o.lines || []).map(lineOf), cuts = [], fresh = true;
-    lines.forEach(function (L) { if (L && L.cut) cuts.push({ deg: L.cutDeg == null ? L.deg : L.cutDeg, x: L.x, y: L.y }); if (L && (L.cut || (L.cells && L.cells.some(function (v) { return v; })))) fresh = false; });
+    /* 11-18 '+': on the cut frame (o.pop with o.flash = that line) the new cut opens to sep 2, then settles to sep 1 */
+    lines.forEach(function (L, i) { if (L && L.cut) cuts.push({ deg: L.cutDeg == null ? L.deg : L.cutDeg, x: L.x, y: L.y, sep: o.pop && o.flash === i ? 2 : 1 }); if (L && (L.cut || (L.cells && L.cells.some(function (v) { return v; })))) fresh = false; });
     var anyFlash = lines.some(function (L, i) { return L && L.cut && (L.flash || o.flash === i); });
     var R = jeonComp({ cx: cx, cy: cy, face: 'bottom', band: band, herb: herb, dents: dl, cuts: cuts, sep: 1, seed: tseed, ol: 1, gap: C.w4 });
     var x0 = cx + R.ox, y0 = cy + R.oy, rb = R.buf, i, j, s;
@@ -2202,7 +2443,7 @@ var COOK_ART = (function () {
      on the glints and now and then a white flare on the food. Everything ends above y 120 (the dish-name tag sits at 124).
      o = { look, herb, f 0..5 (rise), t (frames since the reveal began; optional), still }. Without t the reveal is a
      still frame (static puffs, no twinkle), which is also its reduced-motion picture. */
-  var REV = { pcx: 72, pcy: 83, prx: 60, pry: 33, pth: 3, rim: 7, jcx: 72, jcy: 80, jrx: 42, jry: 26, soy: [121, 52, 12, 7], glints: [5, 14], garnish: 10, shadow: 2, thick: 3, nudge: 1 };
+  var REV = { pcx: 72, pcy: 83, prx: 60, pry: 33, pth: 3, rim: 7, jcx: 72, jcy: 80, jrx: 42, jry: 26, soy: [121, 52, 12, 7], glints: [5, 14], garnish: 10, shadow: 2, thick: 3, nudge: 1, half: 1 };
   var REVC = lru(8);
   function prewarmReveal(band, herb, dl) {   /* the slice step already knows band, herb and dents: build the big face early */
     if (!cache.reveal) { cached('reveal', function (cc) { bgStep(cc); }); return; }
@@ -2212,6 +2453,7 @@ var COOK_ART = (function () {
   }
   function revealScene(b, o) {
     o = o || {};
+    if (o.geo === 'close') return revealClose(b, o);   /* 11-15 close-up result; without geo the old REV path is unchanged */
     var f = clampI(o.f == null ? 5 : o.f, 0, 5), up = (5 - f) * 2, t = o.t == null ? null : o.t | 0, still = !!o.still || t === null;
     var L = safeLook(o.look), herb = o.herb === 'tot' ? 'tot' : 'parae', seed = o.seed == null ? texSeed(L.dents) : o.seed | 0;
     var key = herb + '|' + JSON.stringify(L) + '|' + f;
@@ -2238,10 +2480,131 @@ var COOK_ART = (function () {
     frame(b);
     return b;
   }
-  /* 1-art-px jiggle (slice end, flip, plate reveal): moves everything inside the frame by (dx, dy), edges repeat, frame stays */
-  function shake(b, dx, dy) {
+  /* =====================================================================================
+   *  CLOSE-UP (11-15): station bases for the slides, the carried object, the close-up plate (REV2)
+   * ===================================================================================== */
+  /* the cut lines of a look, where the sim puts them (line 0 at food y + off, line 1 at food x + off) */
+  function cutsOf(L, cx, cy) {
+    return GEO.cross.map(function (g, i) { return { deg: g + L.cuts[i], x: cx + (i === 1 ? L.offs[1] : 0), y: cy + (i === 0 ? L.offs[0] : 0) }; });
+  }
+  /* the jeon as the board shows it: outlined for the light board, opened cuts in the board's tone (sliceScene's look) */
+  function boardJeon(cx, cy, band, herb, dl, cuts) {
+    return jeonComp({ cx: cx, cy: cy, face: 'bottom', band: band, herb: herb, dents: dl, cuts: cuts, sep: 1, seed: texSeed(dl), ol: 1, gap: C.w4 });
+  }
+  /* the plate of the close-up result, no jeon. prx / pry are the outer half sizes incl. the 1-px outline, so every plate
+     pixel and its shadow (1 right, 3 + th down, never past the outline's columns) lies in x pcx - prx .. pcx + prx */
+  function plate2(b, L) {
+    var G = GEO.rev2, rx = G.prx - 1, ry = G.pry - 1, x0 = G.pcx - G.prx, x1 = G.pcx + G.prx;
+    for (var y = -ry; y <= ry + G.pth + 4; y++) for (var x = -rx; x <= rx + 1; x++) {
+      var px = G.pcx + x, py = G.pcy + y;
+      if (px >= x0 && px <= x1 && inE(x - 1, y - G.pth - 2, rx, ry)) shadeAt(b, px, py);
+    }
+    plate(b, L.plate, { cx: G.pcx, cy: G.pcy, rx: rx, ry: ry, th: G.pth, rim: G.rim, noShadow: true });
+    return soyDish(b, G.soy[0], G.soy[1], G.soy[2], G.soy[3], texSeed(L.dents));
+  }
+  /* base(b, o): a still station for the slides (144 x 160, with the 2-px frame the live view never shows).
+     o = { station, pan, heat, f, still, look }  counter: bgStep | stove: bgStove (+ the pan, + its flames and the knob on)
+     | board: the board with the knife at rest | plate: bgStep + the REV2 plate and the soy dish (no jeon) */
+  function base(b, o) {
+    o = o || {};
+    var st = o.station, ph = o.still ? 0 : ((o.f | 0) >> 1) & 1;
+    if (st === 'stove') {
+      if (o.pan) copy(b, stoveBase(o.heat ? ph : null));
+      else { clear(b); bgStove(b, !!o.heat); }
+    } else if (st === 'board') {
+      copy(b, cached('board', function (c) { bgStep(c); board(c, GEO.board.x, GEO.board.y, GEO.board.w, GEO.board.h, false); }));
+      var kn = GEO.rest.knife; knife(b, kn[0], kn[1], kn[2]);
+    } else if (st === 'plate') {
+      var L = safeLook(o.look);
+      copy(b, lruGet(REVC, 'p2|' + L.plate + '|' + texSeed(L.dents), function () { var c = blank(W, H); bgStep(c); plate2(c, L); return c; }));
+    } else { clear(b); bgStep(b); }
+    return frame(b);
+  }
+  /* the carried object as a sprite with the food centre at (ox, oy): exactly the pixels the still scenes paint for it */
+  var CARRY = lru(6);
+  function carrySprite(what, band, herb, dl, cuts) {
+    return lruGet(CARRY, [what, band, herb, JSON.stringify(dl), JSON.stringify(cuts)].join('|'), function () {
+      var ox = 100, oy = 64, s = blank(200, 128), fx = GEO.food.cx, fy = GEO.food.cy;
+      if (what === 'pan') {   /* the cold pan and the raw batter, as flipScene({ heat: false }) paints them */
+        var P = {}, k; for (k in PAN_STEP) P[k] = PAN_STEP[k];
+        P.cx = ox + PAN_STEP.cx - fx; P.cy = oy + PAN_STEP.cy - fy;
+        pan(s, P);
+        var J = kitFor('raw', band, herb, dl, texSeed(dl), true).J;
+        blit(s, J.buf, ox - J.cx, oy - J.cy);
+      } else {                /* the cooked jeon as sliceScene paints it, before any cut or with both lines cut */
+        var R = boardJeon(fx, fy, band, herb, dl, what === 'cut' ? cuts : []);
+        blit(s, R.buf, ox + R.ox, oy + R.oy);
+      }
+      return { buf: s, ox: ox, oy: oy };
+    });
+  }
+  /* carry(b, o): o = { what 'pan' | 'jeon' | 'cut', x, y (food centre in b), lift = 2, shadow = true, herb, dents, band,
+     look, seed }. The object is drawn at y - lift; its shadow is a 50 % checker of shadeAt, 3 px right and 3 px down of
+     the drawn object, only where the object is not painted. Clipped to any buffer. look (for 'cut') gives the cuts, and
+     the dents and band when those are not passed. seed is accepted and changes nothing (the dents pick the texture). */
+  function carry(b, o) {
+    o = o || {};
+    var what = o.what === 'pan' || o.what === 'cut' ? o.what : 'jeon', L = o.look ? safeLook(o.look) : null;
+    var dl = (o.dents || (L ? L.dents : []) || []).slice(0, 9), band = clampI(o.band != null ? o.band : L ? L.band : what === 'pan' ? 0 : 1, 0, 2);
+    var herb = o.herb === 'tot' ? 'tot' : 'parae', lift = o.lift == null ? 2 : o.lift | 0;
+    var SP = carrySprite(what, band, herb, dl, what === 'cut' ? cutsOf(L || DEFAULT_LOOK, GEO.food.cx, GEO.food.cy) : []);
+    var sb = SP.buf, bx = (o.x == null ? GEO.food.cx : o.x | 0) - SP.ox, by = (o.y == null ? GEO.food.cy : o.y | 0) - lift - SP.oy, i, j;
+    if (o.shadow !== false) for (j = 0; j < sb.h; j++) for (i = 0; i < sb.w; i++) {
+      if (!sb.d[((j * sb.w + i) << 2) + 3]) continue;
+      var qi = i + 3, qj = j + 3, X = bx + qi, Y = by + qj;
+      if (qi < sb.w && qj < sb.h && sb.d[((qj * sb.w + qi) << 2) + 3]) continue;
+      if (((X + Y) & 1) === 0) shadeAt(b, X, Y);
+    }
+    blit(b, sb, bx, by);
+    return b;
+  }
+  /* revealScene with geo 'close' (GEO.rev2, the plate filling the close-up), driven by t (12 fps frames since the reveal):
+     t null = the rest frame (reduced motion, tests) | t <= 3 the board's cut jeon carried in at lift 2 with its shadow |
+     t 4 lift 1 | t 5 landing: the plated look (garnish 8, the quarters parted at sep 2) squashed rx + 2 / ry - 1 |
+     t >= 6 at rest (four equal quarters, sep 1) with steam, twinkles and the rare flare on the 96-frame loop. Plate and
+     jeon stay in x 33..111. */
+  var REV2C = lru(8);
+  function revealClose(b, o) {
+    var G = GEO.rev2, t = o.t == null ? null : Math.max(0, o.t | 0), L = safeLook(o.look), herb = o.herb === 'tot' ? 'tot' : 'parae';
+    var seed = o.seed == null ? texSeed(L.dents) : o.seed | 0;
+    base(b, { station: 'plate', look: L });
+    if (t !== null && t <= 4) {
+      carry(b, { what: 'cut', x: G.jcx, y: G.jcy, lift: t <= 3 ? 2 : 1, herb: herb, look: L });
+      return frame(b);
+    }
+    var land = t === 5;
+    var R = lruGet(REV2C, herb + '|' + JSON.stringify(L) + '|' + (land ? 1 : 0), function () {
+      var q = { cx: G.jcx, cy: G.jcy, rx: G.jrx + (land ? 2 : 0), ry: G.jry - (land ? 1 : 0), face: 'bottom', band: L.band, herb: herb, dents: L.dents,
+        ol: 1, glints: G.glints, garnish: G.garnish, thick: G.thick, cuts: cutsOf(L, G.jcx, G.jcy), sep: land ? 2 : 1, gap: F.J1 };   /* 11-18: '+' at sep 1, the landing at sep 2 */
+      return jeonComp(q);
+    });
+    var x0 = G.jcx + R.ox, y0 = G.jcy + R.oy, rb = R.buf, i, j, s;
+    for (j = 0; j < rb.h; j++) for (i = 0; i < rb.w; i++) {   /* contact shadow: down-right, one step darker */
+      if (!rb.d[((j * rb.w + i) << 2) + 3]) continue;
+      for (s = 1; s <= G.shadow; s++) { var qi = i + s, qj = j + s; if (qi < rb.w && qj < rb.h && rb.d[((qj * rb.w + qi) << 2) + 3]) continue; shadeAt(b, x0 + qi, y0 + qj); }
+    }
+    blit(b, rb, x0, y0);
+    if (land) return frame(b);
+    var hero = [G.jcx - R.J.cx + R.J.hero[0], G.jcy - R.J.cy + R.J.hero[1]], soy = [G.soy[0] - (G.soy[2] - 2 >> 1) - 1, G.soy[1] - (G.soy[3] - 2 >> 1)];
+    clearSteam();
+    if (t === null) {
+      mdisc(G.jcx - 15, G.jcy - G.jry - 12, 4, 4); mdisc(G.jcx - 9, G.jcy - G.jry - 23, 3, 4); mdisc(G.jcx - 4, G.jcy - G.jry - 31, 2, 4);
+      wisp(G.jcx + 14, G.jcy - tz(G.jry * 0.4), 30, 64, 0x2345671, 4, 0);
+    } else fxSteam(t, 1e6, L.band, seed, G.jcx, G.jcy, G.jrx, G.jry, { n: 3, rmax: 4, ps: [32, 48], sp: 1, life: 32, first: -96, salt: 4300 });
+    steamPass(b, function (px, py) { var X = px - x0, Y = py - y0; return X >= 0 && Y >= 0 && X < rb.w && Y < rb.h && rb.d[((Y * rb.w + X) << 2) + 3] ? 1 : 0; });
+    if (t !== null) {
+      twinkle(b, (t + 30) % 48, hero[0], hero[1], 3);
+      twinkle(b, (t + 7) % 48, soy[0], soy[1], 2);
+      sparkle(b, G.jcx + tz(G.jrx * 0.18), G.jcy - tz(G.jry * 0.2), (t + 53) % 96);   /* a white flare on the food, rarely */
+    }
+    return frame(b);
+  }
+  /* 1-art-px jiggle (slice end, flip, plate reveal): moves everything inside a margin of m px (default 2 = inside the
+     stage frame, which stays) by (dx, dy), edges repeat. 11-15: m 0 moves the whole buffer (the close-up view). */
+  function shake(b, dx, dy, m) {
     dx = clampI(dx, -2, 2); dy = clampI(dy, -2, 2); if (!dx && !dy) return b;
-    var src = new Uint8ClampedArray(b.d), x0 = 2, y0 = 2, x1 = b.w - 3, y1 = b.h - 3;
+    m = m == null ? 2 : Math.max(0, m | 0);
+    var src = new Uint8ClampedArray(b.d), x0 = m, y0 = m, x1 = b.w - 1 - m, y1 = b.h - 1 - m;
     for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
       var sx = Math.min(x1, Math.max(x0, x - dx)), sy = Math.min(y1, Math.max(y0, y - dy)), si = (sy * b.w + sx) << 2, ti = (y * b.w + x) << 2;
       b.d[ti] = src[si]; b.d[ti + 1] = src[si + 1]; b.d[ti + 2] = src[si + 2]; b.d[ti + 3] = src[si + 3];
@@ -2275,8 +2638,9 @@ var COOK_ART = (function () {
     dither: dither, blit: blit, hash: hash, colors: colors, imageData: imageData, toCanvas: toCanvas,
     counter: counter, tapScene: tapScene, flipScene: flipScene, sliceScene: sliceScene, revealScene: revealScene, frame: frame,
     pan: pan, panHeat: panHeat, board: board, batter: batter, marks: marks, jeon: jeon, bubbles: bubbles, spatula: spatula,
-    arrow: arrow, guide: guide, knife: knife, plate: plate, dish: dish, dishSmall: dishSmall, hand: hand, icon: icon,
+    arrow: arrow, guide: guide, knife: knife, bell: bell, plate: plate, dish: dish, dishSmall: dishSmall, hand: hand, icon: icon,
     particles: particles, safeLook: safeLook, shake: shake, wallTile: wallTile,
+    view: view, base: base, carry: carry, bgStove: bgStove,
     toFood: toFood, fromFood: fromFood, inFood: inFood, pullIn: pullIn,
     PAN_STEP: PAN_STEP, PAN_COUNTER: PAN_COUNTER, BUBBLES: BUBBLES,
     F: F, FOOD: FOOD.slice(), LOOP: LOOP, REV: REV, texSeed: texSeed, jeonBuf: jeonBuf, jeonComp: jeonComp, heatKit: heatKit,

@@ -43,6 +43,7 @@ var { chromium } = require('playwright');
 
 var ROOT = path.resolve(__dirname, '..');
 var INDEX = 'file://' + path.join(ROOT, 'index.html');
+var RUNNER_V = require(path.join(ROOT, 'js/runner.js')).VERSION, RUNNER_KINDS = Object.assign({ moss: 1 }, require(path.join(ROOT, 'js/runner.js')).KINDS);   /* 지금 달리기 판 (11-24 runner-3) */
 var DEV = INDEX + '?dev=1';   /* 데모 조작 패널(#demo)을 쓰는 시나리오: file:// 도 개발 모드지만 드러내 놓고 */
 function dayAfter(n) { var d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 var SHOTS = process.env.SHOTS || '/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/build/shots/';
@@ -135,6 +136,34 @@ async function newPage(browser, wikiMode, initScripts) {
 }
 /* 한 화면 배치(3D): 로그는 '오늘의 산책' 쪽지(#log-sheet) 안에 있다 — 닫힌 쪽지 안의 로그는 크기가 없어서, 로그의 모양 · 자리(아이콘 폭 · 잘림 · 스크롤)를 재는 검사는 쪽지를 열고 잰다.
    여닫는 길은 플레이어와 같이 오늘 단추(#btn-today) · 닫기 단추(#log-close). 위아래 배치(2D)에선 아무것도 안 한다. 돌려주는 값: 한 화면 배치인지 */
+/* 11-15 (UI 점검): 페이지 안에서 — 가구 모드 판 모양 (단추 줄 ↔ 가구 줄 틈 · 보이는 글자 · 가짜 굵게 · 그림 대비 · 눈금) */
+function FURN_LOOK() {
+  function lum(c) { var m = c.match(/[\d.]+/g).map(Number); return m.slice(0, 3).map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce(function (a, v, i) { return a + v * [0.2126, 0.7152, 0.0722][i]; }, 0); }
+  function con(a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+  var ui = document.getElementById('furn-ui'), bar = document.getElementById('furn-bar').getBoundingClientRect(), it = document.getElementById('furn-items').getBoundingClientRect(), words = [], bold = [], minCon = 99;
+  ui.querySelectorAll('*').forEach(function (e) {
+    var cs = getComputedStyle(e), r = e.getBoundingClientRect();
+    var own = Array.prototype.some.call(e.childNodes, function (n) { return n.nodeType === 3 && n.textContent.trim(); });
+    if (own && r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.display !== 'none') words.push(e.id || e.className, e.textContent.trim());
+    if (own && /^"?Galmuri(9|7)/.test(cs.fontFamily) && +cs.fontWeight >= 600 && cs.fontSynthesis !== 'none' && cs.fontSynthesisWeight !== 'none') bold.push(e.id || e.className);
+  });
+  ['furn-turn', 'furn-small', 'furn-big'].forEach(function (id) { var b = document.getElementById(id), ic = b.querySelector('.furn-act-ico'); minCon = Math.min(minCon, con(getComputedStyle(ic).color, getComputedStyle(b).backgroundColor)); });
+  return { gap: Math.round((it.top - bar.bottom) * 100) / 100, words: words, bold: bold, minCon: minCon, meter: document.getElementById('furn-meter').getAttribute('data-step'), hand: !document.getElementById('furn-hand').hidden, pics: ['furn-x', 'furn-ok'].every(function (id) { return document.querySelectorAll('#' + id + ' svg.furn-pic path').length >= 3; }),   /* 취소 · 저장하기 = 색이 든 그림 (빨간 X · 플로피 디스크 — 어두운 틀선이 있어 두 테마에서 보인다) */ off: document.getElementById('furn-turn').disabled && document.getElementById('furn-big').disabled,
+    titles: ['furn-x', 'furn-ok', 'furn-turn', 'furn-small', 'furn-big'].filter(function (id) { return document.getElementById(id).hasAttribute('title'); }) };   /* 11-15 (검증 O-7): 마우스를 올려도 글자가 뜨지 않게 (이름은 aria-label 로만) */
+}
+/* 11-15 (UI 점검): 페이지 안에서 — 보이는 글자 중 Galmuri9 · Galmuri7 인데 굵게 (브라우저가 가짜로 칠한다) 인 것 · 한글이 Galmuri7 인 것 */
+function FAKE_BOLD() {
+  var bad = [], g7 = [], w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (var n = w.nextNode(); n; n = w.nextNode()) {
+    var t = n.textContent.trim(), e = n.parentElement; if (!t || !e) continue;
+    var r = e.getBoundingClientRect(); if (r.width < 2 || r.height < 2 || e.closest('[hidden], .sr-only, dialog:not([open])')) continue;
+    var cs = getComputedStyle(e); if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+    var f = cs.fontFamily.replace(/"/g, '').split(',')[0].trim();
+    if ((f === 'Galmuri9' || f === 'Galmuri7') && +cs.fontWeight >= 600 && cs.fontSynthesisWeight !== 'none' && cs.fontSynthesis !== 'none') bad.push(f + ' ' + t.slice(0, 8));
+    if (f === 'Galmuri7' && /[가-힣]/.test(t)) g7.push(t.slice(0, 8));
+  }
+  return { bold: bad, g7: g7 };
+}
 async function logSheetOf(pg, on) {
   var st = await pg.evaluate(function () { var d = document.getElementById('log-sheet'); return { one: document.documentElement.getAttribute('data-layout') === 'one', open: !!(d && d.open) }; });
   if (!st.one || st.open === on) return st.one;
@@ -261,7 +290,8 @@ async function scenarioMain(browser) {
   console.log('   strip:', JSON.stringify(strip));
   ok(strip.h <= 44 && strip.rows === 1 && Math.abs(strip.nameTop - strip.pipsTop) < 12, '상태 줄 한 줄 ≤44px (' + strip.h + 'px)');
   ok(/등불/.test(strip.txt) && /1\/8/.test(strip.txt) && !strip.demo && !strip.stat && !/여행|함께한 날/.test(strip.txt), "상태 줄: '등불 … 1/8', 예전 데모 두뇌 칩·여행·함께한 날 없음");
-  ok(strip.tag === '데모' && strip.tagSr === '데모 규칙이 움직이는 중' && strip.tagFs <= 11, "상태 줄(좁으면 바로 아래)의 작은 '데모' 표시 (" + strip.tagFs + "px, 화면 낭독기 '데모 규칙이 움직이는 중')");
+  /* 11-15 5차 (주인: 작은 글자도 받침이 안 뭉개지게 — Galmuri7 8px → Galmuri11 12px, 기기 배율에 맞추면 최대 약 13.7px): 작되 읽히는 크기 */
+  ok(strip.tag === '데모' && strip.tagSr === '데모 규칙이 움직이는 중' && strip.tagFs >= 16 && strip.tagFs <= 16 * 1.35 + 0.02, "상태 줄(좁으면 바로 아래)의 '데모' 표시 — 11-22 보이는 글자는 16 px 이상 (" + strip.tagFs + "px, 화면 낭독기 '데모 규칙이 움직이는 중')");
   ok(!(await page.$('#hint-in')) && !(await page.$('#hint-box')), '힌트 칸은 개발 화면에도 없다 (11-10 에 없앰)');
   ok((await page.$$('#log .lrow')).length >= 5, '로그 행 ≥5');
   await page.waitForTimeout(200);
@@ -272,7 +302,7 @@ async function scenarioMain(browser) {
   });
   console.log('   dialog:', JSON.stringify(dlg));
   ok(dlg.cv && dlg.rows >= 3 && dlg.drawn > 64 * 64 * 0.5 && dlg.colors >= 3 && dlg.hidden === 'true' && dlg.css === '96px', '여행 뒤 대화창 행 + 초상 캔버스 (그려짐, aria-hidden, 96px)');
-  ok(dlg.exprs && dlg.exprs.indexOf('calm') >= 0 && dlg.exprs.indexOf('curious') >= 0, '귀가 calm · 기억 curious 표정 행');
+  ok(dlg.exprs && dlg.exprs.length >= 3 && dlg.exprs.every(function (e) { return e === 'idle'; }), '데모 차례의 대화창 행 (인사 · 귀가 · 기억 · 마무리) 은 모두 평소 얼굴 idle — 11-15 주인 C6 b (예전 귀가 calm · 기억 curious · 인사 happy): ' + JSON.stringify(dlg.exprs));
   ok(await hasItem(page, 'moss'), '등불 1 → 이끼 화분');
   var sc3 = await page.evaluate(function () { return { mode: APP.sceneMode, stats: APP.scene.stats(), webgl: !!(document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl')) }; });
   console.log('   scene:', JSON.stringify(sc3));
@@ -364,6 +394,7 @@ async function scenarioMain(browser) {
   await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
   await page.evaluate(function () { APP.state.settings.claudeRoom = { key: new Array(41).join('k'), mcp: 'https://example.invalid/api/mcp/k', last: null, lang: 'id', pin: false }; });
   await page.click('#btn-settings');
+  await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: 설정 구역은 접혀서 열린다 → 펼치고 누른다 */
   await page.waitForSelector('#set-claude-lang');
   var lp = await page.evaluate(function () {
     var d = document.getElementById('settings-sheet'), sel = document.getElementById('set-claude-lang'), cs = getComputedStyle(d);
@@ -466,7 +497,71 @@ async function scenarioMain(browser) {
   ok(await page.evaluate(function () { return typeof APP.posterSVG(APP.state.trips[0], 300, 400) === 'string' && APP.posterSVG(APP.state.trips[0]).indexOf('<svg') === 0; }), 'APP.posterSVG 문자열');
   reportErrors(s.bag, 'A');
   await s.ctx.close();
+  await scenarioMainPhone(browser);
+  await scenarioTypeFloor(browser);
   await scenarioHonestLines(browser);
+}
+/* 11-15 (UI 점검): 폰 배율로 첫 화면 · 살림 시트 — 360x740 @3 (밝음) · 412x915 @2.625 (어두움). DPR 1 만 보던 시험이 어두운 테마 가구 그림 · 가짜 굵게를 놓쳤다.
+   보이는 글자 중 Galmuri9 · 7 의 가짜 굵게 없음 · 한글이 Galmuri7 아님 · 조개 꼬리표는 그림 + 수 · 스크린샷 (owner 리포트용) */
+async function scenarioMainPhone(browser) {
+  console.log('\n== A-폰. 첫 화면 · 살림 (폰 배율 3 · 2.625 어두움)');
+  for (var ph of [{ w: 360, h: 740, dpr: 3, dark: false }, { w: 412, h: 915, dpr: 2.625, dark: true }]) {
+    var ctx = await browser.newContext({ viewport: { width: ph.w, height: ph.h }, deviceScaleFactor: ph.dpr, locale: 'ko-KR', colorScheme: ph.dark ? 'dark' : 'light', hasTouch: true, isMobile: true });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var page = await ctx.newPage(), bag = []; bag.ignored = []; watchErrors(page, bag);
+    await routeWiki(page, 'ok');
+    await page.goto(INDEX + '?dev=0&intro=0'); await nameOct(page, '뽈뽈'); await page.waitForTimeout(400);
+    var tag = ph.w + 'x' + ph.h + ' @' + ph.dpr + (ph.dark ? ' 어두움' : '');
+    var m = await page.evaluate(FAKE_BOLD), chip = await page.evaluate(function () { var b = document.getElementById('btn-bag'), i = b.querySelector('img.bag-shell'); return { txt: document.getElementById('bag-n').textContent.trim(), img: !!i, label: b.getAttribute('aria-label') }; });
+    await page.screenshot({ path: path.join(SHOTS, 'phone-main-' + ph.w + (ph.dark ? 'd' : '') + '.png') });
+    ok(!m.bold.length && !m.g7.length && /^\d+$/.test(chip.txt) && chip.img && /^살림, 조개 \d+/.test(chip.label), '[' + tag + '] 첫 화면: 가짜 굵게 없음 ' + JSON.stringify(m.bold) + ' · 한글 Galmuri7 없음 ' + JSON.stringify(m.g7) + ' · 조개 꼬리표 = 그림 + «' + chip.txt + '» (읽어 주기 «' + chip.label + '»)');
+    await page.click('#btn-bag'); await page.waitForSelector('#bag-sheet[open]'); await page.waitForTimeout(400);
+    var mb = await page.evaluate(FAKE_BOLD), bh = await page.evaluate(function () { var e = document.getElementById('bag-h'), cs = getComputedStyle(e); return cs.fontFamily.replace(/"/g, '').split(',')[0] + ' ' + cs.fontWeight; });
+    await page.screenshot({ path: path.join(SHOTS, 'phone-bag-' + ph.w + (ph.dark ? 'd' : '') + '.png') });
+    ok(!mb.bold.length && !mb.g7.length && /^Galmuri11 700/.test(bh), '[' + tag + '] 살림 시트: 가짜 굵게 없음 ' + JSON.stringify(mb.bold) + ' · 한글 Galmuri7 없음 ' + JSON.stringify(mb.g7) + ' · 제목 ' + bh + ' (진짜 굵은 꼴)');
+    reportErrors(bag, 'A-폰 ' + tag); await ctx.close();
+  }
+}
+/* 11-15 (검증 U-1 · O-1 · T-1 · T-2): 글자 크기 바닥 — 폰 배율 2 · 2.625 에서 4차 크기 밑이 없다. 소제목 (설정 · 살림 · 세트 도감 · 만든 것들 h2) · 돌아가기 · 첫 안내 20px 이상,
+   만든 것들 제목 24px 이상, 숫자 (n16: 소리 80 · 할 일 0/2) 16px 이상. 모두 글꼴 눈금 (Galmuri7 8 · 9 10 · 11 12) 한 점이 기기 px 정수 개 · 가운데 맞춘 첫 안내는 줄 시작도 기기 px.
+   가장 가까운 크기로만 맞추던 때 배율 2 소제목이 18px · 2.625 에서 안내 19.06px · 숫자 15.25px 였다 (js/fs-snap.js 올림 역할) */
+function TYPE_SIZES(a) {
+  var G = { Galmuri7: 8, Galmuri9: 10, Galmuri11: 12 }, d = window.devicePixelRatio || 1;
+  return [].map.call(document.querySelectorAll(a[0]), function (e) {
+    var cs = getComputedStyle(e), f = cs.fontFamily.replace(/"/g, '').split(',')[0].trim(), fs = parseFloat(cs.fontSize), g = G[f], k = g ? fs * d / g : 0;
+    return { t: e.textContent.trim().replace(/\s+/g, ' ').slice(0, 12), f: f, fs: Math.round(fs * 1000) / 1000, ok: fs >= a[1] - 1e-3 && !!g && Math.abs(k - Math.round(k)) < 0.02 };
+  });
+}
+async function scenarioTypeFloor(browser) {
+  console.log('\n== A-글자. 크기 바닥 (폰 배율 2 · 2.625: 4차 크기 밑 없음 · 눈금 한 점 = 기기 px 정수)');
+  function line(rows) { return rows.map(function (r) { return r.t + ' ' + r.f + ' ' + r.fs + (r.ok ? '' : ' (X)'); }).join(' · '); }
+  function good(rows) { return rows.length > 0 && rows.every(function (r) { return r.ok; }); }
+  for (var ph of [{ w: 360, h: 740, dpr: 2 }, { w: 412, h: 915, dpr: 2.625 }]) {
+    var ctx = await browser.newContext({ viewport: { width: ph.w, height: ph.h }, deviceScaleFactor: ph.dpr, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var page = await ctx.newPage(), bag = [], tag = '[' + ph.w + 'x' + ph.h + ' @' + ph.dpr + '] '; bag.ignored = []; watchErrors(page, bag);
+    await routeWiki(page, 'ok');
+    await page.goto(INDEX + '?dev=0&intro=0'); await nameOct(page, '뽈뽈');
+    await page.evaluate(function () { APP.openSettings(); }); await page.waitForSelector('#settings-sheet[open]'); await page.waitForTimeout(300);
+    var sh = await page.evaluate(TYPE_SIZES, ['#set-body h3', 20]), sv = await page.evaluate(TYPE_SIZES, ['#settings-sheet .snd-val', 16]);
+    await page.evaluate(function () { document.getElementById('set-close').click(); }); await page.waitForTimeout(400);
+    await page.evaluate(function () { document.getElementById('btn-bag').click(); }); await page.waitForSelector('#bag-sheet[open]'); await page.waitForTimeout(300);
+    var bh = await page.evaluate(TYPE_SIZES, ['#bag-sheet h3', 20]), wn = await page.evaluate(TYPE_SIZES, ['#bag-sheet .week-row:not(.done) .week-n', 16]);
+    await page.evaluate(function () { document.getElementById('bag-close').click(); }); await page.waitForTimeout(400);
+    await page.evaluate(function () { document.getElementById('btn-sew').click(); }); await page.waitForSelector('#sew-sheet[open]'); await page.waitForTimeout(300);
+    var ss = await page.evaluate(TYPE_SIZES, ['#sew-sheet .sew-sets > summary', 20]);
+    await page.evaluate(function () { document.getElementById('sew-sheet').close(); });
+    ok(good(sh) && good(bh) && good(ss), tag + '소제목 20px 이상 · 눈금 정수: 설정 ' + line(sh.slice(0, 2)) + ' 외 ' + (sh.length - 2) + ' · 살림 ' + line(bh) + ' · 재봉틀 ' + line(ss) + (good(sh) ? '' : ' | 설정 전부: ' + line(sh)));
+    ok(good(sv) && good(wn), tag + '숫자 16px 이상 · 눈금 정수: 소리 ' + line(sv) + ' · 할 일 ' + line(wn));
+    await page.goto('file://' + path.join(ROOT, 'credits.html')); await page.evaluate(function () { return document.fonts.ready; }); await page.waitForTimeout(200);
+    var c1 = await page.evaluate(TYPE_SIZES, ['.cr h1', 24]), c2 = await page.evaluate(TYPE_SIZES, ['.cr h2', 20]), cb = await page.evaluate(TYPE_SIZES, ['#cr-back', 20]);
+    ok(good(c1) && good(c2) && good(cb), tag + '만든 것들: 제목 ' + line(c1) + ' · 소제목 ' + line(c2.slice(0, 2)) + ' 외 ' + (c2.length - 2) + ' · 돌아가기 ' + line(cb) + (good(c2) ? '' : ' | 소제목 전부: ' + line(c2)));
+    await page.goto(INDEX + '?dev=0&intro=1'); await page.waitForSelector('.intro.hinted', { timeout: 30000 }); await page.evaluate(function () { return document.fonts.ready; }); await page.waitForTimeout(300);
+    var ih = await page.evaluate(TYPE_SIZES, ['.intro-hint', 20]);
+    var ix = await page.evaluate(function () { var e = document.querySelector('.intro-hint'), rg = document.createRange(); rg.selectNodeContents(e); var q = rg.getClientRects()[0], d = devicePixelRatio, x = q.left * d; return { frac: Math.round(Math.abs(x - Math.round(x)) * 1000) / 1000, mid: Math.round((q.left + q.width / 2 - innerWidth / 2) * 100) / 100, lines: rg.getClientRects().length }; });
+    ok(good(ih) && ix.frac < 0.02 && Math.abs(ix.mid) <= 1 && ix.lines === 1, tag + '첫 안내 ' + line(ih) + ' · 한 줄 · 시작 ' + ix.frac + ' 기기 px 어긋남 · 가운데에서 ' + ix.mid + 'px');
+    reportErrors(bag, 'A-글자 ' + ph.w + ' @' + ph.dpr); await ctx.close();
+  }
 }
 /* 11-13 (금지선 1): 코드가 쓴 세 줄이 문어 마음을 지어내지 않는다 — 쓰다듬기 말풍선 '…' (예전 '…좋아') · 폴짝/우쭐 뒤 장면 설명 (예전 '신나 있어') ·
    낮잠 이름표 '자는 중' 하나 (예전 '꿈꾸는 중' 과 번갈음). 고정 앵글 훅(__ppolLook)으로 상태를 정하고, 기다림은 시간이 아니라 상태로 한다 */
@@ -775,8 +870,8 @@ async function scenarioMigrateExact(browser) {
   ok(m.cards === 1 && !m.nameDlg, '앨범 카드 1 · 이름 모달 없음');
   ok(m.bak && JSON.parse(m.bak).octopus.name === '뚜루' && m.v1 === null, 'ppolppol_v1 → ppolppol_v1_backup (내용 보존)');
   await openCard(page);
-  var front = await page.textContent('#pd-front');
-  ok(front.indexOf('복원된 포스터') >= 0, '앞면에 복원 문구');
+  var front = await page.evaluate(function () { return { text: document.getElementById('pd-text').textContent, svgText: document.querySelectorAll('#pd-front svg text').length }; });   /* 11-15 (주인 답 · 검증 U-6): 포스터 위 작은 글은 뺐다 — 복원 문구는 앞면의 포스터 아래 큰 글 (#pd-text) */
+  ok(front.text.indexOf('복원된 포스터') >= 0 && front.svgText === 0, '앞면에 복원 문구 (포스터 아래 글 · 포스터 그림 위 글 ' + front.svgText + ')');
   await page.click('#pd-flip');
   await page.waitForTimeout(700);
   var back = await page.textContent('#pd-back');
@@ -854,7 +949,7 @@ async function scenarioDay2(browser) {
   console.log('   day2 greeting:', JSON.stringify(g));
   ok(g.length === 2 && g[0].label === '오늘', '2일째: 시각 인사 행 (집 목소리 \'오늘\')');
   ok(g[1] && g[1].label === '어제 메모' && g[1].text === d1.memo.tomorrow, '2일째 첫 인사 = 어제 memo.tomorrow 그대로');
-  ok(g[1] && g[1].dialog && g[1].expr === 'calm', "메모 인사는 문어 대화창 행 (초상 'calm')");
+  ok(g[1] && g[1].dialog && g[1].expr === 'idle', "메모 인사는 문어 대화창 행 (초상 평소 얼굴 'idle' — 11-15 주인 C6 b, 예전 calm)");
   await page.evaluate(function () { var r = document.querySelector('#log .lrow.memo'); if (r) r.scrollIntoView({ block: 'center' }); });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(SHOTS, 'phone-day2-greeting.png') });
@@ -1095,11 +1190,11 @@ async function scenario2D(browser) {
     var L = document.querySelector('#layers .layer[data-key="ember"]'), sv = L && L.querySelector('svg'); if (!sv) return null;
     var rs = Array.prototype.slice.call(sv.querySelectorAll('rect')), fills = {};
     rs.forEach(function (r) { var f = r.getAttribute('fill') || (r.parentNode.getAttribute && r.parentNode.getAttribute('fill')); if (f) fills[f.toLowerCase()] = 1; });
-    return { n: rs.length, ints: rs.every(function (r) { return ['x', 'y', 'width', 'height'].every(function (a) { return /^\d+$/.test(r.getAttribute(a) || ''); }); }), crisp: sv.getAttribute('shape-rendering'), fills: Object.keys(fills), title: document.getElementById('room-title').textContent };
+    return { n: rs.length, ints: rs.every(function (r) { return ['x', 'y', 'width', 'height'].every(function (a) { return /^\d+$/.test(r.getAttribute(a) || ''); }); }), crisp: sv.getAttribute('shape-rendering'), fills: Object.keys(fills), title: document.getElementById('room-title'), day: !!document.getElementById('day-n') };
   });
   console.log('   ember0:', JSON.stringify(ember0));
   ok(ember0 && ember0.n >= 3 && ember0.ints && ember0.crisp === 'crispEdges' && ember0.fills.every(function (f) { return ['#be772b', '#de9e41', '#e8c170'].indexOf(f) >= 0; }), '2D 등불 0칸: 등불 속 불씨 레이어 (정수 좌표 · crispEdges · Apollo 호박)');
-  ok(ember0 && ember0.title === '불씨 하나 켜진 다락', "등불 0칸 방 제목 '불씨 하나 켜진 다락' (" + (ember0 && ember0.title) + ')');
+  ok(ember0 && ember0.title === null && ember0.day === true, "11-21: 상태 줄에 방 제목 칸 없음 · 날 수 칸 (#day-n) 있음 (" + JSON.stringify(ember0 && [ember0.title, ember0.day]) + ')');
   ok(await page.evaluate(function () { function vis(id) { var e = document.getElementById(id), r = e && e.getBoundingClientRect(); return !!r && r.width >= 44 && r.height >= 44; } return vis('btn-settings') && vis('btn-door') && !document.getElementById('btn-sound'); }), '2D 폴백에도 ⚙ 설정 · 놀이방 문 (누르는 곳 44px) · 장면 위 소리 단추 없음 (설정 안으로, 11-08)');
   await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
   await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1) → APP.goResting 이 풀릴 때까지 */
@@ -1131,15 +1226,15 @@ async function scenario2D(browser) {
       over: d.scrollWidth - d.clientWidth, vover: d.scrollHeight - d.clientHeight, doc: document.documentElement.scrollWidth - window.innerWidth,
       saved: APP.state.settings.player.hair, stored: JSON.parse(localStorage.getItem('ppolppol_v2')).settings.player.hair, look: p ? p.look.hair : null };
   });
-  ok(p2s.note && !p2s.port && p2s.sum === '단발 · 원피스 · 리본', '2D 내 모습 (설정): 안내 한 줄 · 미리보기 캔버스 없음 · 요약 줄 ' + JSON.stringify(p2s));
-  ok(p2d.tabs === 6 && p2d.tiles === 11 && p2d.names && p2d.canvases === 0 && /미리보기가 없어/.test(p2d.note || '') && p2d.noShot && !p2d.stage && p2d.over <= 0 && p2d.vover <= 0 && p2d.doc <= 0,
+  ok(p2s.note && !p2s.port && p2s.sum === '부스스 · 문어 티', '2D 내 모습 (설정): 안내 한 줄 · 미리보기 캔버스 없음 · 요약 줄 ' + JSON.stringify(p2s));
+  ok(p2d.tabs === 6 && p2d.tiles === 18 && p2d.names && p2d.canvases === 0 && /미리보기가 없어/.test(p2d.note || '') && p2d.noShot && !p2d.stage && p2d.over <= 0 && p2d.vover <= 0 && p2d.doc <= 0,
     '2D 옷장: 갈래 탭 6 · 그림 없는 글자 타일 11 (머리 6 + 앞머리 5, 11-10) + 안내 한 줄 · 전신 칸 없음 · 넘침 없음 ' + JSON.stringify(p2d));
   ok(p2d.on === 'twin' && p2d.saved === 'twin' && p2d.stored === 'twin' && p2d.look === 'twin', '2D 옷장: 타일을 누르면 켜지고 저장 (2D 장면도 look 기억) ' + JSON.stringify([p2d.on, p2d.saved, p2d.stored, p2d.look]));
   await page.screenshot({ path: path.join(SHOTS, 'phone-2d-look.png') });
   await page.click('#look-close'); await page.waitForSelector('#look-sheet[open]', { state: 'hidden' });
-  await page.waitForFunction(function (t) { return document.getElementById('set-look-sum').textContent === t; }, '양갈래 · 원피스 · 리본', { timeout: 3000 }).catch(function () {});   /* close 이벤트는 닫힌 뒤 한 박자 늦게 온다 — 요약 줄은 그때 바뀐다 */
+  await page.waitForFunction(function (t) { return document.getElementById('set-look-sum').textContent === t; }, '양갈래 · 문어 티', { timeout: 3000 }).catch(function () {});   /* close 이벤트는 닫힌 뒤 한 박자 늦게 온다 — 요약 줄은 그때 바뀐다 */
   var p2c = await page.evaluate(function () { return { sum: document.getElementById('set-look-sum').textContent, under: document.getElementById('settings-sheet').open, focus: document.activeElement && document.activeElement.id }; });
-  ok(p2c.sum === '양갈래 · 원피스 · 리본' && p2c.under && p2c.focus === 'set-look-open', "2D 옷장: '다 골랐어' → 설정으로 돌아옴 · 요약 줄이 새 모습 " + JSON.stringify(p2c));
+  ok(p2c.sum === '양갈래 · 문어 티' && p2c.under && p2c.focus === 'set-look-open', "2D 옷장: '다 골랐어' → 설정으로 돌아옴 · 요약 줄이 새 모습 " + JSON.stringify(p2c));
   await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
   await page.screenshot({ path: path.join(SHOTS, 'phone-2d-fallback.png') });
   ok(s.bag.length === 0, '2D 폴백 콘솔/페이지 에러 없음' + (s.bag.length ? ' → ' + s.bag.join(' | ') : ''));
@@ -1160,7 +1255,7 @@ async function scenarioWake(browser) {
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   function greet() { return page.evaluate(function () { var r = document.querySelector('#log .lday:last-child .lrow'); return { label: r && r.querySelector('.ltool').textContent, text: r && r.querySelector('.ltext').textContent, expr: r && r.dataset.expr, oct: document.getElementById('oct').className, st: APP.state.octopus.state }; }); }
   var g0 = await greet();
-  ok(g0.label === '인사' && g0.expr === 'happy' && /^안녕, 나는 /.test(g0.text), '처음 인사는 문어의 자기소개 · 웃는 얼굴 (' + g0.expr + ' · ' + g0.text + ')');
+  ok(g0.label === '인사' && g0.expr === 'idle' && /^안녕, 나는 /.test(g0.text), '처음 인사는 문어의 자기소개 · 평소 얼굴 (11-15 주인 C6 b, 예전 웃는 얼굴) (' + g0.expr + ' · ' + g0.text + ')');
   async function walk() {
     await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1 — 두 번 톡의 둘째) → 받는 때까지 기다렸다가 누른다 */
     await page.click('#btn-go');
@@ -1188,7 +1283,7 @@ async function scenarioWake(browser) {
   var lw = await page.evaluate(function () { return { ex: APP.scene.expression(), b: window.__bubs.slice(), n: document.querySelectorAll('#log .lrow').length, log: document.getElementById('log').textContent, saved: JSON.parse(localStorage.getItem('ppolppol_v2')).octopus.state }; });
   ok(woke && lw.saved === 'idle', '같은 페이지: 낮잠이 끝나면 스스로 깸 (저장도 idle)');
   ok(lw.b.indexOf('…응?') >= 0 && lw.n === n0 && lw.log.indexOf('…응?') < 0, "깰 때 혼잣말 '…응?' 은 말풍선만 (로그 행 그대로 " + lw.n + ')');
-  ok(lw.ex === 'curious', "깰 때 얼굴은 눈을 뜬 curious (반쯤 감은 calm·sleepy 아님): " + lw.ex);
+  ok(lw.ex === 'idle', "깰 때 얼굴은 눈을 뜬 평소 얼굴 idle (11-15 주인 C6 b, 예전 curious · 반쯤 감은 calm·sleepy 아님): " + lw.ex);
   await walk();
   await page.addInitScript({ content: "window.__ppolTest = { forceKind: 'out', today: '" + dayAfter(1) + "' };" });
   await page.waitForTimeout(1000);
@@ -1272,8 +1367,8 @@ async function scenarioPlayer(browser) {
   await page.waitForTimeout(150);
   var toastT = await page.evaluate(function () { var t = document.getElementById('toast'); return t && !t.hidden ? t.textContent : ''; });
   ok(!/힌트|네가 골라/.test(toastT), '플레이어 화면: 첫 실행 토스트에 힌트 얘기 없음 (' + JSON.stringify(toastT) + ')');
-  var t0 = await page.evaluate(function () { return { title: document.getElementById('room-title').textContent, desc: document.getElementById('scene-desc').textContent, doc: document.title }; });
-  ok(t0.title === '불씨 하나 켜진 다락' && !/어두운|꺼진/.test(t0.desc + t0.doc), "등불 0칸: 방 제목 '불씨 하나 켜진 다락' · 장면 설명·문서 제목에 '어두운/꺼진' 없음 (" + t0.desc + ')');
+  var t0 = await page.evaluate(function () { return { title: !!document.getElementById('room-title'), st: document.getElementById('status').innerText, desc: document.getElementById('scene-desc').textContent, doc: document.title }; });
+  ok(!t0.title && !/다락/.test(t0.st + t0.doc) && / · 뽈뽈 문어$|^뽈뽈 문어$/.test(t0.doc) && /다락/.test(t0.desc) && !/어두운|꺼진/.test(t0.desc + t0.doc), "등불 0칸 (11-21): 상태 줄 · 탭 제목에 방 제목 없음 ('<이름> · 뽈뽈 문어') · 장면 설명은 그대로 방을 말한다 · '어두운/꺼진' 없음 (" + t0.doc + ' / ' + t0.desc + ')');
   await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1 — 두 번 톡의 둘째) → APP.goResting 이 풀릴 때까지 */
   await page.click('#btn-go');
   await page.waitForSelector('#btn-go.away', { timeout: 10000 });
@@ -1302,6 +1397,44 @@ async function scenarioPlayer(browser) {
   await closePoster(page);
   await page.screenshot({ path: path.join(SHOTS, 'player-invite.png') });
   await page.waitForTimeout(1000);
+  /* P-2 (11-15 · 주인 정직 기본값): 11-10 전 산책 (힌트를 적던 때) 의 '힌트: …' 줄 · 따름 표기 · 힌트 한마디는 화면 어디에도 없다 — 저장은 그대로.
+     그 날 데모 규칙이 고른 '우쭐' 과 힌트 얘기 줄 ('네가 흘린 힌트, …') 도 안 보인다 (Q4 b). 앨범 쪽지 빈 칸은 집 목소리 사실 한 줄 */
+  var OLDH = '모자의 역사', OLDL = '네가 흘린 힌트, 끝까지 따라갔어';
+  var oldId = await page.evaluate(function (a) {
+    var S = JSON.parse(localStorage.getItem('ppolppol_v2')), t = JSON.parse(JSON.stringify(S.trips[0]));
+    t.id = t.id + 'x'; t.date = '2026-11-08'; t.startedAt -= 6 * 864e5; t.endedAt -= 6 * 864e5;
+    t.hint = { raw: a.h, match: { kind: 'node', id: 'hat' }, followed: 'followed', note: '지금은 바깥 글을 못 읽어서 힌트 쪽엔 못 갔어' };
+    if (!t.events.some(function (e) { return e.type === 'depart'; })) t.events.unshift({ type: 'depart', t: 0, hint: a.h });
+    t.events.forEach(function (e) { if (e.type === 'depart') e.hint = a.h; if (e.type === 'wrap_up') e.reaction = '우쭐'; });
+    if (!t.events.some(function (e) { return e.type === 'wrap_up'; })) t.events.push({ type: 'wrap_up', t: 9000, reaction: '우쭐' });
+    t.reaction = '우쭐'; t.reactionBy = 'demo-rules'; t.reactionLine = a.l; if (t.receipt) { t.receipt.reaction = '우쭐'; t.receipt.reactionLine = a.l; }
+    S.trips.unshift(t);
+    return { id: t.id, json: JSON.stringify(S) };
+  }, { h: OLDH, l: OLDL });
+  /* 페이지를 떠날 때 앱이 자기 기록을 다시 쓰므로, 심은 기록은 다음 열기 직전에 (한 번만) 넣는다 */
+  await page.addInitScript({ content: "if (!sessionStorage.getItem('__oldHint')) { sessionStorage.setItem('__oldHint', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(oldId.json) + "); }" });
+  oldId = oldId.id;
+  await page.goto(O + '/index.html?dev=0');
+  await page.waitForSelector('#btn-go:not(.away)');
+  await openAlbum(page);
+  await page.click('.fchip[data-f="diary"]');
+  await page.evaluate(function () { document.querySelectorAll('#album-diary details').forEach(function (d) { d.open = true; }); });
+  await page.waitForTimeout(200);
+  var oh = await page.evaluate(function (id) {
+    var t = APP.state.trips.filter(function (x) { return x.id === id; })[0], b = document.createElement('div'), c = document.createElement('div');
+    b.innerHTML = APP.receiptHTML(t); c.innerHTML = APP.inspectHTML(t);
+    var saved = JSON.parse(localStorage.getItem('ppolppol_v2')).trips.filter(function (x) { return x.id === id; })[0];
+    return { log: document.getElementById('log').textContent, diary: document.getElementById('album-diary').textContent, back: b.textContent, ins: c.textContent,
+      saved: { raw: saved.hint.raw, f: saved.hint.followed, note: saved.hint.note, r: saved.reaction, line: saved.reactionLine, dep: saved.events.filter(function (e) { return e.type === 'depart'; })[0].hint } };
+  }, oldId);
+  var allH = oh.log + oh.diary + oh.back + oh.ins;
+  ok(oh.diary.length > 10 && !/힌트/.test(allH) && allH.indexOf(OLDH) < 0 && !/따라감|무시함|도중에 벗어남/.test(oh.back) && allH.indexOf('우쭐') < 0,
+    "11-10 전 힌트 산책: 로그 · 앨범 일기 · 일기 뒷면 · 열람 기록 어디에도 '힌트' · 힌트 글 · 따름 표기 · 데모 '우쭐' 없음");
+  ok(oh.saved.raw === OLDH && oh.saved.f === 'followed' && !!oh.saved.note && oh.saved.r === '우쭐' && oh.saved.line === OLDL && oh.saved.dep === OLDH, '저장된 힌트 · 반응 · 줄은 그대로 (' + JSON.stringify(oh.saved) + ')');
+  await page.click('.fchip[data-f="note"]');
+  var emp = await page.evaluate(function () { var n = APP.state.trips.filter(function (t) { return t.poster && t.poster.type === 'note'; }).length; if (n) { APP.state.trips.forEach(function (t) { if (t.poster && t.poster.type === 'note') t.poster.type = 'x-note'; }); APP.renderAlbum(); } var e = document.querySelector('#album .lempty'); var tx = e ? e.textContent : null; if (n) APP.state.trips.forEach(function (t) { if (t.poster && t.poster.type === 'x-note') t.poster.type = 'note'; }); return tx; });
+  ok(emp === '아직 쪽지는 없어. 집에 있던 날마다 한 장씩 생겨.', "쪽지 빈 칸: 집 목소리 사실 (예전 '…하나 써 둘게' 는 코드가 문어 대신 한 약속) — " + emp);
+  await closeAlbum(page).catch(function () {});
   await page.goto(O + '/index.html');   /* ?dev 없이 다시: 배포 주소는 기본 플레이어 화면 */
   await page.waitForSelector('#btn-go:not(.away)');
   ok(!(await inviteBox()).input, '배포 주소 다시 열기: 힌트 칸 여전히 숨김');
@@ -1616,7 +1749,7 @@ async function scenarioReactions(browser) {
   var v3 = await view(), clip40 = Array.from(RAW).slice(0, 40).join('') + '…';
   console.log('   mcp raw:', JSON.stringify({ trip: v3.trip, row: v3.lastRow, kv: v3.kv }));
   ok(v3.trip.reaction === null && v3.trip.raw === RAW && v3.trip.line === LINE, '네 가지 밖의 반응은 reactionRaw 에 원문 그대로 · 모델이 쓴 줄은 reactionLine 그대로');
-  ok(v3.lastRow === clip40 + ' · ' + LINE && v3.lastExpr === 'calm' && v3.kv === clip40 && v3.kvTitle === RAW && v3.dims.indexOf(LINE) >= 0 && v3.say === LINE, "로그·일기: 40자 + '…' (원문은 title) · 모델이 쓴 줄 그대로");
+  ok(v3.lastRow === clip40 + ' · ' + LINE && v3.lastExpr === 'idle' && v3.kv === clip40 && v3.kvTitle === RAW && v3.dims.indexOf(LINE) >= 0 && v3.say === LINE, "로그·일기: 40자 + '…' (원문은 title) · 모델이 쓴 줄 그대로");
   /* 4. 데모 조작(사람) · 집 · 졸림 */
   await page.click('#d-stay'); await waitIdle(page); await page.waitForTimeout(200);
   var v4 = await view();
@@ -1626,14 +1759,315 @@ async function scenarioReactions(browser) {
   await page.click('#btn-go'); await skipAway(page); await waitIdle(page);
   await page.evaluate(function () { delete window.__ppolTest; });
   var v5 = await view();
-  ok(v5.trip.by === 'demo' && v5.trip.by2 === 'demo-rules' && !!v5.trip.reaction && v5.lastRow && v5.lastRow.indexOf(v5.trip.reaction) >= 0, "데모 두뇌 차례: 반응은 예전처럼 (reactionBy 'demo-rules') — " + v5.lastRow);
+  var hid5 = v5.trip.reaction === '우쭐' || v5.trip.reaction === '덤덤';   /* 11-15 (주인 Q4 b): 데모 규칙의 우쭐 · 덤덤은 화면에 쓰지 않는다 */
+  ok(v5.trip.by === 'demo' && v5.trip.by2 === 'demo-rules' && !!v5.trip.reaction && (hid5 ? (v5.lastRow || '').indexOf(v5.trip.reaction) < 0 && v5.back.indexOf(v5.trip.reaction) < 0 : !!v5.lastRow && v5.lastRow.indexOf(v5.trip.reaction) >= 0) && (!v5.lastExpr || v5.lastExpr === 'idle'),
+    "데모 두뇌 차례: 반응 값은 기록에 그대로 (reactionBy 'demo-rules') · 우쭐 · 덤덤이면 낱말은 안 보이고 · 얼굴은 idle — " + v5.trip.reaction + ' · ' + v5.lastRow + ' · ' + v5.lastExpr);
+  /* 6. 11-15 (주인 Q4 b · C6 b): 데모 규칙이 고른 반응 넷을 하나씩 (두뇌 계획의 반응만 바꿔 — 규칙의 결과와 같은 꼴, 줄 없이 낱말만).
+        우쭐 · 덤덤 = 말풍선 · 마무리 행 · 일기 · 열람 기록에 낱말 없음 · 폴짝 · 졸림 = 낱말 그대로. 어느 쪽이든 행 초상 · 장면 얼굴은 idle (happy · calm · sleepy 없음) */
+  await page.evaluate(function () {
+    var plan0 = BRAIN.plan;
+    BRAIN.plan = function () { return plan0.apply(BRAIN, arguments).then(function (p) { var r = window.__forceRx; if (r && p && p.kind !== 'empty') { p.reaction = r; p.reactionLine = null; if (p.receipt) { p.receipt.reaction = r; p.receipt.reactionLine = null; } (p.events || []).forEach(function (e) { if (e.type === 'wrap_up') e.reaction = r; }); } return p; }); };
+    var se = APP.scene.setExpression; window.__ex = []; APP.scene.setExpression = function (n) { window.__ex.push(n); return se.apply(this, arguments); };
+    var so = APP.scene.setOctState; APP.scene.setOctState = function (n) { window.__ex.push('S:' + n); return so.apply(this, arguments); };   /* 상태 happy = 장면 웃는 얼굴 (장면 안 STATE_EXPR) */
+    var sb = APP.scene.bubble; window.__bub = []; APP.scene.bubble = function (t) { if (t) window.__bub.push(String(t)); return sb.apply(this, arguments); };
+  });
+  for (var rx6 of ['우쭐', '덤덤', '폴짝', '졸림']) {
+    await page.evaluate(function (r) { window.__forceRx = r; window.__ex = []; window.__bub = []; window.__ppolTest = { forceKind: r === '우쭐' || r === '폴짝' ? 'out' : 'home' }; }, rx6);
+    await waitIdle(page); await page.click('#btn-go'); await skipAway(page).catch(function () {}); await waitIdle(page); await page.waitForTimeout(300);
+    var v6 = await view(), f6 = await page.evaluate(function () { delete window.__ppolTest; return { ex: window.__ex.slice(), bub: window.__bub.slice(), log: document.getElementById('log').textContent }; });
+    var hide6 = rx6 === '우쭐' || rx6 === '덤덤', moodFace = f6.ex.filter(function (e) { return e === 'happy' || e === 'calm' || e === 'sleepy' || e === 'curious' || e === 'S:happy'; });
+    ok(v6.trip.by === 'demo' && v6.trip.reaction === rx6 && v6.trip.by2 === 'demo-rules' &&
+      (hide6 ? v6.wrapRows === v5.wrapRows && f6.log.indexOf(rx6) < 0 && v6.back.indexOf(rx6) < 0 && !v6.say && !v6.kv && !f6.bub.some(function (b) { return b.indexOf(rx6) >= 0; })
+        : v6.lastRow === rx6 && v6.kv === rx6 && f6.bub.indexOf(rx6) >= 0) &&
+      (!hide6 ? v6.lastExpr === 'idle' : true) && !moodFace.length,
+      '데모 규칙 ' + rx6 + ': ' + (hide6 ? '낱말이 말풍선 · 로그 · 일기 · 열람 기록 어디에도 없다' : '낱말은 그대로 (말풍선 · 행 · 일기)') + ' · 기록 값 그대로 · 얼굴 idle (장면 얼굴 ' + JSON.stringify(f6.ex) + ' · 행 ' + v6.lastExpr + ')');
+    if (!hide6) v5 = v6;
+  }
+  /* 6b. 출발 움츠림 (anticipate) 의 장면 얼굴도 평소 얼굴 (11-15 검증: 예전 반눈 calm — 집에 남는 차례에도 보였다) */
+  var ant = await page.evaluate(function () { APP.scene.setOctState('anticipate'); var e = APP.scene.expression(); APP.scene.setOctState('idle'); return e; });
+  ok(ant === 'idle', "출발 움츠림 (anticipate) 장면 얼굴 = idle (" + ant + ')');
+  /* 7. 모델이 고른 우쭐 (재생 길) → 낱말 · 웃는 얼굴 그대로 (고른 이의 것) */
+  await page.evaluate(function () { window.__forceRx = null; window.__ex = []; });
+  await importEvs([{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 500, target: { kind: 'room', id: 'hat' }, status: 'builtin', ms: 1000 }, { type: 'return', t: 1500, reason: 'enough' },
+    { type: 'remember', t: 2000, stopIdx: 0, sticker: 'hat', line: '모자를 봤어' }, { type: 'hang_poster', t: 2500 }, { type: 'wrap_up', t: 3000, reaction: '우쭐' }]);
+  var v7 = await view(), f7 = await page.evaluate(function () { return window.__ex.slice(); });
+  ok(v7.trip.by === 'mcp' && v7.trip.reaction === '우쭐' && v7.lastRow === '우쭐' && v7.lastExpr === 'happy' && v7.kv === '우쭐' && f7.indexOf('happy') >= 0 && f7.indexOf('S:happy') >= 0,
+    "모델이 고른 '우쭐' 은 그대로: 행 · 일기 낱말 · 행 초상 happy · 장면 얼굴 happy (" + JSON.stringify(f7) + ')');
   reportErrors(s.bag, 'M');
   await s.ctx.close();
+}
+
+/* R2 (R 안에서). 11-15 runner-2 세로 전체 화면 — 360×740 진짜 터치: 무대가 창을 채움 · 동그라미 둘 ≥ 64 px 이고 바닥선(장애물 줄) 아래 ·
+ *   무대 다른 곳 탭은 아무 일 없음 · 왼쪽 = 점프 · 오른쪽 = 숙이기 · 닫기 → 놀이방 그대로. 옛 최고(runner-1 best)는 '예전 게임 최고' 로 남고 새 최고는 따로 */
+async function runnerTouch(br) {
+  var ctx = await br.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, locale: 'ko-KR', hasTouch: true, isMobile: true });
+  try {
+    var page = await ctx.newPage(), bag = []; bag.ignored = [];
+    watchErrors(page, bag);
+    if (useStubs) await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') });
+    await page.addInitScript({ content: "if (!localStorage.getItem('ppolppol_runner')) localStorage.setItem('ppolppol_runner', JSON.stringify({ v: 1, best: 345, runs: 9, day: '2026-11-10', dayN: 2, last: null }));" });
+    await page.addInitScript({ content: "window.__vib = []; try { navigator.vibrate = function (p) { window.__vib.push(JSON.stringify(p)); return true; }; } catch (e) {}" });   /* 11-15 (검증 O-5): 진동 무늬를 적어 둔다 */
+    await routeWiki(page, 'ok');
+    await page.goto(INDEX);
+    await page.waitForSelector('#name-dialog[open]');
+    await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
+    await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+    await waitIdle(page);
+    await clickSpot(page, '#btn-door');
+    await page.waitForFunction(function () { var m = document.getElementById('btn-machine'); return APP.scene.view() === 'play' && m && !m.hidden; }, null, { timeout: 20000 });
+    await clickSpot(page, '#btn-machine');
+    await page.waitForSelector('#runner-dlg[open]');
+    await page.waitForFunction(function () { return RUNNER.live() && RUNNER.live().state === 'ready'; });
+    var g = await page.evaluate(function () {
+      function box(id) { var r = document.getElementById(id).getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, b: r.bottom, r: r.right }; }
+      var d = document.getElementById('runner-dlg').getBoundingClientRect(), cv = document.getElementById('rn-cv');
+      return { dlg: { w: d.width, h: d.height }, cv: box('rn-cv'), j: box('rn-jump'), du: box('rn-duck'), close: box('rn-close'), view: RUNNER.live().view,
+        hidden: ['rn-title', 'rn-note', 'rn-moss'].filter(function (id) { return document.getElementById(id); }), scrollW: document.documentElement.scrollWidth, cw: cv.width };
+    });
+    console.log('   R2 touch:', JSON.stringify(g));
+    ok(g.dlg.w === 360 && g.dlg.h === 740 && g.cv.x <= 0 && g.cv.y <= 0 && g.cv.r >= 360 && g.cv.b >= 740, '무대가 360×740 창을 꽉 채움');
+    ok(!g.hidden.length, '제목 줄 · 메모 · 이끼 HUD 없음 (' + g.hidden.join(',') + ')');
+    ok(g.j.w >= 64 && g.j.h >= 64 && g.du.w >= 64 && g.du.h >= 64, '동그라미 둘 ≥ 64 px (' + g.j.w + ' · ' + g.du.w + ')');
+    ok(g.j.x < 60 && g.du.r > 300 && g.j.b > 640 && g.du.b > 640, '왼쪽 아래 점프 · 오른쪽 아래 숙이기');
+    var groundY = g.view.G * g.view.css;
+    ok(g.j.y > groundY && g.du.y > groundY, '동그라미가 바닥선(장애물 줄, y ' + Math.round(groundY) + ') 아래 — 장애물을 가리지 않음 (' + Math.round(g.j.y) + ')');
+    ok(g.close.w >= 44 && g.close.h >= 44 && g.close.r > 320 && g.close.y < 60, '닫기 오른쪽 위 ≥ 44 px');
+    ok(g.scrollW <= 360, '가로 스크롤 없음');
+    /* 11-15 5차 (주인 '화면 반쪽씩'): 오른쪽 반 = 숙이기 — 준비 화면에선 출발하지 않는다 (출발은 점프 쪽 · 왼쪽 반) */
+    await page.touchscreen.tap(280, 300); await page.touchscreen.tap(300, Math.round(groundY) - 20);
+    ok(await page.evaluate(function () { var L = RUNNER.live(); return L.state === 'ready' && L.inputs.length === 0; }), '준비 화면에서 오른쪽 반 톡은 출발하지 않음 (준비 그대로)');
+    /* 왼쪽 반 = 점프 (출발), 오른쪽 반 = 숙이기 — 진짜 손가락 (CDP) 으로 누르고 있다가 뗀다. 동그라미 밖 (화면 위쪽) 과 동그라미 안 둘 다 */
+    var cdp = await ctx.newCDPSession(page);
+    async function hold(b, until) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: b.x + b.w / 2, y: b.y + b.h / 2, id: 1 }] });
+      var got = await page.waitForFunction(until, null, { timeout: 4000 }).then(function () { return true; }, function () { return false; });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      return got;
+    }
+    ok(await hold({ x: 60, y: 260, w: 40, h: 40 }, function () { var L = RUNNER.live(); return L.state === 'run' && !L.ground; }), '왼쪽 반 어디든 (동그라미 밖 위쪽) → 출발하고 점프');
+    await page.waitForFunction(function () { var L = RUNNER.live(); return L.state !== 'run' || L.ground; });
+    ok(await hold({ x: 260, y: 260, w: 40, h: 40 }, function () { var L = RUNNER.live(); return L.state !== 'run' || L.duck; }) && await page.evaluate(function () { var L = RUNNER.live(); return L.inputs.some(function (e) { return e.a === 'dd'; }); }), '오른쪽 반 어디든 → 숙이기');
+    await page.waitForFunction(function () { var L = RUNNER.live(); return L.state !== 'run' || L.ground; });
+    ok(await hold(g.j, function () { var L = RUNNER.live(); return L.state !== 'run' || !L.ground; }), '왼쪽 동그라미 → 점프 (동그라미는 왼쪽 반 안)');
+    await page.waitForFunction(function () { var L = RUNNER.live(); return L.state !== 'run' || L.ground; });
+    ok(await hold(g.du, function () { var L = RUNNER.live(); return L.state !== 'run' || L.duck; }), '오른쪽 동그라미 → 숙이기 (누르는 동안 · 느린 러너에서 그새 판이 끝났으면 넘어감 — 반쪽 숙이기는 위에서 엄격히 봤다)');
+    var ins = await page.evaluate(function () { return RUNNER.live().inputs.map(function (e) { return e.a; }).join(','); });
+    /* 가로로 돌려도 (740×360) 바닥선은 동그라미 위 · 창은 가운데 430 px 기둥 (11-15 점검) */
+    await page.setViewportSize({ width: 740, height: 360 });
+    await page.waitForFunction(function () { var v = RUNNER.live().view; return v && v.H * v.css >= 359 && v.H * v.css < 460; });
+    /* 11-15 (CI R): 느린 러너에선 그새 장애물에 부딪혀 판이 끝나고, 끝나면 동그라미 줄(#rn-ctrls)이 숨어 위치가 0 으로 재졌다 — 판 상태와 상관없이 배치만 잰다 (잠깐 보이게 해서 재고 되돌린다) */
+    var land = await page.evaluate(function () { var c = document.getElementById('rn-ctrls'), hid = c.hidden; c.hidden = false; var v = RUNNER.live().view, j = document.getElementById('rn-jump').getBoundingClientRect(), d = document.getElementById('runner-dlg').getBoundingClientRect(); c.hidden = hid; return { G: v.G * v.css + d.top, pad: j.top, w: d.width, W: v.W, over: hid }; });
+    ok(land.G < land.pad && land.w <= 430, '가로 740×360: 바닥선(' + Math.round(land.G) + ') < 동그라미(' + Math.round(land.pad) + ') · 창 폭 ' + land.w + ' (보이는 폭 ' + land.W + ')');
+    var bd = await page.evaluate(function () { var cs = getComputedStyle(document.getElementById('runner-dlg'), '::backdrop'); return { bg: cs.backgroundColor, img: cs.backgroundImage, font: document.documentElement.getAttribute('data-font') }; });
+    ok(bd.bg === 'rgb(9, 10, 20)' && bd.img === 'none', '가로 740×360 (' + bd.font + '): 430 px 기둥 양옆은 #090a14 한 색 — 방 화면이 비치지 않음 (11-15 검증 R-5 · ' + bd.bg + ' · ' + bd.img.slice(0, 24) + ')');
+    await page.setViewportSize({ width: 360, height: 740 });
+    await page.waitForFunction(function () { var v = RUNNER.live().view; return v && v.H * v.css >= 739; });
+    ok(/^jd,ju,dd,du/.test(ins), '입력 기록 jd,ju,dd,du (' + ins + ')');
+    await page.touchscreen.tap(g.close.x + g.close.w / 2, g.close.y + g.close.h / 2);
+    await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
+    var after = await page.evaluate(function () { var st = JSON.parse(localStorage.getItem('ppolppol_runner')); return { view: APP.scene.view(), best: st.best, best2: st.best2, last: st.last && st.last.version, focus: document.activeElement && document.activeElement.id }; });
+    ok(after.view === 'play' && after.focus === 'btn-machine', '닫기 → 놀이방 그대로 · 오락기로 포커스');
+    ok(after.best === 345 && after.last === RUNNER_V && after.best2 >= 0, '옛 최고(best 345)는 그대로 · 새 판 ('  + RUNNER_V + ') 은 best2 로 따로 (runner-2 부터의 최고 — 11-24 runner-3 도 점수 규칙이 같아 이어 간다 · best2 ' + after.best2 + ')');
+    var q = await page.evaluate(function () { return { vib: window.__vib || [] }; });
+    ok(q.vib.indexOf('12') >= 0 && q.vib.every(function (v) { return v === '12' || v === '[40,30,40]'; }), '진동은 점프 (12) · 부딪힘 ([40,30,40]) 만 — 착지 · 이끼 없음 (11-15 검증 O-5 · ' + q.vib.join(' ') + ')');
+    reportErrors(bag, 'R2');
+  } finally { await ctx.close(); }
+}
+
+/* R3 (R 안에서). 11-15 (검증 R-1 · R-2 · R-7 · R-8): 412×915 @2.625 (진짜 터치 · 픽셀 글꼴) 준비 · 달리는 중 · 결과 판에서 보이는 글 줄마다 Range 왼쪽 × 배율이
+ *   정수에서 0.05 안 (글 칸 .rn-snap 을 js 가 기기 px 에 민다). 360×740 @2 옛 기록(runner-1)의 '예전 게임 최고' 줄은 남고 시작이 정수 · 320×568 로 줄여도 그대로 ·
+ *   큰 점수 = 기기 px 에 맞춘 24 의 두 배, '1024' 도 한 줄. http (가짜 주소) 에서 서버 시드를 붙잡아 두면 동그라미 둘이 흐리고 탭을 안 받다가, 시드가 오면 밝아진다 */
+function RN_STARTS() {   /* 페이지 안: 달리기 창의 보이는 글 줄 시작 (읽어 주기 전용 · 숨은 것은 뺀다) */
+  var d = devicePixelRatio, out = [], w = document.createTreeWalker(document.getElementById('runner-dlg'), NodeFilter.SHOW_TEXT);
+  for (var n = w.nextNode(); n; n = w.nextNode()) {
+    var t = n.textContent.trim(), e = n.parentElement; if (!t || !e || e.closest('[hidden], .sr-only, #toast:not(.show)')) continue;   /* 11-18: 사라진 알림 (창 안으로 옮겨진 채 opacity 0) 의 글은 보이는 글이 아니다 */
+    var cs = getComputedStyle(e); if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+    var rg = document.createRange(); rg.selectNodeContents(n);
+    [].forEach.call(rg.getClientRects(), function (r) { if (r.width < 1 || r.height < 1) return; var x = r.left * d; out.push({ t: t, id: (e.closest('[id]') || {}).id || '', off: Math.round(Math.abs(x - Math.round(x)) * 1000) / 1000 }); });
+  }
+  return { dpr: d, font: document.documentElement.getAttribute('data-font'), state: RUNNER.live() && RUNNER.live().state, runs: out };
+}
+function RN_BIG() {   /* 페이지 안: 큰 점수에 '1024' 를 넣어 보고 크기 · 한 줄 · 판 넘침을 잰다 (마지막에만 — 화면 글을 바꾼다) */
+  var n = document.getElementById('rn-final-n'), b = document.getElementById('rn-final-bn'), ov = document.getElementById('rn-over'), u = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fs-u24')) || 24;
+  n.textContent = '1024'; b.textContent = '1024';
+  var rg = document.createRange(); rg.selectNodeContents(n);
+  return { fs: parseFloat(getComputedStyle(n).fontSize), u24: u, best: parseFloat(getComputedStyle(b).fontSize), lines: rg.getClientRects().length, overX: ov.scrollWidth - ov.clientWidth };
+}
+async function runnerCrisp(br) {
+  async function game(w, h, dpr, extra) {
+    var ctx = await br.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, locale: 'ko-KR', hasTouch: true, isMobile: true });
+    var page = await ctx.newPage(), bag = []; bag.ignored = [];
+    watchErrors(page, bag);
+    if (useStubs) await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') });
+    await page.addInitScript({ content: "if (!localStorage.getItem('ppolppol_runner')) localStorage.setItem('ppolppol_runner', JSON.stringify({ v: 1, best: 345, runs: 9, day: '2026-11-10', dayN: 2, last: null }));" });
+    if (extra) await extra(page);
+    await routeWiki(page, 'ok');
+    return { ctx: ctx, page: page, bag: bag };
+  }
+  async function toRunner(page, url, before) {   /* before(page): 오락기를 누르기 바로 전에 (11-18 R-9) */
+    await page.goto(url || INDEX);
+    await page.waitForSelector('#name-dialog[open]');
+    await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
+    await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+    await waitIdle(page);
+    await clickSpot(page, '#btn-door');
+    await page.waitForFunction(function () { var m = document.getElementById('btn-machine'); return APP.scene.view() === 'play' && m && !m.hidden; }, null, { timeout: 20000 });
+    if (before) await before(page);
+    await clickSpot(page, '#btn-machine');
+    await page.waitForSelector('#runner-dlg[open]');
+  }
+  function readyHand(page) { return page.waitForFunction(function () { var L = RUNNER.live(); return L && L.state === 'ready' && !document.getElementById('rn-hand').hidden; }, null, { timeout: 15000 }); }
+  function crisp(m, label) {
+    var far = m.runs.reduce(function (a, r) { return r.off > a.off ? r : a; }, { off: 0, id: '', t: '' });
+    ok(m.runs.length > 0 && far.off <= 0.05, label + ': 보이는 글 ' + m.runs.length + '줄 모두 기기 px 에서 시작 (가장 먼 ' + far.off + (far.id ? ' ' + far.id + ' "' + far.t + '"' : '') + ' · ' + m.font + ' @' + m.dpr + ')');
+  }
+  var A = await game(412, 915, 2.625);
+  try {
+    await toRunner(A.page); await readyHand(A.page);
+    crisp(await A.page.evaluate(RN_STARTS), 'R-1 412×915 @2.625 준비');
+    await A.page.touchscreen.tap(100, 360);
+    await A.page.waitForFunction(function () { return RUNNER.live().state !== 'ready'; });
+    await A.page.waitForTimeout(300);
+    var mr = await A.page.evaluate(RN_STARTS);
+    if (mr.state === 'run') crisp(mr, 'R-1 412×915 @2.625 달리는 중'); else console.log('   (달리는 중을 재기 전에 판이 끝남: ' + mr.state + ')');
+    await A.page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: 20000 });
+    await A.page.waitForTimeout(600);
+    var mo = await A.page.evaluate(RN_STARTS);
+    crisp(mo, 'R-1 412×915 @2.625 결과 판');
+    ok(mo.runs.some(function (r) { return r.id === 'rn-final-old' && /^예전 게임 최고 345$/.test(r.t); }) && mo.runs.some(function (r) { return r.id === 'rn-final-n'; }), "결과 판에 큰 점수 · '예전 게임 최고 345' 줄 (2.625)");
+    var b1 = await A.page.evaluate(RN_BIG);
+    ok(Math.abs(b1.fs - 2 * b1.u24) < 0.01 && b1.fs >= 2 * b1.best && b1.lines === 1 && b1.overX <= 0, 'R-7 큰 점수 = 기기 px 에 맞춘 24 의 두 배 (' + b1.fs + 'px · 최고 ' + b1.best + 'px) · 1024 도 한 줄 · 판 가로 넘침 없음 (2.625)');
+    reportErrors(A.bag, 'R3 412');
+  } finally { await A.ctx.close(); }
+  var B = await game(360, 740, 2);
+  try {
+    await toRunner(B.page); await readyHand(B.page);
+    /* R-3: 달리다 위 '닫기' 로 닫은 판 — 조개는 받되 따로 뜨는 알림 글 없음 (quiet), 위 조개 칸 수만 바뀐다 */
+    await B.page.evaluate(function () { window.__earn = []; var f = APP.earnFromPlay; Object.defineProperty(APP, 'earnFromPlay', { configurable: true, value: function (r, o) { var n = f.apply(this, arguments); window.__earn.push({ quiet: !!(o && o.quiet), n: n }); return n; } }); });
+    await B.page.touchscreen.tap(90, 300);
+    await B.page.waitForFunction(function () { return RUNNER.live().state === 'run'; });
+    await B.page.waitForTimeout(300);
+    var cb = await B.page.evaluate(function () { var r = document.getElementById('rn-close').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, state: RUNNER.live().state }; });
+    await B.page.touchscreen.tap(cb.x, cb.y);
+    await B.page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
+    var q3 = await B.page.evaluate(function () { var t = document.getElementById('toast'), st = JSON.parse(localStorage.getItem('ppolppol_runner')); return { earn: window.__earn, toast: t && t.classList.contains('show') ? t.textContent : '', chip: (document.getElementById('bag-n') || {}).textContent, shells: APP.state.user && APP.state.user.shells, end: st.last && st.last.end }; });
+    ok(cb.state === 'run' && q3.end === 'quit' && q3.earn.length === 1 && q3.earn[0].quiet && q3.earn[0].n >= 2 && !/^조개 \d+개 · 이제/.test(q3.toast) && q3.chip === String(q3.shells), "R-3 달리다 '닫기' 로 닫은 판: 조개 알림 글 없음 (quiet) · 위 조개 칸 수는 바뀜 (" + JSON.stringify(q3) + ')');
+    await clickSpot(B.page, '#btn-machine'); await B.page.waitForSelector('#runner-dlg[open]'); await readyHand(B.page);
+    await B.page.touchscreen.tap(90, 300);
+    await B.page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: 20000 });
+    await B.page.waitForTimeout(600);
+    var m2 = await B.page.evaluate(RN_STARTS), old = m2.runs.filter(function (r) { return r.id === 'rn-final-old'; });
+    ok(old.length === 1 && old[0].t === '예전 게임 최고 345' && old[0].off < 0.01, "R-2 360×740 @2 옛 기록: '예전 게임 최고 345' 줄은 보이고 시작이 기기 px 정수 (" + JSON.stringify(old) + ')');
+    crisp(m2, 'R-1 360×740 @2 결과 판');
+    await B.page.setViewportSize({ width: 320, height: 568 });
+    await B.page.waitForFunction(function () { return document.getElementById('runner-dlg').clientWidth === 320; });
+    await B.page.waitForTimeout(200);
+    crisp(await B.page.evaluate(RN_STARTS), 'R-1 320×568 @2 로 줄인 뒤 결과 판 (fit 이 다시 맞춤)');
+    var b2 = await B.page.evaluate(RN_BIG);
+    ok(b2.lines === 1 && b2.overX <= 0 && b2.fs >= 2 * b2.best, 'R-7 320×568 @2: 큰 점수 1024 도 한 줄 · 판 가로 넘침 없음 (' + b2.fs + 'px)');
+    reportErrors(B.bag, 'R3 360');
+  } finally { await B.ctx.close(); }
+  var O = 'http://ppolppol.example', release = null, gate = new Promise(function (r) { release = r; });
+  var C = await game(360, 740, 2, async function (page) {
+    /* 이 쪽에서만: 달리기가 서버 시드를 기다리는 2 초를 늘려 시드를 붙잡아 둔다 (느린 기계에서도 기다리는 동안을 본다) */
+    await page.addInitScript({ content: "(function () { var st = window.setTimeout; window.setTimeout = function (f, ms) { if (ms === 2000) ms = 30000; return st.apply(window, [f, ms].concat([].slice.call(arguments, 2))); }; })();" });
+    await routeRepo(page, O);
+    await page.route(O + '/api/runner/**', async function (route) {
+      var p = new URL(route.request().url()).pathname.replace(/^.*\/api\/runner\//, '');
+      if (p === 'seed') { await gate; return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, token: 'tok', seed: 4242, night: false, week: '2026-W46', v: 'runner-3' }) }); }
+      return route.fulfill(p === 'top' ? { status: 200, contentType: 'application/json', body: '{"ok":true,"top":[]}' } : { status: 404, contentType: 'application/json', body: '{}' });
+    });
+  });
+  try {
+    await toRunner(C.page, O + '/index.html');
+    var PADS = function () { var c = document.getElementById('rn-ctrls'), L = RUNNER.live(); return { msg: document.getElementById('rn-msg').textContent, state: L && L.state, inputs: L ? L.inputs.length : -1, wait: c.classList.contains('rn-wait'), op: [getComputedStyle(document.getElementById('rn-jump')).opacity, getComputedStyle(document.getElementById('rn-duck')).opacity], hand: !document.getElementById('rn-hand').hidden, anim: document.getElementById('rn-jump').getAnimations().length + document.getElementById('rn-duck').getAnimations().length }; };
+    var p0 = await C.page.evaluate(PADS);
+    ok(/고르는/.test(p0.msg) && p0.state === 'ready' && p0.wait && p0.op[0] === '0.5' && p0.op[1] === '0.5' && !p0.hand && p0.anim === 0, 'R-8 서버 시드를 기다리는 동안: 동그라미 둘이 흐리게 (0.5 · 깜빡임 없이) · 손 그림 없음 · 글 없음 (' + JSON.stringify(p0) + ')');
+    await C.page.touchscreen.tap(90, 300); await C.page.waitForTimeout(150);
+    var p1 = await C.page.evaluate(PADS);
+    ok(p1.state === 'ready' && p1.inputs === 0 && p1.wait, 'R-8 기다리는 동안 왼쪽 반 톡은 출발하지 않음 · 흐린 채 (' + JSON.stringify(p1) + ')');
+    release();
+    await readyHand(C.page);
+    var p2 = await C.page.evaluate(PADS);
+    ok(/출발/.test(p2.msg) && !p2.wait && p2.op[0] === '1' && p2.op[1] === '1' && p2.hand, 'R-8 시드가 오면 다시 밝게 · 손 그림 (' + JSON.stringify(p2) + ')');
+    reportErrors(C.bag, 'R3 http');
+  } finally { release(); await C.ctx.close(); }
+  /* 5차 검증: 배포 판 (http) 결과 판의 순위 칸 (닉네임 · 기록 올리기 · 알림 · 순위 10 · 저장 안내) 도 기기 px 에서 시작 — file:// 에선 이 칸이 안 보인다. 412×915 @2.625 */
+  var TOP = [];
+  for (var ti = 1; ti <= 10; ti++) TOP.push({ rank: ti, nick: ['뚜루', '해초', '조약돌', '물방울', '꼬마게', '바다별', '모래', '파도', '진주', '소라'][ti - 1], score: 900 - ti * 37 });
+  var D = await game(412, 915, 2.625, async function (page) {
+    await routeRepo(page, O);
+    await page.route(O + '/api/runner/**', function (route) {
+      var p = new URL(route.request().url()).pathname.replace(/^.*\/api\/runner\//, '');
+      if (p === 'seed') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, token: 'tok', seed: 4242, night: false, week: '2026-W46', v: 'runner-3' }) });
+      if (p === 'top') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, top: TOP }) });
+      return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    });
+  });
+  try {
+    /* 11-18 (R-9): 알림이 떠 있는 채 달리기 창이 열리면 알림이 창 안 (최상층) 으로 옮겨진다 — 옮긴 자리에서도 글 시작이 기기 px (app.js raiseToast 가 다시 맞춘다).
+       첫날 선물 알림 (자기소개 말풍선 2.8 s 뒤) 이 떠 있을 때 오락기를 누른 것과 같다: CI 에선 그 때가 가끔 겹쳤고, 겹친 판에서 이 검사가 사라진 알림 글까지 재다가 한 번 멈췄다
+       (64a36e8 — '가장 먼 0.5 toast "3"'). 때에 맡기지 않게: 첫 알림이 지나간 뒤, 창이 열리는 바로 그 순간에 선물 알림을 한 번 더 띄운다 */
+    await toRunner(D.page, O + '/index.html', async function (page) {
+      await page.waitForFunction(function () { var u = APP.state.user, t = document.getElementById('toast'); return u && u.giftDay && !u.giftTell && !t.classList.contains('show'); }, null, { timeout: 20000 });
+      await page.evaluate(function () {
+        var o = HTMLDialogElement.prototype.showModal;
+        HTMLDialogElement.prototype.showModal = function () {
+          if (this.id === 'runner-dlg') { HTMLDialogElement.prototype.showModal = o; APP.state.user.giftDay = ''; APP.dailyGift(); }
+          return o.apply(this, arguments);
+        };
+      });
+    });
+    var TOAST_DIAG = function () {   /* 알림 안의 자리 (기기 px): 글 줄 · 조개 그림 · 틈 — 어긋나면 어디서 어긋났는지 로그에 남게 */
+      var t = document.getElementById('toast'), d = devicePixelRatio, r3 = function (v) { return Math.round(v * 1000) / 1000; }, runs = [], w = document.createTreeWalker(t, NodeFilter.SHOW_TEXT);
+      for (var n = w.nextNode(); n; n = w.nextNode()) { var e = n.parentElement; if (!n.textContent.trim()) continue; var rg = document.createRange(); rg.selectNodeContents(n); [].forEach.call(rg.getClientRects(), function (r) { runs.push([n.textContent.trim().slice(0, 6), e.className || e.id, r3(r.left * d), r3(r.width * d), getComputedStyle(e).position]); }); }
+      var ic = t.querySelector('.shell-ico'), am = t.querySelector('.shell-amt'), ir = ic && ic.getBoundingClientRect(), ar = am && am.getBoundingClientRect(), ics = ic && getComputedStyle(ic), tr = t.getBoundingClientRect(), tc = getComputedStyle(t);
+      return { inside: !!t.closest('#runner-dlg'), show: t.classList.contains('show'), text: t.textContent, left: r3(tr.left), snap: t.style.translate || '', box: [r3(tr.left * d), r3(tr.width * d)], pad: tc.paddingLeft, bord: tc.borderLeftWidth, fs: tc.fontSize, ff: tc.fontFamily.slice(0, 10),
+        font9: document.fonts.check(tc.fontSize + ' Galmuri9'), runs: runs,
+        ico: ic ? { x: r3(ir.left * d), w: r3(ir.width * d), m: ics.marginLeft + ' ' + ics.marginRight, disp: ics.display, done: ic.complete, nat: ic.naturalWidth, src: String(ic.getAttribute('src')).slice(0, 40) } : null,
+        amt: am ? { x: r3(ar.left * d), w: r3(ar.width * d), gap: getComputedStyle(am).gap, disp: getComputedStyle(am).display, kids: am.children.length } : null };
+    };
+    var mt = await D.page.evaluate(RN_STARTS), tt = await D.page.evaluate(TOAST_DIAG);
+    var tr9 = mt.runs.filter(function (r) { return r.id === 'toast'; });
+    ok(tt.inside && tt.show && /선물/.test(tt.text) && tr9.length >= 3, 'R-9 떠 있던 알림은 열린 달리기 창 안으로 옮겨져 그대로 보인다 (' + JSON.stringify(tt) + ' · 글 ' + tr9.length + '줄)');
+    crisp({ runs: tr9, font: mt.font, dpr: mt.dpr }, 'R-9 412×915 @2.625 달리기 창 안으로 옮겨진 알림');   /* 알림 글만 — 창의 글은 준비가 끝난 뒤 아래에서 잰다 */
+    await D.page.waitForTimeout(700);
+    var tt2 = await D.page.evaluate(TOAST_DIAG); console.log('   R-9 0.7 s 뒤: ' + JSON.stringify({ runs: tt2.runs, ico: tt2.ico, amt: tt2.amt, show: tt2.show }));
+    await readyHand(D.page);
+    await D.page.touchscreen.tap(100, 360);
+    await D.page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: 20000 });
+    await D.page.waitForFunction(function () { var o = document.getElementById('rn-top10'); return o && !o.hidden && o.children.length === 10; }, null, { timeout: 8000 });
+    await D.page.waitForTimeout(600);
+    var md = await D.page.evaluate(RN_STARTS), net = md.runs.filter(function (r) { return /^rn-(nick|submit|top10|net)/.test(r.id) || r.t === '닉네임' || /저장해|새로 시작해/.test(r.t); });
+    ok(net.length >= 33, '순위 칸 글이 보인다 (' + net.length + '줄: 닉네임 · 기록 올리기 · 순위 10 × 3 · 저장 안내)');
+    crisp(md, 'R-1 412×915 @2.625 배포 판 결과 판 (순위 칸 포함)');
+    reportErrors(D.bag, 'R3 http 순위');
+  } finally { await D.ctx.close(); }
 }
 
 /* R. 다락방 달리기 (js/runner.js): 놀이방 문(#btn-door) → 놀이방 → 오락기(#btn-machine, 8물결) → 6초 스크립트 탭 → 부딪힘 또는 닫기 → 저장된 판의 simulate() 점수 = 화면 점수.
  *   SwiftShader(WebGL 강제, look-shots 와 같은 인자) · 360×740 @2x · 스크린샷 tests/evidence/runner-{start,mid,over}.png
  *   실제 판 기록은 tests/evidence/runner-live-run.json 에 남겨 node tools/test-runner.js 가 다시 시뮬한다. */
+/* 11-24 runner-3: RUNNER.probeArt (실제 drawOct · drawObs 로 하나만 그린 보이는 픽셀) 를 시뮬 부딪힘 칸과 잰다 — 페이지 안에서 돈다.
+   maxOut = 칸 밖 픽셀이 칸에서 떨어진 가장 먼 거리 (체비쇼프 px) · cover = 칸 안 칸 중 보이는 픽셀 비율 (거미줄은 그물이라 아래 끝만 · 천장까지 실은 뺀다) */
+function artMeasure() {
+  function M(what, o) {
+    var r = RUNNER.probeArt(what, o), B = r.box, set = {};
+    r.px.forEach(function (p) { set[p[0] + ',' + p[1]] = 1; });
+    function dist(x, h) { return Math.min.apply(null, B.map(function (b) { return Math.max(Math.max(b[0] - x, 0, x - (b[1] - 1)), Math.max(b[2] - h, 0, h - (b[3] - 1))); })); }
+    var maxOut = 0; r.px.forEach(function (p) { maxOut = Math.max(maxOut, dist(p[0], p[1])); });
+    var cells = 0, filled = 0; B.forEach(function (b) { for (var x = b[0]; x < b[1]; x++) for (var h = b[2]; h < Math.min(b[3], what === 'web' ? b[2] + 10 : 999); h++) { cells++; if (set[x + ',' + h]) filled++; } });
+    return { what: what, f: o && o.f != null ? o.f : null, y: o && o.y, n: r.px.length, maxOut: maxOut, cover: +(filled / Math.max(1, cells)).toFixed(3) };
+  }
+  var L = [M('stand', {}), M('land', {}), M('air', { y: 20 }), M('duck', {}), M('hit', {})];
+  [1, 2, 3].forEach(function (f) { L.push(M('stand', { f: f })); });
+  ['crate', 'crate2', 'candle', 'books', 'web', 'rain', 'moss'].forEach(function (k) { L.push(M(k)); });
+  return L;
+}
+/* 봐주는 몫: 문어 다리 끝 4 px (걸음 칸에서 흔들리는 다리 끝 6) · 촛불 끝 3 px · 빗방울 4 px · 그 밖 0. 칸 안의 보이는 몸: 둥근 머리를 네모 칸에 담아 75 % 이상 (거미줄 그물 · 물웅덩이 빗방울 칸은 성기게) */
+var ARTLIM = { _: { out: 4, cover: 0.75 }, stand: { out: 6, cover: 0.75 }, crate: { out: 0, cover: 0.95 }, crate2: { out: 0, cover: 0.95 }, books: { out: 0, cover: 0.85 },
+  candle: { out: 3, cover: 0.8 }, web: { out: 0, cover: 0.3 }, rain: { out: 4, cover: 0.5 }, moss: { out: 0, cover: 0.7 } };   /* 물웅덩이: 칸 = 웅덩이 + 튀는 물 (높이 0..2), 위에서 떨어지는 빗방울 (높이 3..6) 은 넘어도 된다 */
+
 async function scenarioRunner() {
   console.log('\n== R. 다락방 달리기 (같이 놀기)');
   var EVD = path.join(ROOT, 'tests/evidence'); fs.mkdirSync(EVD, { recursive: true });
@@ -1659,12 +2093,44 @@ async function scenarioRunner() {
     var info = await page.evaluate(function () {
       var cv = document.getElementById('rn-cv'), r = cv.getBoundingClientRect(), L = RUNNER.live();
       var b = [].map.call(document.querySelectorAll('#runner-dlg button:not([hidden])'), function (x) { var q = x.getBoundingClientRect(); return q.width && q.height ? Math.min(q.width, q.height) : 99; });
-      return { w: r.width, h: r.height, dpr: devicePixelRatio, focus: document.activeElement && document.activeElement.id, state: L.state, sprites: L.sprites, phase: L.phase, season: L.season, minBtn: Math.min.apply(null, b), docW: document.documentElement.scrollWidth };
+      return { w: r.width, h: r.height, cw: cv.width, ch: cv.height, dpr: devicePixelRatio, focus: document.activeElement && document.activeElement.id, state: L.state, sprites: L.sprites, phase: L.phase, season: L.season, minBtn: Math.min.apply(null, b), docW: document.documentElement.scrollWidth };
     });
     console.log('   start:', JSON.stringify(info));
     ok(info.state === 'ready' && info.focus === 'rn-cv', '준비 상태 · 캔버스에 포커스');
-    ok(Number.isInteger(info.w * info.dpr / 192) && info.w * info.dpr / 192 >= 2 && Math.abs(info.h * 192 - info.w * 108) < 1, '캔버스 192×108 정수 배 (' + (info.w * info.dpr / 192) + '×, 장치 px)');
-    ok(info.sprites === 'portrait', '문어 스프라이트 = 장면 초상 캡처');
+    ok(info.w >= 360 && info.h >= 740 && info.cw <= 192 && Number.isInteger(Math.round(info.w * info.dpr) / info.cw) && Math.round(info.w * info.dpr) % info.cw === 0, '11-15 캔버스가 창을 꽉 채움 · 아트 px 정수 배 (' + info.cw + '×' + info.ch + ' 아트 px, ' + (info.w * info.dpr / info.cw) + '×)');
+    ok(info.sprites === 'bake', '11-18 문어 스프라이트 = 다락 3D 문어를 그대로 구움 (bake)');
+    /* 11-18 6차: 상태별 구운 그림 — 크기 (스펙 §7 표 ±2) · 알파 0/255 · 같은 상태 칸은 한 상자 */
+    var spr = await page.evaluate(function () {
+      var S = RUNNER.sprites(), out = { src: S.src, gw: S.gw, st: {} };
+      ['run', 'jump', 'land', 'duck', 'hit', 'idle'].forEach(function (k) {
+        var fr = S[k], semi = 0, sizes = fr.map(function (c) { return c.width + 'x' + c.height; });
+        fr.forEach(function (c) { var d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (var i = 3; i < d.length; i += 4) if (d[i] !== 0 && d[i] !== 255) semi++; });
+        var c0 = fr[0], d0 = c0.getContext('2d').getImageData(0, c0.height - 1, c0.width, 1).data, foot = 0; for (var j = 3; j < d0.length; j += 4) if (d0[j]) foot++;
+        out.st[k] = { n: fr.length, w: c0.width, h: c0.height, same: sizes.every(function (z) { return z === sizes[0]; }), semi: semi, foot: foot };
+      });
+      return out;
+    });
+    console.log('   sprites:', JSON.stringify(spr));
+    var SPEC = { run: [32, 23], jump: [30, 25], land: [35, 20], duck: [38, 15], hit: [32, 23], idle: [32, 23] }, MEAS = { land: [38, 21], duck: [40, 13] };   /* 착지는 잰 크기 (스펙의 ≈ 표보다 3 px 넓다: 외곽선 1 px 씩) · 숙이기는 11-18 리드: sq y 0.36 → 거미줄 아래로 (보고서) */
+    Object.keys(SPEC).forEach(function (k) {
+      var e = MEAS[k] || SPEC[k], g = spr.st[k];
+      ok(g && Math.abs(g.w - e[0]) <= 2 && Math.abs(g.h - e[1]) <= 2 && g.same && g.semi === 0 && (k !== 'run' || g.n === 4), '11-18 문어 ' + k + ' ' + (g && g.w + '×' + g.h) + ' (기준 ' + e.join('×') + ' ±2) · 알파 0/255 · 칸 ' + (g && g.n));
+    });
+    var webLo = await page.evaluate(function () { return RUNNER.KINDS.web.lo; });   /* 거미줄 그림 아래 끝 = 바닥 위 lo px (그림 맨 아래 줄은 바닥선 위 lo + 1 번째 줄) */
+    ok(spr.st.duck.h <= webLo, '11-18 숙인 문어 꼭대기가 거미줄 그림 아래 끝보다 1 px 넘게 아래 (숙이기 높이 ' + spr.st.duck.h + ' ≤ ' + webLo + ' — 겹친 줄 0, 빈 줄 ' + (webLo - spr.st.duck.h + 1) + ')');
+    /* 11-24 runner-3 (주인: "캐릭터 크기를 늘리는 바람에 장애물 부딪히는 게 싱크가 안 맞게"): 실제 그리기 함수로 그린 보이는 픽셀 ↔ 시뮬 부딪힘 칸.
+       문어 (서기 · 걸음 칸 넷 · 착지 · 뛰기 · 숙이기 · 부딪힘) 와 장애물 마다: 칸 밖으로 나간 픽셀은 가장자리 몇 px 까지만 (봐주는 몫) · 칸 안은 대부분 보이는 몸 */
+    var art = await page.evaluate(artMeasure);
+    console.log('   그림 ↔ 판정: ' + art.map(function (r) { return r.what + (r.f != null ? r.f : '') + ' 밖 ' + r.maxOut + ' · 찬 ' + r.cover; }).join(' | '));
+    art.forEach(function (r) {
+      var lim = ARTLIM[r.what] || ARTLIM._;
+      ok(r.n > 0 && r.maxOut <= lim.out && r.cover >= lim.cover, '11-24 ' + r.what + (r.f != null ? ' 걸음 ' + r.f : '') + (r.y ? ' 높이 ' + r.y : '') + ': 보이는 픽셀이 부딪힘 칸에서 ' + r.maxOut + ' px 안 (≤ ' + lim.out + ') · 칸의 ' + Math.round(r.cover * 100) + ' % 가 보이는 몸 (≥ ' + Math.round(lim.cover * 100) + ' %)');
+    });
+    ok(spr.st.idle.foot > 0 && spr.st.duck.foot > 0, '11-18 발이 그림 맨 아래 줄에 닿음 (idle ' + spr.st.idle.foot + ' · duck ' + spr.st.duck.foot + ' px)');
+    await page.evaluate(function () {   /* 그리기 호출 엿보기: 문어 그림은 제 크기 그대로(인자 3 개) · 정수 자리 */
+      var cx = document.getElementById('rn-cv').getContext('2d'), o = cx.drawImage; window.__octDraws = [];
+      cx.drawImage = function (img) { if (img && img.octKey) { var L = RUNNER.live(); window.__octDraws.push({ k: img.octKey, n: arguments.length, x: arguments[1], y: arguments[2], foot: arguments[2] + img.height - 1, want: L.view.G - 1 - Math.floor(L.y / 256), st: L.state }); } return o.apply(this, arguments); };   /* 11-24: 발 줄 = 높이 0 의 줄 (장애물 아랫줄) − 높이 */
+    });
     ok(info.minBtn >= 44, '보이는 버튼 ≥ 44px (' + info.minBtn + ')');
     ok(info.docW <= 360, '가로 스크롤 없음');
     await page.screenshot({ path: path.join(EVD, 'runner-start.png') });
@@ -1696,6 +2162,9 @@ async function scenarioRunner() {
     if ((await page.evaluate(function () { var L = RUNNER.live(); return L.state === 'run' && L.obs.length >= 2; }))) await page.screenshot({ path: path.join(EVD, 'runner-mid.png') });
     var rest = 6000 - (Date.now() - t0); if (rest > 0) await page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: rest }).catch(function () {});
     var midObs = await page.evaluate(function () { clearInterval(window.__rnPilot); return RUNNER.live().ticks; });
+    var od = await page.evaluate(function () { var D = window.__octDraws || [], seen = {}; D.forEach(function (d) { seen[d.k] = (seen[d.k] || 0) + 1; }); var run = D.filter(function (d) { return d.st === 'run' || d.st === 'over'; }); return { n: D.length, bad: D.filter(function (d) { return d.n !== 3 || d.x !== Math.round(d.x) || d.y !== Math.round(d.y); }).length, seen: seen, feet: run.length, feetBad: run.filter(function (d) { return d.foot !== d.want; }).length }; });
+    ok(od.feet > 10 && od.feetBad === 0, '11-24 달리는 동안 문어 발 줄 = 바닥선 − 높이 (장애물 아랫줄과 같은 줄) · ' + od.feet + '번 중 어긋남 ' + od.feetBad);
+    ok(od.n > 20 && od.bad === 0 && od.seen.run > 0, '11-18 문어 그리기 ' + od.n + '번 모두 제 크기 · 정수 자리 (상태별 ' + JSON.stringify(od.seen) + ')');
     var ended = await page.evaluate(function () { return RUNNER.live().state; });
     if (ended !== 'over') { await page.click('#rn-close'); await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' }); }
     else await page.waitForTimeout(600);
@@ -1703,10 +2172,10 @@ async function scenarioRunner() {
       var st = JSON.parse(localStorage.getItem('ppolppol_runner') || 'null'), run = st && st.last;
       var shown = document.getElementById('rn-score').textContent;
       var sim = run && RUNNER.simulate(run.seed, run.inputs, { night: run.night, until: run.end === 'hit' ? null : run.ticks });
-      return { run: run, best: st && st.best, shown: shown, sim: sim, verify: run ? RUNNER.verify(run) : false, focus: document.activeElement && document.activeElement.id };
+      return { run: run, best: st && st.best2, shown: shown, sim: sim, verify: run ? RUNNER.verify(run) : false, focus: document.activeElement && document.activeElement.id };
     });
     console.log('   run: end=' + (res.run && res.run.end) + ' ticks=' + (res.run && res.run.ticks) + ' inputs=' + (res.run && res.run.inputs.length) + ' saved=' + (res.run && res.run.score) + ' shown=' + res.shown + ' sim=' + JSON.stringify(res.sim) + ' (6초 동안 ' + midObs + ' 틱)');
-    must(res.run && res.run.version === 'runner-1' && res.run.inputs.length >= 2, 'localStorage ppolppol_runner 에 판 기록 (seed·inputs·score·version)');
+    must(res.run && res.run.version === RUNNER_V && res.run.inputs.length >= 2, 'localStorage ppolppol_runner 에 판 기록 (seed·inputs·score·version)');
     ok(res.sim.score === res.run.score && String(res.sim.score) === res.shown, 'simulate() 점수 = 저장 점수 = 화면 점수 (' + res.shown + ')');
     ok(res.verify, 'RUNNER.verify(기록) 통과');
     ok(res.best >= res.run.score, '최고 기록 저장');
@@ -1716,23 +2185,152 @@ async function scenarioRunner() {
     /* 게임 오버 화면: 입력 없이 한 판 (첫 상자에 부딪힘) */
     if (ended === 'over') await page.click('#rn-again'); else await clickSpot(page, '#btn-machine');
     await page.waitForFunction(function () { return RUNNER.live() && RUNNER.live().state === 'ready'; });
+    /* 11-15 5차 (주인 답 a): 준비 · 쉬는 중에 들판에 뜬 문장 없음 — 손 그림 · 동그라미 · (쉴 땐) 일시정지 그림. 위 최고 = 왕관 그림 + 수 */
+    var rnSeen = function () {
+      return page.evaluate(function () {
+        function shown(e) { var r = e.getBoundingClientRect(); return r.width > 2 && r.height > 2 && !e.closest('[hidden], .sr-only') && getComputedStyle(e).visibility !== 'hidden'; }
+        var words = [].filter.call(document.querySelectorAll('#runner-dlg *'), function (e) { return shown(e) && !e.closest('#toast') && [].some.call(e.childNodes, function (n) { return n.nodeType === 3 && n.textContent.trim(); }); })   /* 11-23: 들판의 글만 — 창이 열릴 때 떠 있던 알림 (#toast) 은 창 안으로 옮겨져 잠깐 보이는 것이 맞다 (R-9). 부팅 2.5 s 뒤의 오늘 선물이 앞 판을 닫은 틈에 뜨면 여기 잡혔다 (CI 37eb9b0) */
+          .map(function (e) { return e.textContent.trim(); }).filter(function (t) { return !/^\d+$/.test(t) && t !== '닫기'; });
+        var hb = document.querySelector('.rn-hud-best');
+        return { state: RUNNER.live().state, words: words, hand: shown(document.getElementById('rn-hand')), pause: shown(document.getElementById('rn-pause')), msg: document.getElementById('rn-msg').textContent,
+          crown: !!(hb && hb.querySelector('svg') && shown(hb.querySelector('svg'))), best: document.getElementById('rn-best').textContent };
+      });
+    };
+    var rs = await rnSeen();
+    ok(rs.state === 'ready' && rs.words.length === 0 && rs.hand && !rs.pause && /출발/.test(rs.msg), '달리기 준비: 보이는 문장 없음 · 손 그림 · 안내는 읽어 주기만 (' + JSON.stringify(rs.words) + ')');
+    ok(rs.crown && /^\d+$/.test(rs.best), '달리기 위: 최고 = 왕관 그림 + 수 (' + rs.best + ')');
     await page.focus('#rn-cv'); await page.keyboard.press(' ');
+    await page.evaluate(function () { Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } }); document.dispatchEvent(new Event('visibilitychange')); delete document.hidden; });
+    rs = await rnSeen();
+    if (rs.state === 'pause') {
+      ok(rs.words.length === 0 && rs.pause && rs.hand && /쉬는/.test(rs.msg), '달리기 쉬는 중: 보이는 문장 없음 · 일시정지 그림 · 손 그림 (' + JSON.stringify(rs.words) + ')');
+      await page.focus('#rn-cv'); await page.keyboard.press(' ');
+    } else console.log('   (쉬기 전에 부딪힘 — 쉬는 중 검사는 건너뜀: ' + rs.state + ')');
+    await page.evaluate(function () { var t = document.getElementById('toast'); if (t) t.classList.remove('show'); });   /* 앞 판의 알림은 지우고 이번 판만 본다 */
     await page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: 15000 });
     await page.waitForTimeout(700);
+    var rc = await page.evaluate(function () {
+      var row = document.getElementById('rn-final-shell'), t = document.getElementById('toast');
+      return { shell: !row.hidden && !!row.querySelector('img') && row.getBoundingClientRect().height > 0, n: document.getElementById('rn-shell-n').textContent, toast: t && t.classList.contains('show') ? t.textContent : '',
+        crown: !!document.querySelector('#rn-final-best svg'), score: document.getElementById('rn-final-n').textContent, sr: document.getElementById('rn-final-sr').textContent };
+    });
+    ok(rc.shell && /^\+\d+$/.test(rc.n) && rc.crown, "달리기 결과 판: 조개 그림 + '" + rc.n + "' · 왕관 그림 + 최고");
+    ok(!/조개/.test(rc.toast), '달리기 결과: 따로 뜨는 조개 알림 없음 (판 안으로) (' + rc.toast + ')');
+    ok(new RegExp('^' + rc.score + '만큼 달렸어').test(rc.sr), '달리기 결과 읽어 주기 = 예전 문장 (' + rc.sr + ')');
     var ov = await page.evaluate(function () {
       var st = JSON.parse(localStorage.getItem('ppolppol_runner')), run = st.last;
-      return { final: document.getElementById('rn-final').textContent, best: document.getElementById('rn-final-best').textContent, again: document.activeElement && document.activeElement.id, shown: document.getElementById('rn-score').textContent, sim: RUNNER.simulate(run.seed, run.inputs, { night: run.night }).score, saved: run.score, end: run.end };
+      return { final: document.getElementById('rn-final').textContent, best: document.getElementById('rn-final-bn').textContent, crown: !!document.querySelector('#rn-final-best svg'), again: document.activeElement && document.activeElement.id, shown: document.getElementById('rn-score').textContent, sim: RUNNER.simulate(run.seed, run.inputs, { night: run.night }).score, saved: run.score, end: run.end };
     });
     console.log('   over:', JSON.stringify(ov));
-    ok(/또 할래\?/.test(await page.textContent('#rn-again')) && /그만/.test(await page.textContent('#rn-stop')), '게임 오버: "또 할래?" / "그만"');
-    ok(ov.again === 'rn-again' && /최고/.test(ov.best), '게임 오버: 최고 기록 표시 · "또 할래?" 에 포커스');
+    ok((await page.textContent('#rn-again')) === '다시' && (await page.textContent('#rn-stop')) === '닫기', '게임 오버: "다시" / "닫기" (11-15)');
+    ok(ov.again === 'rn-again' && ov.crown && /^\d+$/.test(ov.best), '게임 오버: 최고 기록 표시 (11-15 5차: 왕관 그림 + 수) · "다시" 에 포커스');
     ok(ov.end === 'hit' && ov.sim === ov.saved && String(ov.sim) === ov.shown, '부딪힌 판도 재시뮬 점수 = 화면 점수 (' + ov.shown + ')');
     await page.screenshot({ path: path.join(EVD, 'runner-over.png') });
     await page.click('#rn-stop');
     await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
+    /* 11-18: 미용실 색 (파랑) 이면 구운 몸의 가장 흔한 색이 그 색의 문어 램프 */
+    var blue = await page.evaluate(function () {
+      var was = APP.scene.color(); APP.scene.setColor('#3b6fd8', { still: true });
+      var S = RUNNER.sprites(), c = S.run[0], d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, n = {}, top = null;
+      for (var i = 0; i < d.length; i += 4) if (d[i + 3]) { var h = '#' + [d[i], d[i + 1], d[i + 2]].map(function (v) { return (v < 16 ? '0' : '') + v.toString(16); }).join(''); n[h] = (n[h] || 0) + 1; if (!top || n[h] > n[top]) top = h; }
+      var ramp = (APP.scene.palette().filter(function (r) { return r.name === 'oct'; })[0] || { colors: [] }).colors.map(function (x) { return String(x).toLowerCase(); });
+      APP.scene.setColor(was, { still: true });
+      return { src: S.src, top: top, ramp: ramp, back: RUNNER.sprites().src };
+    });
+    ok(blue.src === 'bake' && blue.ramp.indexOf(blue.top) >= 0, '11-18 파랑 몸색으로 구우면 가장 흔한 색 ' + blue.top + ' = 문어 램프 ' + JSON.stringify(blue.ramp));
     reportErrors(bag, 'R');
     await ctx.close();
+    await runnerTouch(br);
+    await runnerCrisp(br);
+    /* 11-24: 3D 가 없을 때 그린 문어 ('drawn') 도 같은 부딪힘 칸에 맞는다 */
+    var c2d = await br.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, locale: 'ko-KR' }), p2d = await c2d.newPage();
+    await p2d.goto(INDEX + '?dev=0&intro=0&scene=2d'); await p2d.waitForFunction(function () { return window.RUNNER && RUNNER.probeArt; }, null, { timeout: 30000 });
+    var art2 = await p2d.evaluate(function (src) { var f = eval('(' + src + ')'); return { src: RUNNER.sprites().src, L: f() }; }, artMeasure.toString());
+    console.log('   그림 ↔ 판정 (2D 그린 문어): ' + art2.L.filter(function (r) { return !RUNNER_KINDS[r.what]; }).map(function (r) { return r.what + (r.f != null ? r.f : '') + ' 밖 ' + r.maxOut + ' · 찬 ' + r.cover; }).join(' | '));
+    ok(art2.src === 'drawn' && art2.L.every(function (r) { var lim = ARTLIM[r.what] || ARTLIM._; return r.n > 0 && r.maxOut <= lim.out && r.cover >= lim.cover; }), '11-24 3D 없이 그린 문어도 보이는 픽셀이 부딪힘 칸에 맞는다 (' + art2.src + ')');
+    await c2d.close();
   } finally { await br.close(); }
+}
+
+/* F. 첫 몇 분 (11-18 점검 J1 · J2): 이름을 지으면 자기소개 첫 문장이 말풍선으로 (첫날 선물 알림은 말풍선이 내려간 뒤) · 2D 도 ·
+   첫 산책이 다 끝나 집에 오면 손 그림이 놀이방 문 → 마당 문 → 위층 계단 순서로 한 번씩 (보이는 것만, 숨은 건 다음에) · 새로 열면 없음 · 여러 번 다녀온 기록은 없음 */
+async function scenarioFirst(browser) {
+  console.log('\n== F. 첫 몇 분 (말풍선 인사 · 첫 손 힌트)');
+  var bag = []; bag.ignored = [];
+  async function fresh(q, dpr) {
+    var c = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: dpr || 2, locale: 'ko-KR', colorScheme: 'light' });
+    /* 11-23 (CI e41d779 · 11-23 에 FM 10/2): 데모 문어가 날짜 시드로 첫 초대에도 '집에 있기' 를 고르는 날이 있어 첫 산책 뒤 손 힌트가 안 떴다 — 이 시나리오는 늘 나가는 차례로 (forceKind, 스모크 K 와 같은 훅) */
+    await c.addInitScript({ content: "window.__ppolAwakeMs = 0; window.__ppolTest = Object.assign(window.__ppolTest || {}, { forceKind: 'out' });" });
+    var pg = await c.newPage(); watchErrors(pg, bag);
+    if (useStubs) { await pg.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await pg.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+    await routeWiki(pg, 'ok');
+    await pg.goto(INDEX + '?dev=0&intro=0' + (q || ''));
+    await pg.waitForSelector('#name-dialog[open]');
+    return { c: c, p: pg };
+  }
+  async function greet(pg, tag) {
+    await pg.fill('#name-in', '뚜루');
+    await pg.evaluate(function () {   /* 50 ms 마다: 말풍선 글 · 알림이 떠 있나 */
+      var t0 = performance.now(), L = window.__fs = [];
+      (function tick() { var b = document.getElementById('oct-bubble'), t = document.getElementById('toast'), r = b && b.getBoundingClientRect();
+        L.push({ t: Math.round(performance.now() - t0), bub: b && !b.hidden && r.width > 0 && getComputedStyle(b).visibility !== 'hidden' && getComputedStyle(b).opacity !== '0' ? b.textContent.trim() : '', toast: !!(t && t.classList.contains('show')), open: document.getElementById('name-dialog').open });
+        if (L.length < 160) setTimeout(tick, 50); })();
+    });
+    await pg.click('#name-form button[type=submit]');
+    await pg.waitForFunction(function () { return window.__fs.length >= 160; }, null, { timeout: 30000 }).catch(function () {});
+    var g = await pg.evaluate(function () { return { log: window.__fs, row: [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).join(' | ') }; });
+    var shut = (g.log.filter(function (x) { return !x.open; })[0] || { t: 0 }).t; g.log.forEach(function (x) { x.t -= shut; });   /* 이름 창이 닫힌 때부터 (첫 3 초는 장면을 세우느라 바빠 누름 자체가 늦다) */
+    var first = g.log.filter(function (x) { return x.bub; })[0], both = g.log.filter(function (x) { return x.bub && x.toast; }).length, toastAt = (g.log.filter(function (x) { return x.toast; })[0] || {}).t;
+    ok(first && first.bub === '안녕, 나는 뚜루야.' && first.t <= 1000, '11-18 ' + tag + ' 이름 짓고 ' + (first && first.t) + ' ms 에 문어 말풍선 «' + (first && first.bub) + '»');
+    ok(both === 0 && toastAt != null, '11-18 ' + tag + ' 첫날 선물 알림은 말풍선이 내려간 뒤 (' + toastAt + ' ms · 겹친 표본 ' + both + ')');
+    ok(/안녕, 나는 뚜루야\. 비 오는 다락방에 온 걸 환영해\./.test(g.row), '11-18 ' + tag + ' 기록 행은 온 문장 그대로');
+    return first;
+  }
+  var A = await fresh('', 2);
+  await greet(A.p, '3D');
+  var B = await fresh('&scene=2d', 2); await greet(B.p, '2D'); await B.c.close();
+
+  /* 첫 산책 → 집 → 손 힌트 */
+  var pg = A.p;
+  await waitIdle(pg); await pg.click('#btn-go'); await pg.waitForSelector('#btn-go.away', { timeout: 10000 });
+  await pg.waitForSelector('#log .lrow.typing, #log .lrow.c-amber', { state: 'attached', timeout: 10000 }); await pg.waitForTimeout(1200);
+  await pg.evaluate(function () {   /* 손이 뜰 때마다: 어느 단추 위였나 (손가락 끝 = 손 왼쪽 · 4 번째 줄) */
+    var H = window.__hh = [], was = false;
+    (function tick() { var e = document.getElementById('hint-hand'), on = !!(e && !e.hidden);
+      var pos = on ? e.style.left + ',' + e.style.top + ',' + e.style.animation : '';
+      if (on && (!was || pos !== window.__hpos)) { window.__hpos = pos; var r = e.getBoundingClientRect(), x = e.classList.contains('flip') ? r.right - 1 : r.left + 1, y = r.top + r.height * 3.5 / 12, hit = ['btn-door', 'btn-yard', 'btn-stair'].map(function (id) { var b = document.getElementById(id), q = b && !b.hidden && b.getBoundingClientRect(); return q && q.width ? { id: id, d: Math.hypot(x - (q.left + q.width / 2), y - (q.top + q.height / 2)), r: [q.left, q.top, q.width, q.height].map(Math.round) } : null; }).filter(Boolean).sort(function (a, b) { return a.d - b.d; })[0];   /* 손가락 끝에 가운데가 가장 가까운 단추 (마당 문 단추가 계단 칸과 겹칠 수 있다) */
+        hit = hit && hit.d < 4 ? hit.id : '?';
+        var d = devicePixelRatio; H.push({ t: Math.round(performance.now()), on: hit, dlg: !!document.querySelector('dialog[open]'), crisp: [r.left, r.top, r.width].every(function (v) { return Math.abs(v * d - Math.round(v * d)) < 0.06; }), aria: e.getAttribute('aria-hidden'), title: e.hasAttribute('title'), text: e.textContent }); }
+      was = on; setTimeout(tick, 40); })();
+  });
+  await pg.click('#btn-go'); await waitIdle(pg);
+  var walk = await pg.evaluate(function () { return APP.state.trips.filter(function (t) { return t.status === 'done' && t.kind === 'out'; }).length; });
+  await pg.waitForFunction(function () { var o = JSON.parse(localStorage.getItem('ppolppol_ui') || '{}'); return o.hints && Object.keys(o.hints).length >= 2; }, null, { timeout: 30000 }).catch(function () {});
+  await pg.waitForFunction(function () { var e = document.getElementById('hint-hand'); return e && !e.hidden; }, null, { timeout: 20000 }).catch(function () {}); await pg.waitForTimeout(200); await pg.screenshot({ path: path.join(SHOTS, 'first-hint.png') });
+  await pg.waitForTimeout(5000);
+  var hs = await pg.evaluate(function () { return { seen: window.__hh, pref: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}'), yard: !document.getElementById('btn-yard').hidden, inV2: !!JSON.parse(localStorage.getItem('ppolppol_v2')).hints }; });
+  console.log('   hints:', JSON.stringify(hs));
+  var order = hs.seen.map(function (x) { return x.on; }), want = ['btn-door', 'btn-yard'].filter(function (id) { return order.indexOf(id) >= 0; });   /* 11-21: 계단 손 힌트는 뺐다 (가장자리 계단 단추가 없다) */
+  ok(walk === 1 && order.length >= 2 && order.join() === want.join() && order[0] === 'btn-door' && order.indexOf('btn-stair') < 0, '11-18 첫 산책 뒤 손 힌트: 차례대로 한 번씩 ' + JSON.stringify(order));
+  ok(hs.seen.every(function (x) { return x.crisp && x.aria === 'true' && !x.title && !x.text && !x.dlg; }), '11-18 손 힌트: 기기 px 정수 자리 · aria-hidden · title 없음 · 글자 없음 · 시트 열린 동안 없음');
+  ok(Object.keys(hs.pref.hints || {}).length === order.length && !hs.inV2, '11-18 본 힌트는 ppolppol_ui 에만 (' + JSON.stringify(hs.pref.hints) + ')');
+  /* 새로 열기 → 본 힌트는 다시 없음 */
+  var before = hs.seen.length;
+  await pg.reload(); await pg.waitForSelector('#btn-go:not(.away)', { timeout: 30000 });
+  var re = await pg.evaluate(function () { return new Promise(function (res) { var n = 0, was = false; var iv = setInterval(function () { var e = document.getElementById('hint-hand'), on = !!(e && !e.hidden); if (on && !was) n++; was = on; }, 40); setTimeout(function () { clearInterval(iv); res({ n: n, pref: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}').hints }); }, 7000); }); });
+  ok(re.n === 2 - before && Object.keys(re.pref || {}).length === 2, '11-18 새로 열면 본 힌트는 다시 없음 (11-21: 힌트는 둘 — 놀이방 문 · 마당 문. 남은 것만 ' + re.n + ' · ' + JSON.stringify(re.pref) + ')');
+  /* 여러 번 다녀온 기록: 둘째 산책 뒤엔 (기기 표시를 지워도) 켜지지 않는다 */
+  /* 11-22: 둘째 초대에 데모 문어가 '집에 있기' 로 정하는 날이 있다 (날짜 시드 — 'home' 차례는 산책이 아니다). 산책 기록이 둘이 될 때까지 (넷까지) 다시 초대한다 */
+  for (var inv = 0; inv < 4; inv++) {
+    await waitIdle(pg); await pg.click('#btn-go'); await pg.waitForSelector('#btn-go.away', { timeout: 10000 }); await pg.waitForTimeout(1200); await pg.click('#btn-go'); await waitIdle(pg);
+    if ((await pg.evaluate(function () { return APP.state.trips.filter(function (t) { return t.status === 'done' && t.kind === 'out'; }).length; })) >= 2) break;
+  }
+  await pg.evaluate(function () { localStorage.setItem('ppolppol_ui', '{}'); });   /* 기기 표시를 지우고 새로 열어도 (산책 둘) 켜지지 않는다 */
+  await pg.reload(); await pg.waitForSelector('#btn-go:not(.away)', { timeout: 30000 });
+  var two = await pg.evaluate(function () { return new Promise(function (res) { var n = 0; var iv = setInterval(function () { var e = document.getElementById('hint-hand'); if (e && !e.hidden) n++; }, 40); setTimeout(function () { clearInterval(iv); res({ n: n, walks: APP.state.trips.filter(function (t) { return t.status === 'done' && t.kind === 'out'; }).length, arm: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}').hintsArm }); }, 6000); }); });
+  ok(two.n === 0 && !two.arm, '11-18 이미 여러 번 다녀온 기록은 (기기 표시를 지우고 새로 열어도) 손 힌트 없음 (산책 ' + two.walks + ' · ' + JSON.stringify(two) + ')');
+  await A.c.close();
+  reportErrors(bag, 'F');
 }
 
 /* S. 7물결 (주인 11-07 · docs/OWNER_DECISIONS.md '주인 답 (11-07)'): 방 보기는 없앴다 → ⚙ 설정 시트 · 앨범(문어의 요즘 · 다음 산책 메모 · 일기 탭) ·
@@ -1749,6 +2347,8 @@ async function scenarioWave7(browser) {
   await page.waitForSelector('#name-dialog[open]', { timeout: 20000 });
   await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  /* 11-21: 새 사람의 기본 모습이 바뀌었다 (부스스 · 문어 티 — 시나리오 P7 이 본다). 아래 옷장 검사들은 예전 기본 모습 (단발 · 원피스 · 리본) 에서 출발해 시트의 동작을 보므로 그 모습으로 갈아입고 시작한다 */
+  await page.evaluate(function () { var L = SCENE3D.PLAYER_LEGACY; Object.keys(L).forEach(function (k) { APP.setPlayerPart(k, L[k]); }); });
 
   /* 1. 플레이어 화면에 '방 보기' 가 어디에도 없다 */
   var nv = await page.evaluate(function () {
@@ -1816,6 +2416,9 @@ async function scenarioWave7(browser) {
   /* 2. ⚙ 설정 시트: (문어 색 — 거울이 생긴 뒤 안내 한 줄만) · 소리(js/audio.js) · 화면 · 기록 · 누가 고르나 (플레이어에겐 팔레트 없음)
         몸 색은 첫 실행 창에서 처음 한 번만 고른다 (주인 11-08 밤 · docs/SALON.md §1.2): 플레이어 설정엔 색 슬라이더 · 프리셋이 없다 (?dev=0 · 배포 주소). 개발용 칸은 시나리오 O */
   await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
+  var fold0 = await page.evaluate(function () { return [].map.call(document.querySelectorAll('#set-body > details.set-sec'), function (d) { return d.getAttribute('data-sec') + (d.open ? '+' : '-'); }).join(' '); });
+  ok(fold0 === 'gift+ look+ sound- screen- claude- data- who-', "11-21 설정 구역 접기: '문어 선물 상자' · '내 모습' 만 펼쳐져 열린다 (" + fold0 + ')');
+  await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 아래 검사는 칸을 누르고 재므로 다 펼친다 */
   var st = await page.evaluate(function () {
     var b = document.getElementById('set-body');
     return { hs: [].map.call(b.querySelectorAll('h3'), function (x) { return x.textContent; }), hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.presets .preset').length, colorLine: !!document.getElementById('set-color'), lantern: APP.state.room.lantern,
@@ -1828,7 +2431,7 @@ async function scenarioWave7(browser) {
 
   /* 2b. 내 모습 (docs/PLAYER_PARTS.md §3 · 주인 11-09 옷장): 설정에는 요약 한 줄 + '모습 바꾸기' 단추만 — 고르기는 그 단추가 여는 옷장 시트(#look-sheet)에서.
          문어 색 바로 아래 h3 · 미리보기 캔버스는 3D + playerPortrait 있을 때만 (64px · pixelated), 2D 면 한 줄 안내 · 이모지·기호 없음 */
-  var PARTS_CATS = 'hair,bangs,hairColor,skin,eyes,eyeColor,nose,mouth,cheek,outfit,shoes,acc', LOOK_PARTS = 'hair,bangs,hairColor,eyes,eyeColor,skin,nose,mouth,cheek,outfit,shoes,acc', LOOK_IDS = ['hair', 'eyes', 'face', 'outfit', 'shoes', 'acc'];
+  var PARTS_CATS = 'hair,bangs,hairColor,skin,eyes,eyeColor,nose,mouth,cheek,outfit,shoes,acc,brow,body', LOOK_PARTS = 'hair,bangs,hairColor,eyes,eyeColor,brow,skin,nose,mouth,cheek,body,outfit,shoes,acc', LOOK_IDS = ['hair', 'eyes', 'face', 'outfit', 'shoes', 'acc'];
   var pp = await page.evaluate(function () {
     var b = document.getElementById('set-body'), hs = [].map.call(b.querySelectorAll('h3'), function (x) { return x.textContent; });
     var port = document.getElementById('set-pl-port'), pr = port ? port.getBoundingClientRect() : null, open = document.getElementById('set-look-open'), sum = document.getElementById('set-look-sum'), row = open ? open.parentNode : null;
@@ -1876,15 +2479,16 @@ async function scenarioWave7(browser) {
           named: bs.every(function (b) { return color ? !!b.getAttribute('aria-label') && !!b.title : !!(b.querySelector('.look-name') || {}).textContent; }),
           tall: bs.every(function (b) { var r = b.getBoundingClientRect(); return r.height >= 32 && r.width >= 32; }),
           thumbs: th.length, drawn: th.filter(function (c) { return c.dataset.drawn === '1'; }).length, ink: sg.length ? Math.min.apply(null, sg.map(function (x) { return x.ink; })) : 0, distinct: Object.keys(seen).length, sigs: sg.map(function (x) { return x.h; }),
-          thW: th[0] ? th[0].clientWidth : 0, thPx: th[0] ? px(th[0]) : false };
+          thW: th[0] ? th[0].clientWidth : 0, thPx: th[0] ? px(th[0]) : false,
+          locked: bs.filter(function (b) { return !!b.querySelector('.look-lock'); }).length, lockedThumbs: bs.filter(function (b) { return !!b.querySelector('.look-lock') && !!b.querySelector('canvas.look-thumb'); }).length };   /* 11-24 (주인 '옷가게에서 파는 것들은 미리 보여주지 말고 이름만'): 안 가진 칸은 그림 없이 이름 + 자물쇠 */
       });
-      var cs = cv ? sig(cv) : null, kr = close.getBoundingClientRect();
+      var cs = cv ? sig(cv) : null, kr = close.getBoundingClientRect(), lbl = cv ? cv.getAttribute('aria-label') || '' : '', cut = lbl.indexOf(': ');   /* 11-15 (검증 T-6): 지금 고른 것들은 그림 이름 뒤 (': ' 다음) — 그림 밑 보이는 한 줄은 없다 */
       return { open: sheet.open, under: document.getElementById('settings-sheet').open, focus: document.activeElement ? document.activeElement.id : null, rail: { role: rail.getAttribute('role'), label: rail.getAttribute('aria-label'), ori: rail.getAttribute('aria-orientation') }, tabs: tabs,
         sel: tabs.filter(function (t) { return t.sel === 'true'; }).map(function (t) { return t.id; }).join(), zero: tabs.filter(function (t) { return t.ti === 0; }).map(function (t) { return t.id; }).join(),
         panel: { role: it.getAttribute('role'), by: it.getAttribute('aria-labelledby') }, secs: [].map.call(it.querySelectorAll('h3.look-sec'), function (x) { return x.textContent; }), groups: groups,
         note2d: note ? note.textContent : null, noShot: body.classList.contains('no-shot'), more: body.classList.contains('more'), room: it.scrollHeight - it.clientHeight - it.scrollTop,
-        stage: cv ? { w: cv.width, h: cv.height, cw: cv.clientWidth, ch: cv.clientHeight, px: px(cv), role: cv.getAttribute('role'), label: cv.getAttribute('aria-label'), ink: cs.ink, sig: cs.h } : null,
-        turn: turn ? turn.textContent.trim() : null, now: now ? now.textContent : null, eye: eye ? eye.textContent : null, close: close.textContent.trim(), closeIn: kr.top >= 0 && kr.bottom <= window.innerHeight + 0.5,
+        stage: cv ? { w: cv.width, h: cv.height, cw: cv.clientWidth, ch: cv.clientHeight, px: px(cv), role: cv.getAttribute('role'), label: cut < 0 ? lbl : lbl.slice(0, cut), ink: cs.ink, sig: cs.h } : null,
+        turn: turn ? turn.textContent.trim() : null, now: cv ? (cut < 0 ? '' : lbl.slice(cut + 2)) : null, nowEl: !!now, eye: eye ? eye.textContent : null, close: close.textContent.trim(), closeIn: kr.top >= 0 && kr.bottom <= window.innerHeight + 0.5,
         emoji: /\p{Extended_Pictographic}/u.test(sheet.innerText), canvases: sheet.querySelectorAll('canvas').length };
     });
   }
@@ -1901,16 +2505,16 @@ async function scenarioWave7(browser) {
   ok(lookSt.hair.rail.role === 'tablist' && lookSt.hair.rail.label === '고를 갈래' && lookSt.hair.rail.ori === 'vertical' && lookSt.hair.tabs.map(function (t) { return t.id; }).join() === LOOK_IDS.join() && lookSt.hair.tabs.map(function (t) { return t.name; }).join('/') === '머리/눈/얼굴/옷/신발/장식'
     && lookSt.hair.tabs.every(function (t) { return t.ctl === 'look-items' && t.ico && t.w >= 44 && t.h >= 44; }), '옷장 갈래 탭: tablist(360px 에선 세로) · 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식 · 탭마다 픽셀 그림 + 이름 · 44px 이상 ' + JSON.stringify(lookSt.hair.tabs.map(function (t) { return [t.name, t.w, t.h, t.ico]; })));
   ok(LOOK_IDS.every(function (id) { var x = lookSt[id]; return x.sel === id && x.zero === id && x.panel.role === 'tabpanel' && x.panel.by === 'look-tab-' + id; }), '옷장 갈래 탭: 누른 탭 하나만 aria-selected · tabindex 0 (나머지 -1) · 고를 것 칸(tabpanel)의 이름 = 그 탭 ' + JSON.stringify(lookAll.map(function (x) { return [x.sel, x.zero, x.panel.by]; })));
-  ok(lookGroups.map(function (g) { return g.part; }).join() === LOOK_PARTS && lookGroups.map(function (g) { return g.label; }).join('/') === '머리/앞머리/머리 색/눈/눈 색/피부색/코/입/볼/옷/신발/장식' && lookAll.map(function (x) { return x.secs.join('+'); }).join('/') === '모양+앞머리+색/모양+색/피부색+코+입+볼///',
+  ok(lookGroups.map(function (g) { return g.part; }).join() === LOOK_PARTS && lookGroups.map(function (g) { return g.label; }).join('/') === '머리/앞머리/머리 색/눈/눈 색/눈썹/피부색/코/입/볼/몸/옷/신발/장식' && lookAll.map(function (x) { return x.secs.join('+'); }).join('/') === '모양+앞머리+색/모양+색+눈썹/피부색+코+입+볼/몸+옷//',
     '옷장: 여섯 갈래에 열두 가지 (머리: 모양 · 앞머리 · 색 / 눈: 모양 · 색 / 얼굴: 피부색 · 코 · 입 · 볼 / 옷 / 신발 / 장식) · 묶음마다 이름(role=group) · 한 가지뿐인 갈래엔 작은 제목 없음 ' + JSON.stringify([lookGroups.map(function (g) { return g.label; }), lookAll.map(function (x) { return x.secs.join('+'); })]));
-  ok(lookGroups.length === 12 && lookGroups.every(function (g) { return g.n >= (g.part === 'cheek' ? 2 : 3) && g.on === 1 && g.kind && g.named && g.tall; }), '옷장: 묶음마다 고를 것 3개 이상 (볼은 없음 · 주근깨 둘 — 볼터치는 11-10 에 뺐다) · 켜진 것 하나(.on + aria-pressed) · 색은 .preset(aria-label·title 이름) · 나머지는 이름 있는 타일 · 32px 이상 ' + JSON.stringify(lookGroups.map(function (g) { return [g.part, g.n, g.on, g.kind, g.named, g.tall]; })));
+  ok(lookGroups.length === 14 && lookGroups.every(function (g) { return g.n >= (g.part === 'cheek' || g.part === 'body' ? 2 : 3) && g.on === 1 && g.kind && g.named && g.tall; }), '옷장: 묶음마다 고를 것 3개 이상 (볼은 없음 · 주근깨 둘 — 볼터치는 11-10 에 뺐다) · 켜진 것 하나(.on + aria-pressed) · 색은 .preset(aria-label·title 이름) · 나머지는 이름 있는 타일 · 32px 이상 ' + JSON.stringify(lookGroups.map(function (g) { return [g.part, g.n, g.on, g.kind, g.named, g.tall]; })));
   ok(lookAll.every(function (x) { return !x.emoji; }) && lookSt.eyes.eye === '눈 색은 크게 봐야 잘 보여', '옷장: 이모지 0 · 눈 갈래엔 눈 색 안내 한 줄 (' + lookSt.eyes.eye + ')');
   if (CAN_SHOT) {
     var lookTiles = lookGroups.filter(function (g) { return !g.color; });
-    ok(lookAll.every(function (x) { return !x.noShot && x.note2d === null; }) && lookTiles.length === 10 && lookTiles.every(function (g) { return g.thumbs === g.n && g.drawn === g.n && g.thW === 64 && g.thPx && g.ink > 40 && g.distinct === g.n; }) && lookGroups.every(function (g) { return !g.color || g.thumbs === 0; }),
-      '옷장 (3D): 타일마다 그림 (32×32 → 64px pixelated · 다 그려짐 · 빈 그림 없음 · 한 묶음 안에서 서로 다른 그림) · 색 동그라미엔 그림 없음 ' + JSON.stringify(lookTiles.map(function (g) { return [g.part, g.thumbs, g.drawn, g.distinct, g.ink, g.thW]; })));
+    ok(lookAll.every(function (x) { return !x.noShot && x.note2d === null; }) && lookTiles.length === 12 && lookTiles.every(function (g) { var own = g.n - g.locked; return g.thumbs === own && g.drawn === own && g.thW === 64 && g.thPx && g.ink > 40 && g.distinct === own && g.lockedThumbs === 0; }) && lookGroups.every(function (g) { return !g.color || g.thumbs === 0; }),
+      '옷장 (3D): 가진 타일마다 그림 (32×32 → 64px pixelated · 다 그려짐 · 빈 그림 없음 · 한 묶음 안에서 서로 다른 그림) · 안 가진 (잠긴) 타일엔 그림 없음 · 색 동그라미엔 그림 없음 ' + JSON.stringify(lookTiles.map(function (g) { return [g.part, g.n, g.locked, g.thumbs, g.drawn, g.distinct, g.ink, g.thW, g.lockedThumbs]; })));
     ok(stage0 && stage0.w === 64 && stage0.h === 96 && stage0.cw === 128 && stage0.ch === 192 && stage0.px && stage0.role === 'img' && stage0.label === '내 모습 앞모습' && stage0.ink > 300 && lookSt.hair.turn === '뒤 보기', '옷장 (3D): 전신 미리보기 64×96 → 128×192px pixelated · role=img 앞모습 · 그려짐 · 뒤 보기 단추 ' + JSON.stringify(stage0));
-    ok(lookAll.map(function (x) { return x.now; }).join(' / ') === '단발 · 삐죽 · 금발 / 동그란 · 흑갈색 / 살구 · 세모코 · 미소 · 볼 없음 / 원피스 / 단화 / 리본', '옷장 (3D): 미리보기 아래 한 줄 = 그 갈래에서 지금 고른 것 ' + JSON.stringify(lookAll.map(function (x) { return x.now; })));
+    ok(lookAll.map(function (x) { return x.now; }).join(' / ') === '단발 · 삐죽 · 금발 / 동그란 · 흑갈색 · 눈썹 없음 / 살구 · 세모코 · 미소 · 볼 없음 / 동글 · 원피스 / 단화 / 리본' && lookAll.every(function (x) { return !x.nowEl; }), '옷장 (3D): 미리보기 그림 이름 (읽어 주기) = 그 갈래에서 지금 고른 것 · 그림 밑 보이는 한 줄은 없음 ' + JSON.stringify(lookAll.map(function (x) { return x.now; })));
     await page.click('#look-turn'); var lookBack = await lookRead(page);
     await page.click('#look-turn'); var lookFront = await lookRead(page);
     ok(lookBack.turn === '앞 보기' && lookBack.stage.label === '내 모습 뒷모습' && lookBack.stage.ink > 300 && lookBack.stage.sig !== stage0.sig && lookFront.turn === '뒤 보기' && lookFront.stage.label === '내 모습 앞모습' && lookFront.stage.sig === stage0.sig,
@@ -1964,10 +2568,10 @@ async function scenarioWave7(browser) {
   console.log('   look pick:', JSON.stringify({ hair: lookOn(pickHair), eyes: lookOn(pickEyes), now: [pickHair.now, pickEyes.now], eye: pickEyes.eye, saved: pc.saved, look: pc.look }));
   ok(pc.saved.hair === 'long' && pc.saved.eyeColor === 'sea' && pc.saved.eyes === 'smile' && pc.saved.hairColor === 'blonde' && pc.stored && pc.stored.hair === 'long' && pc.stored.eyeColor === 'sea' && pc.stored.eyes === 'smile',
     '옷장: 긴생머리 · 바다색 눈 · 웃는 눈 → settings.player 에 저장 (localStorage ppolppol_v2) · 안 누른 것은 그대로');
-  ok(lookOn(pickHair) === 'long,spiky,blonde' && lookOn(pickEyes) === 'smile,sea' && /눈 색이 안 보여/.test(pickEyes.eye || ''), '옷장: 누른 것만 켜짐 (묶음마다 하나) · 웃는 눈이면 눈 색 안내가 바뀐다 ' + JSON.stringify([lookOn(pickHair), lookOn(pickEyes), pickEyes.eye]));
+  ok(lookOn(pickHair) === 'long,spiky,blonde' && lookOn(pickEyes) === 'smile,sea,none' && /눈 색이 안 보여/.test(pickEyes.eye || ''), '옷장: 누른 것만 켜짐 (묶음마다 하나) · 웃는 눈이면 눈 색 안내가 바뀐다 ' + JSON.stringify([lookOn(pickHair), lookOn(pickEyes), pickEyes.eye]));
   if (pp.mode === '3d' && pc.setFn === 'function') ok(pc.look && pc.look.hair === 'long' && pc.look.eyeColor === 'sea' && pc.look.eyes === 'smile', '옷장 (3D): scene.player().look 이 고른 대로 ' + JSON.stringify(pc.look));
   else console.log('   (skip) scene.setPlayer 없음 (' + pp.mode + ' · ' + pc.setFn + ') → look 검사 건너뜀');
-  if (CAN_SHOT) ok(pickHair.stage.sig !== stage0.sig && pickEyes.stage.sig !== pickHair.stage.sig && pickHair.now === '긴생머리 · 삐죽 · 금발' && pickEyes.now === '웃는 · 바다색' && pickFace.groups.every(function (g, i) { return g.drawn === g.n && g.sigs.every(function (s, j) { return s !== lookSt.face.groups[i].sigs[j]; }); }),
+  if (CAN_SHOT) ok(pickHair.stage.sig !== stage0.sig && pickEyes.stage.sig !== pickHair.stage.sig && pickHair.now === '긴생머리 · 삐죽 · 금발' && pickEyes.now === '웃는 · 바다색 · 눈썹 없음' && pickFace.groups.every(function (g, i) { return g.drawn === g.n && g.sigs.every(function (s, j) { return s !== lookSt.face.groups[i].sigs[j]; }); }),
     '옷장 (3D): 고르면 전신 미리보기 · 아래 한 줄이 바뀌고 (머리 · 눈) · 다른 갈래의 타일 그림도 지금 모습(긴생머리 · 웃는 눈)으로 그려진다 ' + JSON.stringify([pickHair.now, pickEyes.now]));
   if (CAN_SHOT) await page.click('#look-turn');   /* 뒷모습인 채로 닫는다 — 다시 열면 앞모습부터 (2d 에서 본다) */
   await page.click('#look-close'); await page.waitForSelector('#look-sheet[open]', { state: 'hidden' });
@@ -2023,11 +2627,13 @@ async function scenarioWave7(browser) {
   console.log('   reset:', JSON.stringify(rs));
   ok(rs.sameDef && (rs.mode !== '3d' || rs.reset === rs.def), '전체 초기화: settings.player 와 장면 look 이 기본값으로 · 이름 대화창 ' + rs.reset);
   /* 옛 저장(settings.player 가 문자열/없음)으로 부팅 → 그 칸만 기본값, 기록은 그대로 */
-  await s3.page.evaluate(function () { var k = 'ppolppol_v2', o = JSON.parse(localStorage.getItem(k)); o.octopus.name = '뚜루'; o.settings.player = 'bob'; localStorage.setItem(k, JSON.stringify(o)); });
+  /* 11-21: 기록은 앱이 뜨기 전에 넣는다 (쪽에서 그냥 쓰면 떠나는 순간 앱의 저장이 덮는다). born 이 있는 기록 = 이미 있던 사람 → 예전 기본 모습 */
+  await s3.page.addInitScript({ content: "(function () { var v = sessionStorage.getItem('__inj'); if (v) { sessionStorage.removeItem('__inj'); localStorage.setItem('ppolppol_v2', v); } })();" });
+  await s3.page.evaluate(function () { var k = 'ppolppol_v2', o = JSON.parse(localStorage.getItem(k)); o.octopus.name = '뚜루'; o.octopus.born = '2026-11-03T10:00:00.000Z'; o.settings.player = 'bob'; sessionStorage.setItem('__inj', JSON.stringify(o)); });
   await s3.page.reload();
   await s3.page.waitForFunction(function () { return window.APP && APP.state && APP.scene; }, null, { timeout: 20000 });
-  var old = await s3.page.evaluate(function () { var p = APP.scene.player && APP.scene.player(); return { sameDef: JSON.stringify(APP.state.settings.player) === JSON.stringify(SCENE3D.PLAYER_DEFAULT), look: p ? p.look.hair : null, name: APP.state.octopus.name }; });
-  ok(old.sameDef && old.look === 'bob' && old.name === '뚜루', '옛 저장(settings.player 가 문자열) 부팅: 내 모습만 기본값으로, 기록은 그대로 ' + JSON.stringify(old));
+  var old = await s3.page.evaluate(function () { var p = APP.scene.player && APP.scene.player(); return { sameDef: JSON.stringify(APP.state.settings.player) === JSON.stringify(SCENE3D.PLAYER_LEGACY), look: p ? p.look.hair : null, name: APP.state.octopus.name }; });
+  ok(old.sameDef && old.look === 'bob' && old.name === '뚜루', '옛 저장(settings.player 가 문자열) 부팅: 내 모습만 예전 기본값 (11-21: 이미 있던 기록은 새 기본 모습으로 바뀌지 않는다) 으로, 기록은 그대로 ' + JSON.stringify(old));
   ok(s3.bag.length === 0, '[S 불러오기·초기화] 페이지 에러/콘솔 에러 0' + (s3.bag.length ? ' → ' + s3.bag.join(' | ') : ''));
   await s3.ctx.close();
   /* 2d. 옷장 다시 열기 → 마지막에 보던 갈래 · 앞모습부터 → 기본 모습으로 되돌린다 (뒤 검사·스크린샷은 기본 모습으로) → 320–412 px · 픽셀·시스템 · 여섯 갈래 넘침 검사 → Esc 는 옷장만 닫는다 */
@@ -2072,7 +2678,7 @@ async function scenarioWave7(browser) {
   await page.keyboard.press('Escape'); await page.waitForSelector('#look-sheet[open]', { state: 'hidden' });
   await page.waitForFunction(function (t) { return document.getElementById('set-look-sum').textContent === t; }, '단발 · 원피스 · 리본', { timeout: 3000 }).catch(function () {});   /* close 이벤트는 닫힌 뒤 한 박자 늦게 온다 — 요약 줄은 그때 바뀐다 */
   var port2 = await portSig(page);
-  var lookEnd = await page.evaluate(function () { return { under: document.getElementById('settings-sheet').open, sum: document.getElementById('set-look-sum').textContent, focus: document.activeElement && document.activeElement.id, def: JSON.stringify(APP.state.settings.player) === JSON.stringify(SCENE3D.PLAYER_DEFAULT) }; });
+  var lookEnd = await page.evaluate(function () { return { under: document.getElementById('settings-sheet').open, sum: document.getElementById('set-look-sum').textContent, focus: document.activeElement && document.activeElement.id, def: JSON.stringify(APP.state.settings.player) === JSON.stringify(SCENE3D.PLAYER_LEGACY) }; });
   ok(lookEnd.under && lookEnd.sum === '단발 · 원피스 · 리본' && lookEnd.focus === 'set-look-open' && lookEnd.def && (!port0 || (!!port2 && port2.h === port0.h)), "Esc 는 맨 위 옷장만 닫는다 (설정은 그대로) · 요약 줄 · 미리보기 · 저장이 기본 모습으로 · 포커스는 '모습 바꾸기' 로 " + JSON.stringify(lookEnd));
 
   ok(st.music && st.sfx, '설정: 소리 칸 (js/audio.js 가 붙인 음악 · 효과음 크기)');
@@ -2080,7 +2686,7 @@ async function scenarioWave7(browser) {
   function sndNow() { return page.evaluate(function () {
     var c = document.getElementById('set-sound'), row = c && c.closest('label'), h = document.getElementById('rs-sound'), r = row && row.getBoundingClientRect(), n = document.getElementById('rs-sound-note');
     return { ctl: [].map.call(document.querySelectorAll('#scene-ctl button'), function (x) { return x.id; }).join(','), speaker: !!document.querySelector('#btn-sound, .sound-btn, #scene-ctl [aria-label*="소리"]'),
-      has: !!c, type: c && c.type, name: row && row.textContent.trim(), cls: row && row.className, first: !!h && !!row && h.nextElementSibling === row && !!(row.compareDocumentPosition(document.getElementById('set-music')) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(row.compareDocumentPosition(document.getElementById('set-sfx')) & Node.DOCUMENT_POSITION_FOLLOWING),
+      has: !!c, type: c && c.type, name: row && row.textContent.trim(), cls: row && row.className, first: !!h && !!row && (h.closest('summary') || h).nextElementSibling === row && !!(row.compareDocumentPosition(document.getElementById('set-music')) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(row.compareDocumentPosition(document.getElementById('set-sfx')) & Node.DOCUMENT_POSITION_FOLLOWING),
       checked: c && c.checked, en: AUDIO.enabled(), avail: AUDIO.state().available, focusable: !!c && c.tabIndex >= 0 && !c.disabled, h: r ? Math.round(r.height) : 0, note: n ? (n.hidden ? '' : n.textContent) : null };
   }); }
   var sn0 = await sndNow();
@@ -2110,7 +2716,7 @@ async function scenarioWave7(browser) {
   await page.keyboard.press('Escape'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
   var mz = await page.evaluate(function () { var keep = APP.state.room.lantern; APP.state.room.lantern = 2; return { lantern: keep }; });
   await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
-  mz.row = await page.evaluate(function () { var b = document.getElementById('set-body'), l = document.getElementById('set-color'), h = document.getElementById('set-color-h'); return { hs: [].map.call(b.querySelectorAll('h3'), function (x) { return x.textContent; }), line: l ? l.textContent : '', hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.preset[data-hex]').length, h: h ? h.textContent : '', next: !!l && !!h && h.nextElementSibling === l, ctrls: l ? l.querySelectorAll('button, input, select, a').length : -1, dev: !!document.getElementById('set-color-dev') }; });
+  mz.row = await page.evaluate(function () { var b = document.getElementById('set-body'), l = document.getElementById('set-color'), h = document.getElementById('set-color-h'); return { hs: [].map.call(b.querySelectorAll('h3'), function (x) { return x.textContent; }), line: l ? l.textContent : '', hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.preset[data-hex]').length, h: h ? h.textContent : '', next: !!l && !!h && (h.closest('summary') || h).nextElementSibling === l, ctrls: l ? l.querySelectorAll('button, input, select, a').length : -1, dev: !!document.getElementById('set-color-dev') }; });
   ok(mz.lantern < 2 && mz.row.h === '문어 색' && mz.row.hs.indexOf('문어 색') >= 0 && mz.row.hs.indexOf('문어 색') < mz.row.hs.indexOf('내 모습') && mz.row.next && mz.row.line === '거울 앞에서 뚜루에게 물어볼 수 있어.' && !/\p{Extended_Pictographic}/u.test(mz.row.line) && mz.row.ctrls === 0 && !mz.row.hue && mz.row.presets === 0 && !mz.row.dev, "설정 (등불 2칸 = 거울 뒤): '문어 색' 제목 ('내 모습' 위) + 바로 아래 '거울 앞에서 뚜루에게 물어볼 수 있어.' 한 줄 · 누르는 것 · 색 슬라이더 · 프리셋 · 개발용 칸 없음 " + JSON.stringify(mz.row));
   var wide = [];
   for (var w of [320, 360, 412]) {
@@ -2130,14 +2736,14 @@ async function scenarioWave7(browser) {
 
   /* 3. 등불 · 데모를 누르면 작은 말풍선 (2.5 s · 다시 누르면 닫힘 · polite · 모션 줄이기면 그냥) · 폰 폭에선 첫 줄 = 방 제목 (상태 줄에서 숨긴 것)
         말풍선은 큰 버튼 위에 겹친다 → 말풍선을 누르면 말풍선만 닫히고 산책은 나가지 않는다 · 가로에서 띄운 뒤 세로로 돌려도 옆으로 밀리지 않는다 */
-  function tipNow() { return page.evaluate(function () { var t = document.getElementById('tip'), r = t.getBoundingClientRect(), p = document.getElementById('pips').getBoundingClientRect(); return { text: t.textContent, head: (t.querySelector('.tip-head') || {}).textContent || '', line: (t.querySelector('.tip-line') || {}).textContent || '', room: document.getElementById('room-title').textContent, show: t.classList.contains('show'), role: t.getAttribute('role'), live: t.getAttribute('aria-live'), left: r.left, right: r.right, top: r.top, pb: p.bottom, vw: innerWidth, docW: document.documentElement.scrollWidth, exp: document.getElementById('pips').getAttribute('aria-expanded'), pl: document.getElementById('pips').getAttribute('aria-label'), numOff: getComputedStyle(document.querySelector('#pips .pips-n')).display === 'none' }; }); }
+  function tipNow() { return page.evaluate(function () { var t = document.getElementById('tip'), r = t.getBoundingClientRect(), p = document.getElementById('pips').getBoundingClientRect(); return { text: t.textContent, head: (t.querySelector('.tip-head') || {}).textContent || '', line: (t.querySelector('.tip-line') || {}).textContent || '', room: document.getElementById('room-title') ? 'x' : '', show: t.classList.contains('show'), role: t.getAttribute('role'), live: t.getAttribute('aria-live'), left: r.left, right: r.right, top: r.top, pb: p.bottom, vw: innerWidth, docW: document.documentElement.scrollWidth, exp: document.getElementById('pips').getAttribute('aria-expanded'), pl: document.getElementById('pips').getAttribute('aria-label'), numOff: getComputedStyle(document.querySelector('#pips .pips-n')).display === 'none' }; }); }
   await page.click('#pips'); await page.waitForTimeout(300);
   var t1 = await tipNow();
   console.log('   tip:', JSON.stringify(t1));
   /* 한 화면 배치 (11-10)는 폭 ≤ 419 에서 쪽지의 등불 숫자(n/8)도 숨긴다 → 숨긴 것은 설명 머리에 그대로 붙는다: '방 제목 · 등불 n/8' (app.js pipsHead) */
-  var t1Head = t1.numOff ? t1.room + ' · ' + t1.pl : t1.room;
+  var t1Head = t1.numOff ? t1.pl : '';   /* 11-21: 방 제목은 뺐다 (주인) — 첫 줄은 숨긴 등불 수뿐 */
   ok(yOne === t1.numOff, '등불 숫자: 한 화면 배치 360 px 에선 쪽지에서 숨김 · 2D 폴백에선 보임 (' + JSON.stringify({ one: yOne, numOff: t1.numOff }) + ')');
-  ok(t1.line === '초대한 날마다 한 칸 켜져' && t1.head === t1Head && t1.room.length > 0 && /^등불 \d\/8$/.test(t1.pl) && t1.show && t1.role === 'status' && t1.live === 'polite' && t1.exp === 'true', "등불 누름 → 말풍선 '" + t1.head + "' / '초대한 날마다 한 칸 켜져' (360 px: 첫 줄 = 쪽지에서 숨긴 것 — 방 제목" + (t1.numOff ? ' · 등불 수' : '') + ' · role=status · polite)');
+  ok(t1.line === '초대한 날마다 한 칸 켜져' && t1.head === t1Head && t1.room === '' && /^등불 \d\/8$/.test(t1.pl) && t1.show && t1.role === 'status' && t1.live === 'polite' && t1.exp === 'true', "등불 누름 → 말풍선 '" + t1.head + "' / '초대한 날마다 한 칸 켜져' (360 px: 첫 줄 = 쪽지에서 숨긴 것" + (t1.numOff ? ' — 등불 수' : ' 없음') + ' · role=status · polite)');
   ok(t1.left >= 15.5 && t1.right <= t1.vw - 15.5 && t1.top >= t1.pb - 0.5 && t1.docW <= t1.vw, '말풍선은 등불 아래 · 화면 안 16px 여백 · 가로 스크롤 없음');
   /* 다시 누르기는 페이지 안 한 틱에서 (느린 기계에서 page.click 이 2.5 s 를 넘겨 저절로 닫힌 뒤 다시 여는 일이 없게) */
   var t2 = await page.evaluate(function () { var t = document.getElementById('tip'), was = t.classList.contains('show'); document.getElementById('pips').click(); return { was: was, show: t.classList.contains('show'), text: t.textContent, exp: document.getElementById('pips').getAttribute('aria-expanded') }; });
@@ -2216,8 +2822,12 @@ async function scenarioWave7(browser) {
     return { w: r.width, h: r.height, corner: r.right < s.left + s.width / 2 && r.top > s.top + s.height / 2, gap: gap.map(Math.round), gear: gear.map(Math.round), box: q.width, img: d.querySelector('img.door-ico').naturalWidth === 16, icon: d.querySelector('img.door-ico').getAttribute('data-icon') };
   });
   ok(ed.w >= 44 && ed.h >= 44 && ed.corner && ed.gap[0] === 8 && ed.gap[1] === 8 && ed.box >= 30 && ed.img && ed.icon === 'ctl/home', '산책 중 바깥이 보이는 동안: 놀이방 가는 단추는 장면 왼쪽 아래 빨간 지붕 집 (44px · 16×16 그림 · 보이는 상자는 틀에서 8px 안쪽 — 설정 아이콘은 11-10 부터 위쪽 바 안의 납작한 그림이라 간격을 견주지 않는다) ' + JSON.stringify(ed));
-  var av = await page.evaluate(function () { var q = document.querySelector('#btn-door .door-box').getBoundingClientRect(); return { door: UIART.avoidCtl({ left: q.right - 10, right: q.right + 100, top: q.top + 2, bottom: q.bottom - 2 }, 4), clear: UIART.avoidCtl({ left: q.right + 5, right: q.right + 120, top: q.top, bottom: q.bottom }, 4) }; });
-  ok(Math.round(av.door) === 14 && av.clear === 0, '말풍선 ↔ 바깥의 집 단추 (왼쪽 아래): 겹치면 상자 오른쪽 4px 까지 비킴 ' + JSON.stringify(av));
+  /* 11-15: 산책 중엔 집 단추 오른쪽에 마당 가장자리 단추 (#btn-yard, 갈래 D) 도 있다 — 말풍선은 둘 다 비킨다. 왼쪽 아래 무리의 오른쪽 끝(보이는 마지막 상자)을 기준으로 잰다 */
+  var av = await page.evaluate(function () {
+    var q = document.querySelector('#btn-door .door-box').getBoundingClientRect(), y = document.getElementById('btn-yard'), yb = y && !y.hidden && y.dataset.spot === 'edge' ? (y.querySelector('.door-box') || y).getBoundingClientRect() : null, R = yb && yb.width ? Math.max(q.right, yb.right) : q.right;
+    return { yard: !!yb, door: UIART.avoidCtl({ left: q.right - 10, right: q.right + 100, top: q.top + 2, bottom: q.bottom - 2 }, 4) - (R - q.right), clear: UIART.avoidCtl({ left: R + 5, right: R + 120, top: q.top, bottom: q.bottom }, 4) };
+  });
+  ok(Math.round(av.door) === 14 && av.clear === 0, '말풍선 ↔ 바깥의 집 단추 (왼쪽 아래, 마당 단추가 있으면 그것까지): 겹치면 무리 오른쪽 4px 까지 비킴 ' + JSON.stringify(av));
   await page.click('#btn-door');
   await page.waitForFunction(function () { var m = document.getElementById('btn-machine'); return APP.scene.view() === 'play' && m && !m.hidden; }, null, { timeout: 20000 });
   var d0 = await page.evaluate(function () { return { running: APP.state.trips.some(function (t) { return t.status === 'running'; }), door: window.__aud.filter(function (a) { return a.n === 'door'; }).map(function (a) { return a.d.act + ':' + a.d.room; }), focus: document.activeElement && document.activeElement.id, place: APP.scene.place() }; });
@@ -2257,14 +2867,21 @@ async function scenarioWave7(browser) {
   await B.waitForFunction(function () { return window.APP && APP.state.octopus.name === '뚜루' && document.querySelector('#log .lrow'); }, null, { timeout: 20000 });
   await B.evaluate(function (d) { window.__ppolTest.today = d; }, DAY2);
   var b0Col = await B.evaluate(function () { return String(APP.scene.color()).toLowerCase(); });
-  await page.evaluate(function (d) { window.__ppolTest.today = d; APP.setOctColor('#f08a3c'); }, DAY2);   /* 한 인자 = 개발용 기록 (how dev) — 몸 색을 바꾸는 저장 */
+  /* 한 인자 = 개발용 기록 (how dev) — 몸 색을 바꾸는 저장. 이 탭의 기록은 바꾼 그 자리 (같은 일) 에서 읽는다.
+     11-15 CI (9a8f835): 뒤에 (B 를 닫은 뒤) 읽었더니 A 엔 첫 줄만 · B 엔 두 줄이었다 — 두 탭이 거의 같이 저장하면 서로 상대의 저장을 받아
+     (마지막에 쓴 쪽이 이김) 이 탭의 개발용 줄이 빠질 수 있다. 이 검사가 보려는 것은 setOctColor 한 인자의 기록 · 사본 · 저장 · 장면이라
+     다른 탭의 저장 시각에 기대지 않게 했다 (다른 탭이 따라오는지는 아래 B 검사가 본다) */
+  var aDev = await page.evaluate(function (d) {
+    window.__ppolTest.today = d; APP.setOctColor('#f08a3c');
+    var c = APP.state.octopus.colors, sv = JSON.parse(localStorage.getItem('ppolppol_v2'));
+    return { first: c[0], last: c[c.length - 1], n: c.length, color: APP.state.octopus.color, copy: APP.state.settings.octColor, saved: sv.octopus.color, savedCopy: sv.settings.octColor, scene: String(APP.scene.color()).toLowerCase() };
+  }, DAY2);
   await B.waitForFunction(function (d) { var x = document.querySelector('#log .lday'); return x && x.dataset.day === d; }, DAY2, { timeout: 5000 });
   var bRows = await B.evaluate(function () { return [].map.call(document.querySelectorAll('#log .lrow .ltool'), function (x) { return x.textContent; }); });
   /* 다른 탭의 장면 몸색도 저장 이벤트로 따라온다 (adoptRemote → applyLook, 흔들기 없이) · 이 탭 기록엔 개발용 한 줄 { how: 'dev', by: 'dev' } + 사본 */
   var bCol = await B.waitForFunction(function () { return String(APP.scene.color()).toLowerCase() === '#f08a3c'; }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
   var bSt = await B.evaluate(function () { return { color: APP.state.octopus.color, copy: APP.state.settings.octColor, n: APP.state.octopus.colors.length }; });
   await B.close();
-  var aDev = await page.evaluate(function () { var c = APP.state.octopus.colors, sv = JSON.parse(localStorage.getItem('ppolppol_v2')); return { first: c[0], last: c[c.length - 1], n: c.length, color: APP.state.octopus.color, copy: APP.state.settings.octColor, saved: sv.octopus.color, savedCopy: sv.settings.octColor, scene: String(APP.scene.color()).toLowerCase() }; });
   ok(aDev.n === 2 && aDev.first.how === 'first' && aDev.first.by === 'default' && aDev.last.how === 'dev' && aDev.last.by === 'dev' && aDev.last.color === '#f08a3c' && aDev.last.date === DAY2 && aDev.color === '#f08a3c' && aDev.copy === '#f08a3c' && aDev.saved === '#f08a3c' && aDev.savedCopy === '#f08a3c' && aDev.scene === '#f08a3c',
     "APP.setOctColor(hex) 한 인자 = 개발용 기록 한 줄 { how: 'dev', by: 'dev' } (처음 색 줄은 by 'default' — 이름 창에서 색을 안 누름) · octopus.color · 사본 settings.octColor · 저장 · 장면 " + JSON.stringify({ first: aDev.first && aDev.first.by, last: aDev.last }));
   ok(b0Col === '#e8463c' && bCol && bSt.color === '#f08a3c' && bSt.copy === '#f08a3c' && bSt.n === 2, '다른 탭: 몸 색이 저장 이벤트로 따라온다 (장면 ' + b0Col + ' → #f08a3c · 기록 · 사본) ' + JSON.stringify(bSt));
@@ -2427,7 +3044,7 @@ async function scenarioFirstColor(browser) {
     "미용실 전 기록: 지금 색(옛 설정 색 #c06040) 그대로 { how: 'first', by: 'migrated', at: born, date: null } · 장면도 그 색 · 이름 창 없음");
   var s4 = await pd.evaluate(function () { APP.openSettings(); var b = document.getElementById('set-body'), o = { h: (document.getElementById('set-color-h') || {}).textContent, line: (document.getElementById('set-color') || {}).textContent, dev: !!document.getElementById('set-color-dev'), hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.preset').length, who: (document.getElementById('set-who') || {}).textContent }; return o; });
   ok(s4.h === '문어 색' && s4.line === '거울 앞에서 옛문어에게 물어볼 수 있어.' && !s4.dev && !s4.hue && s4.presets === 0, "설정 (등불 3칸 · 배포 주소): '문어 색' + 안내 한 줄뿐 · 색 슬라이더 · 프리셋 · 개발용 칸 없음 " + JSON.stringify(s4));
-  ok(s4.who === '지금은 모델이 아니라 미리 만든 규칙이 골라. 고른 이는 포스터와 쪽지 뒷면, 미용실 줄에 적혀.', "설정 '누가 고르나': 고른 이는 포스터와 쪽지 뒷면, 미용실 줄에 (" + s4.who + ')');
+  ok(s4.who === '지금은 모델이 아니라 미리 만든 규칙이 골라. 고른 이는 포스터와 쪽지 뒷면, 미용실 · 식탁 줄에 적혀.', "설정 '누가 고르나': 고른 이는 포스터와 쪽지 뒷면, 미용실 · 식탁 줄에 (" + s4.who + ')');   /* 11-18 식탁 줄 */
   await resetTwice(pd);
   await pd.waitForSelector('#name-dialog[open]', { timeout: 10000 });
   await pd.waitForTimeout(200);
@@ -2463,6 +3080,7 @@ async function scenarioFirstColor(browser) {
   console.log('   dev slider:', JSON.stringify(g1));
   ok(g1.mid.n === g0.n && g1.mid.color === RED && g1.mid.sameSave && g1.mid.scenes >= 8, '개발용 슬라이더 input 10번: 장면만 미리 보임 (색 ' + g1.mid.scenes + '가지) · 기록 · 저장 그대로');
   ok(g1.n === g0.n + 1 && g1.last.how === 'dev' && g1.last.by === 'dev' && g1.last.color === g1.color && g1.scene === g1.color && g1.saved === g1.n, "change 1번 → 기록 한 줄 { how: 'dev', by: 'dev' } · 장면 = 기록 색 (" + g1.color + ')');
+  await pf.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: 설정 구역은 접혀서 열린다 → 펼치고 누른다 (?dev=1 탭 · 위 슬라이더 검사는 접힌 채로도 돈다) */
   await pf.click('#set-body .preset[data-hex="' + BLUE + '"]');
   var g2 = await pf.evaluate(function () { var c = APP.state.octopus.colors; return { n: c.length, last: c[c.length - 1], on: (document.querySelector('#set-body .preset.on') || {}).dataset }; });
   ok(g2.n === g1.n + 1 && g2.last.how === 'dev' && g2.last.color === BLUE && g2.on && g2.on.hex === BLUE, '개발용 프리셋 파랑 → 한 줄 더 · 칩 켜짐');
@@ -2567,10 +3185,21 @@ async function scenarioSalon(browser) {
   var o0 = await st(pa);
   await pa.evaluate(function () { if (!APP.state.user) APP.state.user = {}; APP.state.user.shells = 6; document.getElementById('btn-sew').click(); });   /* 조개 6 = 옷감 한 번 값 (메모리만) */
   await pa.waitForSelector('#sew-sheet[open]', { timeout: 5000 }); await pa.waitForTimeout(200);
-  await pa.evaluate(function () { var c = [].filter.call(document.querySelectorAll('#sew-sheet .sew-chip'), function (x) { return /파랑/.test(x.textContent); })[0]; if (c) c.click(); });
+  /* 11-18 (주인: 확인하고 사고 · 물들일 것은 나중에 고른다): 파랑 칸 → '살까?' → 살래 (염료 +1 · 옷은 그대로) → 파랑 칸 → '물들일까?' → 물들일래 */
+  var blueChip = function () { var c = [].filter.call(document.querySelectorAll('#sew-sheet .sew-chip'), function (x) { return /파랑/.test(x.textContent); })[0]; if (c) c.click(); return { ask: !!document.querySelector('#sew-sheet .sew-ask'), yes: (document.querySelector('#sew-sheet .sew-yes') || {}).textContent || '', shells: APP.state.user.shells, dyes: APP.state.user.dyes.blue | 0, clothes: APP.scene.playerDye ? APP.scene.playerDye() : null }; };
+  var sewYes = function () { var b = document.querySelector('#sew-sheet .sew-yes'); if (b) b.click(); return { ask: !!document.querySelector('#sew-sheet .sew-ask'), shells: APP.state.user.shells, dyes: APP.state.user.dyes.blue | 0, clothes: APP.scene.playerDye ? APP.scene.playerDye() : null, dyed: JSON.stringify(APP.state.user.dyed) }; };
+  var b1 = await pa.evaluate(blueChip), y0 = await pa.evaluate(sewYes);   /* 확인 줄이 뜨자마자 누른 '살래' (빠른 두 번 톡의 둘째) */
+  await pa.waitForTimeout(700); var y1 = await pa.evaluate(sewYes); await pa.waitForTimeout(150);
+  var b2 = await pa.evaluate(blueChip); await pa.waitForTimeout(700); var y2 = await pa.evaluate(sewYes);
   await pa.waitForTimeout(300);
   var o1 = await st(pa);
-  await pa.evaluate(function () { var c = [].filter.call(document.querySelectorAll('#sew-sheet button'), function (x) { return /원래 색으로/.test(x.textContent); })[0]; if (c) c.click(); document.getElementById('sew-sheet').close(); });   /* 옷은 원래 색으로 (공짜) */
+  ok(y0.ask && y0.shells === 6 && y0.dyes === 0 && !y0.clothes, "11-18 (검증) 재봉틀: 확인 줄이 뜬 직후 (0.6 s 안) 의 '살래' 는 받지 않는다 — 색 칸을 빠르게 두 번 톡해도 조개가 나가지 않는다 (" + JSON.stringify(y0) + ')');
+  ok(b1.ask && b1.yes === '살래' && b1.shells === 6 && b1.dyes === 0 && !b1.clothes && y1.shells === 0 && y1.dyes === 1 && !y1.clothes,
+    "11-18 재봉틀: 염료가 없는 색 칸을 눌러도 조개는 그대로 — '살래' 를 눌러야 조개 6 → 염료 1 (옷은 아직 그대로) (" + JSON.stringify([b1, y1]) + ')');
+  ok(b2.ask && b2.yes === '물들일래' && b2.dyes === 1 && !b2.clothes && y2.dyes === 0 && y2.clothes === BLUE && /"outfit":\{"dress":"#4a86d8"\}/.test(y2.dyed),
+    "11-18 재봉틀: 염료가 있는 색 칸 → '물들일래' 를 눌러야 고른 옷 (지금 입은 원피스) 이 파랑 · 염료 1 → 0 (" + JSON.stringify([b2, y2]) + ')');
+  await pa.evaluate(function () { var c = [].filter.call(document.querySelectorAll('#sew-sheet button'), function (x) { return /원래 색으로/.test(x.textContent); })[0]; if (c) c.click(); }); await pa.waitForTimeout(700);
+  await pa.evaluate(function () { var y = document.querySelector('#sew-sheet .sew-yes'); if (y) y.click(); document.getElementById('sew-sheet').close(); });   /* 옷은 원래 색으로 (공짜 · 11-18: '돌릴래' 확인 한 번) */
   await pa.waitForTimeout(200);
   var o2 = await st(pa);
   ok(inLoft, '위층에선 재봉틀 단추와 거울 단추가 같이 보인다');
@@ -2888,13 +3517,12 @@ async function scenarioSalon(browser) {
     ok(pn2.pan[0] !== 0 && pn3.pan.join() === pn2.pan.join() && pn3.spotB < pn3.top, '조금 민 화면 (거울이 시트 위에 그대로 보임)은 되돌리지 않는다 ' + JSON.stringify({ before: pn2.pan, after: pn3.pan }));
     await pa.evaluate(function () { APP.scene.recenter(); }); await pa.waitForTimeout(600);
   }
-  /* 3f. 가구 배치 중 (11-10 배치 모드 — 장면 톡 · 캐릭터 앞은 가구 몫): 거울 단추가 숨고 시트가 열리지 않는다. 끝내면 다시 보인다 */
+  /* 3f. 11-15 가구 모드는 다락에서만: 거울이 있는 위층에서 망치를 누르면 모드가 열리지 않고 (흔들림만) 거울 단추 · 시트는 그대로 */
   if (await pa.$('#btn-furn:not([hidden])')) {
     await pa.click('#btn-furn'); await pa.waitForTimeout(400);
-    var fm = await pa.evaluate(function () { var b = document.getElementById('btn-salon'), r = APP.openSalon(), o = { on: document.documentElement.classList.contains('furn-on'), hidden: b.hidden, opened: r, sheet: document.getElementById('salon-sheet').open }; if (o.sheet) document.getElementById('salon-sheet').close(); return o; });
-    await pa.click('#btn-furn'); await pa.waitForTimeout(400);
-    var fm2 = await pa.evaluate(function () { return { on: document.documentElement.classList.contains('furn-on'), hidden: document.getElementById('btn-salon').hidden }; });
-    ok(fm.on && fm.hidden && !fm.opened && !fm.sheet && !fm2.on && !fm2.hidden, '가구 배치 중엔 거울 단추가 숨고 미용실 시트가 열리지 않는다 · 끝내면 다시 보인다 ' + JSON.stringify([fm, fm2]));
+    var fm = await pa.evaluate(function () { var b = document.getElementById('btn-salon'), r = APP.openSalon(), o = { room: APP.room, on: document.documentElement.classList.contains('furn-on'), hidden: b.hidden, opened: r, sheet: document.getElementById('salon-sheet').open }; if (o.sheet) document.getElementById('salon-sheet').close(); return o; });
+    ok(fm.room === 'loft' && !fm.on && !fm.hidden && fm.opened && fm.sheet, '위층에서 망치를 눌러도 가구 모드는 열리지 않는다 (다락 일) · 거울 단추 · 시트는 그대로 ' + JSON.stringify(fm));
+    await pa.waitForTimeout(300);
   }
 
   /* 4. 첫 물음 (11-09, 보통 속도): 답은 바로 저장 · 시트 닫힘 · 장면은 첨벙까지 옛 색 · 행은 박자에 맞춰 · 연출 중 단추 숨김 */
@@ -2974,7 +3602,7 @@ async function scenarioSalon(browser) {
 
   /* 8. 11-11 모션 줄이기: [물어보기] → 행 3 까지 4.5 s 안 · 걷기 · 폴짝 · 물보라 없음 */
   await pa.keyboard.press('Escape'); await pa.waitForSelector('#salon-sheet[open]', { state: 'hidden' });
-  await pa.click('#btn-settings'); await pa.waitForSelector('#settings-sheet[open]'); await pa.selectOption('#set-motion', 'reduce'); await pa.click('#set-close'); await pa.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  await pa.click('#btn-settings'); await pa.waitForSelector('#settings-sheet[open]'); await pa.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); }); await pa.selectOption('#set-motion', 'reduce'); await pa.click('#set-close'); await pa.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
   await park(pa, 'window');   /* 거울에서 떨어진 곳에서 묻는다 (모션 줄이기면 걷지 않고 그 자리로) */
   await openSheet(pa); await pa.click('#salon-bottles .bottle[data-hex="' + PINK + '"]');
   await pa.evaluate(function () {
@@ -3001,7 +3629,7 @@ async function scenarioSalon(browser) {
   ok(ask3.action === 'dye' && a4.color === PINK && a4.sceneColor === PINK, "11-11 '바꾸기' → 분홍 (장면도)");
   var gives = await pa.evaluate(function () { var S = APP.state; return { lantern: S.room.lantern, days: S.octopus.days.length, souvenirs: S.room.souvenirs.length, invites: S.octopus.invites, trips: S.trips.length, affinity: Object.keys(S.octopus.affinity).length, notes: S.curiosityNotes.length }; });
   ok(gives.lantern === 2 && gives.days === 2 && gives.souvenirs === 0 && gives.invites === 2 && gives.trips === 0 && gives.affinity === 0 && gives.notes === 0, '미용실은 아무것도 주지 않는다: 물음 셋 뒤에도 등불 · 함께한 날 · 기념품 · 초대 수 · 취향 · 메모 그대로 ' + JSON.stringify(gives));
-  await pa.click('#btn-settings'); await pa.waitForSelector('#settings-sheet[open]'); await pa.selectOption('#set-motion', 'auto'); await pa.click('#set-close'); await pa.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  await pa.click('#btn-settings'); await pa.waitForSelector('#settings-sheet[open]'); await pa.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); }); await pa.selectOption('#set-motion', 'auto'); await pa.click('#set-close'); await pa.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
 
   /* 9. 11-12: 연출 중 주 버튼 → 남은 연출을 한 번에 (새 색 · 대야 없음 · 행 셋) · 초대는 평소대로 → 돌아와 자는 문어는 거울 톡에 '쿨쿨…' 만 */
   await setDay(pa, D4);
@@ -3506,10 +4134,10 @@ async function scenarioWave8(browser) {
     ok(!st0.hidden && st0.allowed && st0.w >= 44 && st0.h >= 44 && st0.inside && !st0.ctl && !st0.door && !st0.edge && st0.left >= 8 && st0.bottom >= 8 && (st0.icon || st0.noImg), '다락: 스틱이 왼쪽 아래에 보인다 (' + st0.w + '×' + st0.h + ' · 장면 안 · 오른쪽 위 묶음 · 문 단추와 안 겹침 · 집 단추는 숨음 · 발자국 그림)');
     await page.evaluate(function () { window.__ev.length = 0; if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
     var at0 = await page.evaluate(function () { return APP.scene.player().at; });
-    var dg = await dragStick(-30, 0, 350);   /* 왼쪽(문 반대쪽)으로 — 오른쪽으로 끌면 캐릭터가 문 앞에 서서 아래 문 톡의 pick 을 가린다 */
+    var dg = await dragStick(0, -30, 350);   /* 위쪽(문 · 계단 반대쪽 — 뒷벽 왼쪽 구석)으로 — 오른쪽으로 끌면 캐릭터가 문 앞에 서서 아래 문 톡의 pick 을 가리고, 왼쪽은 11-18 부터 계단 발치로 이어져 위층으로 올라간다 */
     var moved = dist2(at0, dg.end.pl.at);
     console.log('   drag:', JSON.stringify({ at0: at0, mid: { input: dg.mid.input, walking: dg.mid.pl.walking, knob: dg.mid.knob }, end: { at: dg.end.pl.at, input: dg.end.input, walking: dg.end.pl.walking }, moved: Math.round(moved * 1000) / 1000 }));
-    ok(dg.mid.on && dg.mid.pointer && dg.mid.input && dg.mid.input.x < -0.9 && Math.abs(dg.mid.input.y) < 0.05 && dg.mid.knob !== 'none' && dg.mid.view === 'attic', '스틱을 왼쪽으로 끌면: .on · 손가락 잡음 · 장면에 { x: -1, y: 0 } · 손잡이가 움직인다 ' + JSON.stringify(dg.mid.input));
+    ok(dg.mid.on && dg.mid.pointer && dg.mid.input && dg.mid.input.y > 0.9 && Math.abs(dg.mid.input.x) < 0.05 && dg.mid.knob !== 'none' && dg.mid.view === 'attic', '스틱을 위쪽으로 끌면: .on · 손가락 잡음 · 장면에 { x: 0, y: 1 } · 손잡이가 움직인다 ' + JSON.stringify(dg.mid.input));
     ok(moved > 0.05 && !dg.end.on && !dg.end.pointer && dg.end.input === null && dg.end.view === 'attic' && !dg.end.doorEv, '끄는 동안 내 캐릭터가 걸었다 (' + Math.round(moved * 100) / 100 + ' m) · 놓으면 null · .on 해제 · 장면 톡(문 · 밀기)은 안 났다');
     await page.locator('#scene').screenshot({ path: path.join(SHOTS, 'w8-stick.png') });
     await page.keyboard.down('ArrowUp'); await page.waitForTimeout(120);
@@ -3988,6 +4616,7 @@ async function scenarioGlyphs(browser) {
   await page.click('#set-look-open'); await page.waitForSelector('#look-sheet[open]');
   for (var lookTab of [['hair', '머리'], ['eyes', '눈'], ['face', '얼굴'], ['outfit', '옷'], ['shoes', '신발'], ['acc', '장식']]) { await page.click('#look-tab-' + lookTab[0]); await page.waitForTimeout(120); await scan('옷장 · ' + lookTab[1]); }
   await page.click('#look-close'); await page.waitForSelector('#look-sheet[open]', { state: 'hidden' });
+  await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: 설정 구역은 접혀서 열린다 → 펼치고 누른다 */
   await page.click('#set-reset'); await page.waitForTimeout(150); await scan('설정 · 초기화 한 번 누름 (다시 누르면 지워짐)');
   var dl = page.waitForEvent('download', { timeout: 4000 }).catch(function () { return null; });
   await page.click('#set-export'); await dl; await scan('설정 · 내보내기');
@@ -4306,6 +4935,7 @@ async function nameOct(page, nm) {
   await page.fill('#name-in', nm); await page.click('#name-form button[type=submit]');
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   await page.waitForTimeout(300);
+  await waitIdle(page);   /* 11-14 (CI T): 이름 창이 닫힌 뒤 600 ms (SHEET_SETTLE) 안의 큰 버튼 톡은 받지 않는다 — 느린 러너에서 첫 산책이 시작되지 않았다 */
 }
 async function scenarioTapLine(browser) {
   console.log('\n== T. 톡 한 줄 (말풍선만) · 데려와도 짧은 귀가 뒤 깨어 있는 틈 → 낮잠 (주인 11-08)');
@@ -4318,6 +4948,19 @@ async function scenarioTapLine(browser) {
   var r0 = await page.evaluate(function () { var n = document.querySelectorAll('#log .lrow').length; APP.tapOct(); return { b: document.getElementById('oct-bubble').textContent, rows: document.querySelectorAll('#log .lrow').length - n, line: APP.tapLine(), awake: window.__ppolAwakeMs }; });
   ok(r0.awake === 9000, '시험 훅: 이 시나리오는 깨어 있는 틈 9 s (공통 0 을 덮음)');
   ok(r0.b === '응?' && r0.rows === 0 && r0.line === null, "산책 전 톡 → '응?' · 말풍선만 (로그 행 +" + r0.rows + ')');
+  /* 1a. 톡마다 몸이 작게 톡 — 산책 전, 가만히 있을 때 잰다 (걸으며 통통하는 몸짓과 섞이지 않게). 장면 시계는 손으로 1/60 s 씩 — 기계가 바빠 프레임이 느려도 같은 값.
+     11-18 CI: 예전엔 다녀온 뒤 깨어 있는 틈 (이 시나리오 9 s) 안에서 쟀는데, 느린 러너에선 문어가 담요에 가만히 서기 전에 틈이 끝나 잠들었다 (hop 0 · nap) → 틈과 경합하지 않는 산책 전으로 옮김 */
+  await page.waitForFunction(function () { var m = APP.scene.motion ? APP.scene.motion() : null; return APP.oct.state === 'idle' && !!m && !(m.gait && m.gait.moving); }, null, { timeout: 20000 });
+  var hp = await page.evaluate(function () {
+    var sc = APP.scene; if (typeof sc.debugStep !== 'function') return null;
+    var step = typeof sc.debugSim === 'function' ? function () { sc.debugSim(1 / 60, 1); } : function () { sc.debugStep(1 / 60); };   /* 11-18: 그리지 않고 민다 — 한 호출 안의 108 프레임이 소프트웨어 렌더에 쌓여, 느린 러너에선 바로 아래 '산책 갈래?' 누름이 30 s 를 넘겼다 (CPU 한 코어에 묶으면 재현). 재는 값 (hop) 은 그리기와 무관하다 */
+    function peak(n) { var m = -1; for (var i = 0; i < n; i++) { step(); m = Math.max(m, sc.motion().hop); } return m; }
+    function settle(n) { for (var i = 0; i < n; i++) step(); return sc.motion().hop; }
+    settle(60);   /* 위 '응?' 톡의 몸짓이 다 끝난 뒤부터 */
+    var base = peak(4); APP.tapOct(); var tap = peak(4); var after = settle(40); sc.resume();   /* 2px 위로 90 ms → 0.67 s 뒤엔 제자리 */
+    return { base: base, tap: tap, after: after, oct: APP.oct.state, phase: APP.restPhase() };
+  });
+  ok(hp && hp.oct === 'idle' && hp.tap - hp.base >= 0.02 && hp.after - hp.base < 0.02, '톡마다 몸이 작게 톡 (산책 전 가만히 · 3D 2px 위로 90 ms → 제자리: hop ' + JSON.stringify(hp) + ')');
   /* 2. 산책 → 큰 버튼으로 데려옴 → 깨어 있는 틈 */
   await page.click('#btn-go'); await skipAway(page); await waitIdle(page);
   await page.waitForTimeout(250);
@@ -4326,13 +4969,25 @@ async function scenarioTapLine(browser) {
   ok(a1.phase === 'awake' && /^(idle|walk)$/.test(a1.oct) && a1.saved === 'sleep' && a1.sleeps === 0, '데려온 뒤 곧장 자지 않는다: 깨어 있는 틈 (저장은 쉬는 중 · 잠 훅 아직 0)');
   ok(a1.line && a1.line.by === 'demo-rules' && a1.line.text && a1.line.text !== a1.poster, '데모 산책 톡 한 줄이 있다 (포스터 한 줄과 다름): ' + (a1.line && a1.line.text));
   /* 3. 톡 다섯 번: 그 줄 · 로그 행 · 저장 · 기록 그대로 · 소리는 한 번 · '데모' 꼬리표 보임 · 몸이 톡 */
+  /* 11-21 CI (2ed1134 · 스모크 T 42/1): 귀가 공개의 마지막 저장 ('새 포스터' 알림 뒤 — save() 는 settings.lastSeen 을 올린다) 이 큰 단추가 돌아온 뒤에 올 수 있다.
+     느린 러너에서 그 저장이 아래 280 ms 창 안에 들어 '상태 · 저장 그대로' 가 톡과 무관하게 깨졌다 (여기서 잰 차례: 알림 4.8 s → 단추 5.6 s, 러너에선 뒤집힘).
+     → 저장이 0.5 s 동안 잠잠해진 뒤부터 잰다 (최대 4 s · 틈 9 s 안). 톡이 저장을 건드리면 여전히 잡힌다 (기준은 톡 바로 앞) · 어긋나면 바뀐 칸을 같이 적는다 */
+  await page.evaluate(function () { return new Promise(function (res) { var last = localStorage.getItem('ppolppol_v2'), t0 = performance.now(), q0 = t0;
+    (function poll() { var now = performance.now(), cur = localStorage.getItem('ppolppol_v2'); if (cur !== last) { last = cur; q0 = now; } if (now - q0 >= 500 || now - t0 >= 4000) return res(); setTimeout(poll, 50); })(); }); });
   var r3 = await page.evaluate(function () {
     return new Promise(function (res) {
+      function flat(o, p, out) { if (o && typeof o === 'object') Object.keys(o).forEach(function (k) { flat(o[k], p ? p + '.' + k : k, out); }); else out[p] = JSON.stringify(o); return out; }
+      /* 11-23 (CI 1f443c8 · 스모크 T 42/1): 첫날 선물 타이머 (부팅 2.5 s · 첫인사 2.8 s · 1분 틱) 가 280 ms 창 안에 들면 settings.lastSeen · user.giftTell 이 바뀌어 톡과 무관하게 깨졌다 → 그날 선물 칸 (gift · days · shells · seeds) 과 lastSeen 은 빼고 본다. 톡이 바꾸는 다른 칸은 여전히 잡힌다 */
+      var BG = /^(settings\.lastSeen|user\.(giftTell|giftDay|days|shells|seeds)(\.|$))/;
+      function changedAll(a, b) { var A = flat(JSON.parse(a), '', {}), B = flat(JSON.parse(b), '', {}); return Object.keys(B).filter(function (k) { return A[k] !== B[k]; }).concat(Object.keys(A).filter(function (k) { return !(k in B); })); }
+      function changed(a, b) { return changedAll(a, b).slice(0, 8); }
+      function same(a, b) { if (a === b) return true; try { return changedAll(a, b).filter(function (k) { return !BG.test(k); }).length === 0; } catch (e) { return false; } }
       var rows = document.querySelectorAll('#log .lrow').length, st = JSON.stringify(APP.state), ls = localStorage.getItem('ppolppol_v2');
       window.__aud = []; APP.tapOct(); APP.tapOct(); APP.tapOct();
       var b = document.getElementById('oct-bubble'), text = b.hidden ? '' : b.textContent, sr = document.getElementById('oct-say');
       setTimeout(function () { var srText = sr ? sr.textContent : null; APP.tapOct(); setTimeout(function () { APP.tapOct();
-        res({ text: text, rows: document.querySelectorAll('#log .lrow').length - rows, sameState: JSON.stringify(APP.state) === st, sameLS: localStorage.getItem('ppolppol_v2') === ls,
+        var st2 = JSON.stringify(APP.state);
+        res({ text: text, rows: document.querySelectorAll('#log .lrow').length - rows, sameState: same(st, st2), sameLS: same(ls, localStorage.getItem('ppolppol_v2')), changed: st2 === st ? [] : changed(st, st2),
           voice: window.__aud.filter(function (a) { return a.n === 'bubble'; }).length, tag: !document.getElementById('brain-tag').hidden, tapAttr: b.getAttribute('data-tap'),
           sr: srText, srLive: sr ? sr.getAttribute('aria-live') + '/' + sr.getAttribute('role') + '/' + sr.className : null, srLog: !!(sr && sr.closest('#log')) });
       }, 120); }, 160);
@@ -4344,16 +4999,6 @@ async function scenarioTapLine(browser) {
   ok(r3.voice === 1, '같은 줄을 다시 눌러도 목소리는 한 번 (' + r3.voice + ')');
   ok(r3.tag, "데모 규칙이 지은 줄은 '데모' 꼬리표가 보이는 동안");
   ok(r3.sr === r3.text && r3.srLive === 'polite/status/sr-only' && !r3.srLog, '화면 낭독기: 같은 한 줄을 보이지 않는 칸(role=status · aria-live polite)에 — 로그 행 아님 (' + JSON.stringify([r3.sr, r3.srLive]) + ')');
-  /* 3a. 톡마다 몸이 작게 톡: 담요에서 가만히 있을 때 잰다 (걸으며 통통하는 몸짓과 섞이지 않게). 장면 시계는 손으로 1/60 s 씩 — 기계가 바빠 프레임이 느려도 같은 값 */
-  await page.waitForFunction(function () { var m = APP.scene.motion ? APP.scene.motion() : null; return APP.oct.state === 'idle' && APP.restPhase() === 'awake' && !!m && !(m.gait && m.gait.moving); }, null, { timeout: 20000 }).catch(function () {});
-  var hp = await page.evaluate(function () {
-    var sc = APP.scene; if (typeof sc.debugStep !== 'function') return null;
-    function peak(n) { var m = -1; for (var i = 0; i < n; i++) { sc.debugStep(1 / 60); m = Math.max(m, sc.motion().hop); } return m; }
-    function settle(n) { for (var i = 0; i < n; i++) sc.debugStep(1 / 60); return sc.motion().hop; }
-    var base = peak(4); APP.tapOct(); var tap = peak(4); var after = settle(40); sc.resume();   /* 2px 위로 90 ms → 0.67 s 뒤엔 제자리 */
-    return { base: base, tap: tap, after: after, oct: APP.oct.state, phase: APP.restPhase() };
-  });
-  ok(hp && hp.oct === 'idle' && hp.tap - hp.base >= 0.02 && hp.after - hp.base < 0.02, '톡마다 몸이 작게 톡 (담요에서 가만히 · 3D 2px 위로 90 ms → 제자리: hop ' + JSON.stringify(hp) + ')');
   /* 4. 틈이 끝나면 담요에서 잠 — 잠 훅 한 번 · 이 차례의 반응 */
   var slept = await page.waitForFunction(function () { return APP.oct.state === 'sleep'; }, null, { timeout: 25000 }).then(function () { return true; }, function () { return false; });
   await page.waitForTimeout(400);
@@ -4385,8 +5030,9 @@ async function scenarioTapLine(browser) {
   ok(r7.text === want7 && r7.raw === want7 && r7.line === LONG && r7.by === 'mcp', "모델 차례 톡: 그들이 쓴 마무리 줄 그대로 24글자 + '…' (data-raw=model · 기록은 원문 그대로): " + r7.text);
   ok(r7.tagHidden, "모델이 쓴 줄이 떠 있는 동안 '데모' 꼬리표를 숨긴다 (규칙이 고른 말처럼 보이지 않게)");
   await page.waitForFunction(function () { return document.getElementById('oct-bubble').hidden; }, null, { timeout: 8000 }).catch(function () {});
-  await page.waitForTimeout(200);
-  ok(!(await page.evaluate(function () { return document.getElementById('brain-tag').hidden; })), "말풍선이 내려가면 '데모' 꼬리표가 돌아온다");
+  /* 꼬리표는 말풍선 타이머 60 ms 뒤 타이머로 돌아온다 — 느린 러너 (SwiftShader 프레임이 수백 ms) 에선 고정 200 ms 를 넘길 때가 있어 조건으로 기다린다 (CI 509b943) */
+  await page.waitForFunction(function () { return !document.getElementById('brain-tag').hidden; }, null, { timeout: 3000 }).catch(function () {});
+  ok(!(await page.evaluate(function () { return document.getElementById('brain-tag').hidden; })) && (await page.evaluate(function () { return document.getElementById('oct-bubble').hidden; })), "말풍선이 내려가면 '데모' 꼬리표가 돌아온다");
   /* 8. 말을 안 쓴 모델 차례 · 빈 차례 → '응?' */
   ok(await page.evaluate(function () { return APP.importEvents([{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 1, target: { kind: 'room', id: 'hat' }, status: 'builtin', aside: '모자?' }, { type: 'return', t: 2, reason: 'enough' }, { type: 'wrap_up', t: 3, reaction: '덤덤' }]); }), '말 없는 모델 이벤트 재생 시작');
   await skipAway(page); await waitIdle(page); await page.waitForTimeout(3300);
@@ -4493,7 +5139,7 @@ async function scenarioAwakeMore(browser) {
 async function scenarioTapFit(browser) {
   console.log('\n== T-2. 장면 말풍선 맞추기 (3D · 320 / 360 / 412 · 픽셀 · 시스템 · 라이트 / 다크)');
   var LINES = ['테셀레이션 보다가 뫼비우스 띠로 넘어갔어', Array.from('ㅋㅋ 이건 좀 웃겼어 그런데 다음엔 바다 쪽으로 가 볼래').slice(0, 24).join('') + '…', '처음 가 본 데가 있었어. 다리가 아직 들썩거려 그리고 또 갈래'];
-  var ANCH = ['window', 'center', 'crate', 'blanket', 'board', 'door'], VPS = [[320, 568], [360, 740], [412, 915]], bad = [], n = 0, tailBad = 0, slid = 0;
+  var ANCH = ['window', 'center', 'crate', 'blanket', 'board', 'door'], VPS = [[320, 568], [360, 740], [412, 915]], bad = [], n = 0, tailBad = 0, slid = 0, sizeBad = [];
   for (var vi = 0; vi < VPS.length; vi++) {
     var vp = VPS[vi];
     for (var scheme of (vi === 0 ? ['light', 'dark'] : ['light'])) {
@@ -4511,13 +5157,19 @@ async function scenarioTapFit(browser) {
               APP.scene.jumpTo(o.a); APP.say(o.t, 'say', 8000);
               setTimeout(function () { requestAnimationFrame(function () { requestAnimationFrame(function () {
                 var b = document.getElementById('oct-bubble'), s = document.getElementById('scene').getBoundingClientRect(), r = b.getBoundingClientRect(), dy = parseFloat(b.style.getPropertyValue('--bub-dy')) || 0;
-                res({ l: r.left - s.left, r: s.right - r.right, t: r.top - s.top, b: s.bottom - r.bottom, w: Math.round(r.width), h: Math.round(r.height), dy: dy, tail: b.getAttribute('data-tail'), hidden: b.hidden });
+                var cs = getComputedStyle(b); res({ l: r.left - s.left, r: s.right - r.right, t: r.top - s.top, b: s.bottom - r.bottom, w: Math.round(r.width), h: Math.round(r.height), dy: dy, tail: b.getAttribute('data-tail'), hidden: b.hidden, sw: s.width, fs: cs.fontSize, ff: cs.fontFamily.split(',')[0].replace(/["']/g, '').trim(), lh: parseFloat(cs.lineHeight) || 0, bt: parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth) + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom), dpr: window.devicePixelRatio || 1 });
               }); }); }, 520);   /* 순간이동 뒤 5 Hz 다시 맞추기가 두 번 돈 다음 (바쁜 기계에선 첫 프레임이 옛 자리를 잴 수 있다) */
             });
           }, { a: a, t: LINES[li] });
           n++;
           if (r.hidden || r.l < 3.5 || r.r < 3.5 || r.t < 3.5 || r.b < 0) bad.push(vp[0] + 'x' + vp[1] + ' ' + scheme + ' ' + theme + ' ' + a + ' L' + li + ' ' + JSON.stringify(r));
           if (r.dy) slid++;
+          /* 11-15 갈래 H (주인: 말풍선이 화면을 가린다) → 5차 (주인: 글자 조금 키움): 폭은 장면의 60% (150~220px) · 픽셀은 Galmuri11 을 기기 px 에 맞춘 약 17px
+             (눈금 12 × 정수 n / 배율 — index.html 머리 스크립트의 --bub-fs, 배율 1 이면 12px) · 줄 높이 1.5 · 24+… 줄은 세 줄 안 */
+          var capW = Math.max(150, Math.min(220, Math.floor(r.sw * 0.6))), bubFs = (function (v) { return v > 17 * 1.35 ? 17 : v; })(Math.ceil(12 * Math.max(1, Math.ceil(17 * r.dpr / 12 - 1e-6)) / r.dpr * 64) / 64);   /* 11-24 js/fs-snap.js 그대로 (17 px 밑으로 안 내려감 · 다음 눈금이 너무 크면 17) */
+          if (r.w > capW + 0.5) sizeBad.push(vp[0] + ' ' + theme + ' ' + a + ' L' + li + ' w ' + r.w + ' > ' + capW);
+          if (theme === 'pixel' && (Math.abs(parseFloat(r.fs) - bubFs) > 0.01 || r.ff !== 'Galmuri11' || Math.abs(r.lh - bubFs * 1.5) > 0.6)) sizeBad.push(vp[0] + ' pixel font ' + r.fs + ' ' + r.ff + ' ' + r.lh + ' (바람 ' + bubFs + ')');
+          if (li === 1 && r.lh && Math.round((r.h - r.bt) / r.lh) > 3) sizeBad.push(vp[0] + ' ' + theme + ' ' + a + ' lines ' + Math.round((r.h - r.bt) / r.lh));
           if (theme === 'pixel' && ((r.dy > 12) !== (r.tail === 'off'))) tailBad++;
           var shot = (vp[0] === 320 && theme === 'pixel' && a === 'board' && li === 0 && scheme === 'light') ? 'fit-board-320x568-pixel.png'
             : (vp[0] === 320 && theme === 'system' && a === 'door' && li === 1 && scheme === 'light') ? 'fit-door-320-system.png'
@@ -4530,9 +5182,34 @@ async function scenarioTapFit(browser) {
       await ctx.close();
     }
   }
+  /* 11-15 (UI 점검): 폰 배율 2.625 · 3 — 말풍선 줄은 왼쪽 맞춤이고 줄마다 시작이 기기 px 정수 (가운데 맞춤은 .47 ~ .73 기기 px 에서 시작해 흐렸다) */
+  for (var dp of [2.625, 3]) {
+    var ctxD = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: dp, locale: 'ko-KR', colorScheme: 'light' });
+    await ctxD.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var pd = await ctxD.newPage(), bagD = []; bagD.ignored = []; watchErrors(pd, bagD);
+    await routeWiki(pd, 'ok'); await pd.goto(INDEX + '?dev=0'); await nameOct(pd, '풍선');
+    var offD = [];
+    for (var aD of ['window', 'center', 'door']) for (var lD = 0; lD < LINES.length; lD++) {
+      var rD = await pd.evaluate(function (o) {
+        return new Promise(function (res) {
+          APP.scene.jumpTo(o.a); APP.say(o.t, 'say', 8000);
+          setTimeout(function () { requestAnimationFrame(function () {
+            var b = document.getElementById('oct-bubble'), d = window.devicePixelRatio, rg = document.createRange(); rg.selectNodeContents(b);
+            var ls = {}; Array.prototype.forEach.call(rg.getClientRects(), function (q) { var k = Math.round(q.top); if (!(k in ls) || q.left < ls[k]) ls[k] = q.left; });
+            res({ align: getComputedStyle(b).textAlign, frac: Object.keys(ls).map(function (k) { var v = ls[k] * d; return Math.abs(v - Math.round(v)); }) });
+          }); }, 520);
+        });
+      }, { a: aD, t: LINES[lD] });
+      var worst = Math.max.apply(null, rD.frac.concat([0]));
+      if (rD.align !== 'left' || worst > 0.02) offD.push(aD + ' L' + lD + ' ' + rD.align + ' ' + worst.toFixed(3));
+    }
+    ok(!offD.length && !bagD.length, '[T-2 360x740 @' + dp + '] 말풍선 줄은 왼쪽 맞춤 · 줄 시작이 기기 px 정수 (0.02 안)' + (offD.length ? ': ' + offD.slice(0, 4).join(' | ') : '') + (bagD.length ? ' · 에러 ' + bagD.join(' | ') : ''));
+    await ctxD.close();
+  }
   console.log('   배치 ' + n + '곳 · 아래로 민 것 ' + slid + (bad.length ? ' · 밖: ' + bad.slice(0, 4).join(' | ') : ''));
   ok(n >= 140 && bad.length === 0, '말풍선이 장면 칸 안 (가장자리 4px 안쪽 — 위 · 옆 · 아래) · 폰 세 폭 · 두 테마 · 앵커 여섯 · 22자 · 24+… · 40자 (' + n + '곳, 밖 ' + bad.length + ')');
   ok(tailBad === 0, '픽셀 꼬리는 12px 넘게 내려왔을 때만 뺀다 (' + tailBad + ')');
+  ok(sizeBad.length === 0, '11-15 5차 말풍선: 폭 ≤ 장면의 60% (150~220px) · 픽셀 Galmuri11 기기 px 맞춤 (약 17px, 줄 1.5) · 24+… 줄은 세 줄 안 (' + n + '곳' + (sizeBad.length ? ', 어긋남 ' + sizeBad.length + ': ' + sizeBad.slice(0, 4).join(' | ') : '') + ')');
 }
 /* K. 데려오기: 기록은 안 데려온 것과 바이트 하나까지 같다 · 짧은 귀가(문 · 토스트 · 등불)가 보인다 · 두 번 눌러도 그대로 · 모션 줄이기 */
 async function scenarioBringBack(browser) {
@@ -4606,14 +5283,18 @@ async function scenarioBringBack(browser) {
      짧은 귀가인지는 프레임 수로 (긴 귀가 = 길 · 계단 · 현관 ≈ 8 s 장면 시간 = 80 프레임 넘게, 짧은 귀가 ≈ 0.7 s = 7~45 프레임), 벽시계는 순서와 넉넉한 상한만 */
   /* 11-14 (CI 스모크 K, 4313 ms 로 한 번 빨강): '곧' 은 프레임으로 잰다 — 폰(60 fps)에선 귀가 시작 ≈ 0.7 s ≈ 42 프레임, 느린 러너는 프레임이 띄엄띄엄이라
      벽시계로 몇 배가 된다. 데려오기가 안 되면 귀가는 산책이 다 끝난 뒤(장면 시간 수십 초 = 수백 프레임)라 90 프레임으로 가른다. 벽시계는 넉넉한 상한만 */
-  ok(tRet >= 0 && fRet >= 0 && fRet <= 90 && tRet <= 12000, '누르면 곧 다락 문으로 귀가가 시작된다 (' + fRet + ' 프레임 · ' + tRet + ' ms)');
+  ok(tRet >= 0 && fRet >= 0 && fRet <= 90 && tRet <= 30000, '누르면 곧 다락 문으로 귀가가 시작된다 (' + fRet + ' 프레임 · ' + tRet + ' ms)');   /* 11-23: '곧' 은 프레임 (fRet ≤ 90) 이 지킨다 — 러너가 누른 순간 10 ~ 18 s 멈춘 판이 셋 (37eb9b0 · db95288), 벽시계는 넉넉히 */
   /* 아래 한도: 짧은 귀가는 장면 시간 ≈ 0.55 s 이고 장면 dt 상한이 0.1 s 라 기계가 바빠도 5 프레임 넘게 걸린다 — 귀가 중 한 번 더 누른 게 의식을 감아 버리면 1~2 프레임 */
   ok(Bq.retFrames >= 5 && Bq.retFrames <= 45, '귀가 의식은 짧은 판 (다락 문 0.3 s 전환 + 문간에서 2배 걸음 — 길 · 계단 없음) · 귀가 중 한 번 더 눌러도 감기지 않는다: ' + Bq.retFrames + ' 프레임');
-  ok(tToast > tRet && tToast <= 12000 && tPip >= tToast, "짧은 귀가에 '새 포스터 · …' 토스트 → 등불 칸 (토스트 " + tToast + ' · 등불 ' + tPip + ' ms)');
-  ok(tDone >= tPip && tDone <= 16000, '버튼은 짧은 귀가 뒤 돌아온다 (' + tDone + ' ms · 귀가 중 한 번 더 눌러도 새 산책 없음: 차례 ' + Bq.ntrips + ')');
+  /* 11-15 (CI K): 누른 순간 한 프레임이 느린 러너에선 5~6 s 멈춰 (로컬 1~3 s), 그 뒤 모든 벽시계가 밀렸다 — 귀가가 시작된 때부터 잰다.
+     지키는 것은 그대로: 데려오면 짧은 귀가 (긴 귀가는 길 · 계단을 걸어 20 s 를 훌쩍 넘는다) */
+  /* 11-23 (CI 37eb9b0 · 1f443c8): 소프트웨어 GL 러너가 3~6 fps 로 그리면 장면 시간 (dt 상한 0.1 s) 이 벽시계보다 느리게 흘러 짧은 귀가도 토스트 14.6 s · 버튼 18 s 가 된다
+     (같은 기계에서 552fe54 와 프레임 · 콜 수 같음 — 코드가 느려진 것 아님). '짧은 판' 은 위의 retFrames (5~45) 가 지킨다 — 벽시계는 순서와 넉넉한 상한만 (db95288: 토스트 25.7 s → 60 s · 버튼 70 s) */
+  ok(tToast > tRet && tToast - tRet <= 60000 && tPip >= tToast, "짧은 귀가에 '새 포스터 · …' 토스트 → 등불 칸 (귀가 시작부터 토스트 " + (tToast - tRet) + ' · 등불 ' + (tPip - tRet) + ' ms)');
+  ok(tDone >= tPip && tDone - tRet <= 70000, '버튼은 짧은 귀가 뒤 돌아온다 (귀가 시작부터 ' + (tDone - tRet) + ' ms · 귀가 중 한 번 더 눌러도 새 산책 없음: 차례 ' + Bq.ntrips + ')');
   ok(Bq.fly >= 1 && Bq.phase === 'awake' && Bq.sleeps === 0, '포스터가 앨범으로 날아가고 · 문어는 깨어 있다 (잠 훅 아직 0 · ' + Bq.phase + ')');
   ok(Bq.roomRow.length === 1 && Bq.roomRow[0].text === '창턱에 이끼 화분이 놓였어' && !Bq.roomRow[0].expr, "데려와도 '방' 줄 — 집 목소리 사실 문장, 문어 초상 없음 (" + JSON.stringify(Bq.roomRow) + ')');
-  var sl = await Bq.page.waitForFunction(function () { return window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; }).length >= 1; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
+  var sl = await Bq.page.waitForFunction(function () { return window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; }).length >= 1; }, null, { timeout: 45000 }).then(function () { return true; }, function () { return false; });
   await Bq.page.waitForTimeout(800);
   var nSleep = await Bq.page.evaluate(function () { return window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; }).length; });
   ok(sl && nSleep === 1, '틈이 끝나면 잠 훅 한 번 (' + nSleep + ')');
@@ -4880,7 +5561,7 @@ async function scenarioWeek(browser) {
   /* 알림(#toast)이 뜰 때마다 글 · 그때의 입장 단계를 적는다 (2.5 s 만 떠 있어 나중에 보면 놓친다) · 장면 표정이 바뀔 때마다 적는다 (4 s 뒤 기본 표정으로 돌아가므로) */
   /* hid = 그때까지 알림이 몇 번 걷혔나 (11-12: 앞 알림이 걷힌 뒤에 떴는지 — 밀어내고 떴으면 앞 알림과 같은 수) */
   var REC_UI = "window.__toasts = []; window.__exprs = []; window.__hid = 0; document.addEventListener('DOMContentLoaded', function () { var t = document.getElementById('toast'); if (!t) return; var was = false; " +
-    "new MutationObserver(function (ms) { var on = t.classList.contains('show'); if (was && !on) window.__hid++; was = on; if (on && ms.some(function (m) { return m.type === 'childList'; })) window.__toasts.push({ t: t.textContent, intro: window.INTRO ? INTRO.phase : '', ex: window.__exprs.slice(), hid: window.__hid }); }).observe(t, { childList: true, attributes: true, attributeFilter: ['class'] }); });";
+    "new MutationObserver(function (ms) { var on = t.classList.contains('show'); if (was && !on) window.__hid++; was = on; if (on && ms.some(function (m) { return m.type === 'childList'; })) window.__toasts.push({ t: t.textContent, pic: !!t.querySelector('.shell-amt .shell-ico'), intro: window.INTRO ? INTRO.phase : '', ex: window.__exprs.slice(), hid: window.__hid }); }).observe(t, { childList: true, attributes: true, attributeFilter: ['class'] }); });";
   async function ctxOf(o) {   /* 기록은 문맥에 한 번만 심는다 (새로고침 · 둘째 탭엔 그대로) · 날짜 훅은 탭마다 sessionStorage */
     var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light' });
     await ctx.addInitScript({ content: 'window.__ppolAwakeMs = ' + (o.awake | 0) + ';' });   /* 깨어 있는 틈 (기본 0 — 22 만 길게) */
@@ -4908,7 +5589,7 @@ async function scenarioWeek(browser) {
   function bagOf(pg) { return pg.evaluate(function () {
     var sh = document.getElementById('bag-sheet'); if (!sh.open) document.getElementById('btn-bag').click();
     var body = document.getElementById('bag-body'), notes = [].map.call(body.querySelectorAll('.set-note'), function (x) { return x.textContent; }), pv = document.getElementById('week-prev');
-    var o = { open: sh.open, top: (body.querySelector('.bag-line') || {}).textContent || '', note: notes.filter(function (t) { return /일곱 가지/.test(t); })[0] || '', prev: pv ? pv.textContent : null, prevShown: !!pv && pv.offsetHeight > 0, claim: !!document.getElementById('week-claim'), got: notes.indexOf('이번 주 선물은 받았어.') >= 0,
+    var o = { open: sh.open, top: (body.querySelector('.bag-line') || {}).textContent || '', note: notes.filter(function (t) { return /일곱 가지/.test(t); })[0] || '', prev: pv ? pv.textContent : null, prevPic: !!pv && !!pv.querySelector('.shell-amt .shell-ico'), prevShown: !!pv && pv.offsetHeight > 0, claim: !!document.getElementById('week-claim'), got: notes.indexOf('이번 주 선물은 받았어.') >= 0,
       rows: [].map.call(body.querySelectorAll('.week-list')[0].querySelectorAll('.week-row'), function (r) { return r.querySelector('.week-txt').textContent + '|' + r.querySelector('.week-n').textContent; }) };
     document.getElementById('bag-close').click();
     return o;
@@ -4938,7 +5619,7 @@ async function scenarioWeek(browser) {
   var a2 = await snap(pa);
   console.log('   입장 뒤:', JSON.stringify({ toasts: a2.toasts, told: a2.told, shells: a2.shells, seeds: a2.seeds, prev: a2.prev }));
   var iDay = a2.toasts.map(function (t) { return /^오늘 선물/.test(t); }).indexOf(true), iWeek = a2.toasts.indexOf(TOLD);
-  ok(told1 && a2.told.length === 1 && a2.told[0].t === TOLD && a2.told[0].intro === 'done' && toldOf(a2), '입장이 걷힌 뒤 알림 한 번 «' + TOLD + '» (그때 입장 단계 ' + (a2.told[0] && a2.told[0].intro) + ') · 알렸다는 표시가 저장됨');
+  ok(told1 && a2.told.length === 1 && a2.told[0].t === TOLD && a2.told[0].pic && a2.told[0].intro === 'done' && toldOf(a2), '입장이 걷힌 뒤 알림 한 번 «' + TOLD + '» (조개는 그림 + 수 · 읽어 주기 글은 그대로 · 그때 입장 단계 ' + (a2.told[0] && a2.told[0].intro) + ') · 알렸다는 표시가 저장됨');
   ok(a2.shells === 35 && a2.seeds === 4 && (iDay < 0 || iDay < iWeek), '오늘 선물까지: 조개 20 + 12 + 3 = ' + a2.shells + ' · 씨앗 1 + 2 + 1 = ' + a2.seeds);
   await pa.reload();
   await pa.waitForFunction(function () { return window.INTRO && INTRO.phase === 'title' && window.APP && !!APP.state.octopus.name; }, null, { timeout: WAIT }).catch(function () {});
@@ -4948,7 +5629,7 @@ async function scenarioWeek(browser) {
   var a3 = await snap(pa), b3 = await bagOf(pa);
   console.log('   새로고침 뒤:', JSON.stringify({ shells: a3.shells, seeds: a3.seeds, toasts: a3.toasts, bag: b3 }));
   ok(a3.shells === 35 && a3.seeds === 4 && a3.key === MON && !a3.told.length, '새로고침해도 한 번만: 조개 ' + a3.shells + ' · 씨앗 ' + a3.seeds + ' 그대로 · 알림도 다시 안 뜬다');
-  ok(b3.open && b3.prev === LINE && b3.prevShown && /\(0\/5\)/.test(b3.note) && !b3.claim && !b3.got && !a3.dot, '살림 › 이번 주 할 일 아래에 그 주 동안 한 줄 «' + b3.prev + '» · 새 주는 0/5 · 꼬리표 점 없음');
+  ok(b3.open && b3.prev === LINE && b3.prevPic && b3.prevShown && /\(0\/5\)/.test(b3.note) && !b3.claim && !b3.got && !a3.dot, '살림 › 이번 주 할 일 아래에 그 주 동안 한 줄 «' + b3.prev + '» (11-15 검증 U-4: 조개는 그림 + 수) · 새 주는 0/5 · 꼬리표 점 없음');
   await c1.close();
 
   /* 1-2. 입장 연출 없이 새 주에 처음 연다 (오늘 선물도 아직): 부팅 2.5 s 뒤의 오늘 선물 알림이 먼저 뜨고, 지난주 알림은 그 뒤에 — 먼저 떴다가 오늘 선물 알림에 밀려 사라지지 않는다 */
@@ -4970,10 +5651,14 @@ async function scenarioWeek(browser) {
   var s1 = await pb.evaluate(function () {
     document.dispatchEvent(new Event('visibilitychange'));   /* 탭으로 돌아옴: 앱이 새 날을 알아채는 그 길 (1분 틱과 같은 checkDay) */
     var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user, b = document.getElementById('btn-bag');
-    return { shells: u.shells, seeds: u.seeds, key: u.week.key, prev: u.week.prev || null, dot: b.classList.contains('has-gift'), chip: b.textContent.trim() };
+    return { shells: u.shells, seeds: u.seeds, key: u.week.key, prev: u.week.prev || null, dot: b.classList.contains('has-gift'), chip: b.textContent.trim(),
+      giftDay: u.giftDay || null, giftShells: u.giftTell && u.giftTell.day === u.giftDay ? u.giftTell.shells : 0 };
   });
   console.log('   열어 둔 탭, 월요일:', JSON.stringify(s1));
-  ok(s1.key === MON && s1.shells === 32 && s1.seeds === 3 && s1.prev && s1.prev.shells === 12 && !s1.dot && s1.chip === '조개 32', '열어 둔 탭: 새 날을 알아챈 그 자리에서 조개 20 → 32 · 씨앗 1 → 3 이 새 주와 함께 저장되고 꼬리표가 «조개 32» · 점 없음으로 다시 그려진다');
+  /* 11-19 리드: 앱의 1분 틱 (dailyGift) 이 setDay 와 이 읽기 사이에 들 수 있다 (느린 CI 러너에서 탭이 막 1분을 넘겼을 때 — 5b21a1d) — 그러면 그날
+     선물 (조개 3 · 씨앗 1) 이 이미 들어와 있다. 그 몫만 빼고 보면 지난주 선물은 그대로 새 날을 알아챈 그 자리에서 +12 · +2 여야 한다 */
+  var dg1 = s1.giftDay === MON ? s1.giftShells : 0, ds1 = s1.giftDay === MON ? 1 : 0;
+  ok(s1.key === MON && s1.shells === 32 + dg1 && s1.seeds === 3 + ds1 && s1.prev && s1.prev.shells === 12 && !s1.dot && s1.chip === '조개 ' + (32 + dg1), '열어 둔 탭: 새 날을 알아챈 그 자리에서 조개 20 → 32 · 씨앗 1 → 3 이 새 주와 함께 저장되고 꼬리표가 «조개 ' + (32 + dg1) + '» · 점 없음으로 다시 그려진다' + (dg1 ? ' (1분 틱의 그날 선물 ' + dg1 + ' 이 먼저 들어옴)' : ''));
   var told2 = await toldWait(pb);
   await pb.evaluate(function () { document.dispatchEvent(new Event('visibilitychange')); });
   var g2 = await bagOf(pb), s2 = await snap(pb), d2i = s2.toasts.map(function (t) { return /^오늘 선물: 조개 3 · 씨앗 1/.test(t); }).indexOf(true);
@@ -5016,7 +5701,7 @@ async function scenarioWeek(browser) {
   /* 6. 일곱 가지를 다 해도 쪽지의 수는 (5/5) · 씨앗이 없을 때의 한 줄 */
   var r8 = await roll({ shells: 20, seeds: 0, garden: [null, null, null], days: [MON, '2026-11-17', '2026-11-18'], week: { key: MON, claimed: false, q: [{ id: 'ask', n: 2, rr: 0 }, { id: 'look', n: 1, rr: 0 }, { id: 'run', n: 1, rr: 0 }, { id: 'furn', n: 1, rr: 0 }, { id: 'loft', n: 1, rr: 0 }, { id: 'harvest', n: 1, rr: 0 }, { id: 'diary', n: 1, rr: 0 }] } }, '2026-11-18');
   ok(/\(5\/5\)/.test(r8.bag.note) && !/7\/5/.test(r8.bag.note) && r8.bag.claim && r8.bag.rows.every(function (r) { return /\|했어$/.test(r); }), '일곱 가지를 다 해도 쪽지는 (5/5) — «' + r8.bag.note + '»');
-  var seedT = await pb.evaluate(function () { window.__toasts = []; document.getElementById('btn-bag').click(); document.querySelector('#bag-body .bag-plot').click(); var t = document.getElementById('toast').textContent; document.getElementById('bag-close').click(); return { t: t, seeds: APP.state.user.seeds, plot: APP.state.user.garden[0] }; });
+  var seedT = await pb.evaluate(function () { window.__toasts = []; document.getElementById('btn-bag').click(); document.getElementById('btn-plot0').click();   /* 11-15: 밭 단추는 마당에 (시트엔 없다) */ var t = document.getElementById('toast').textContent; document.getElementById('bag-close').click(); return { t: t, seeds: APP.state.user.seeds, plot: APP.state.user.garden[0] }; });
   ok(seedT.t === '씨앗이 없어. 들어온 날 선물이나 주간 선물로 생겨' && seedT.seeds === 0 && seedT.plot === null, '씨앗 없이 빈 밭을 누르면 «' + seedT.t + '» (주간 선물에서도 생긴다)');
 
   /* 7. 선물 상자: 내밀자마자 '오늘 물어봄' 이 저장된다 (할 일 목록에 선물 일이 없어도) · 안 쓴다는 답에는 보통 얼굴 (반눈 calm 아님). 답은 게임과 같은 시드(날 · 물건 · 이름)로 미리 알아낸다 */
@@ -5042,13 +5727,13 @@ async function scenarioWeek(browser) {
     return { chip: chips[p.i].textContent, day: ga.day, asked: !!(ga.ids && ga.ids[p.id]), n: st.giftN, exprs: window.__exprs.slice(), oct: APP.oct.state };
   }, pick);
   console.log('   내민 직후:', JSON.stringify(off));
-  ok(off.day === pick.day && off.asked && off.n >= 1 && off.exprs[0] === 'curious', '선물 상자: ' + pick.name + ' 내밀자마자 그날 물어봤다는 기록이 저장돼 있다 (giftAsked ' + off.day + ' · ' + pick.id + ') — 답이 나오기 전');
-  var NO = new RegExp('^뚜루는 ' + pick.name + ' 안 (쓰기|두르기)로 했어\\.$');
-  var ans = await pb.waitForFunction(function () { return window.__toasts.some(function (x) { return /기로 했어\.$/.test(x.t); }); }, null, { timeout: WAIT, polling: 50 }).then(function () { return true; }, function () { return false; });
-  var fin = await pb.evaluate(function () { var a = window.__toasts.filter(function (x) { return /기로 했어\.$/.test(x.t); })[0]; return { toast: a ? a.t : '', exprs: a ? a.ex : [], wear: APP.state.settings.octWear || null, row: [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).filter(function (t) { return /선물/.test(t); }).pop() || '' }; });
+  ok(off.day === pick.day && off.asked && off.n >= 1 && off.exprs[0] === 'idle', '선물 상자: ' + pick.name + ' 내밀자마자 그날 물어봤다는 기록이 저장돼 있다 (giftAsked ' + off.day + ' · ' + pick.id + ') — 답이 나오기 전');
+  var NO = new RegExp('^문어 뚜루는 ' + pick.name + '(을|를) 안 (쓰기|두르기)로 했어\\. \\(데모 규칙이 고름\\)$');   /* 11-24 (주인: 내 캐릭터가 거절한 것처럼 읽혔다): 주어 '문어 <이름>' · 받침대로 조사 · 알림에도 데모 규칙 */
+  var ans = await pb.waitForFunction(function () { return window.__toasts.some(function (x) { return /기로 했어\. \(데모 규칙이 고름\)/.test(x.t); }); }, null, { timeout: WAIT, polling: 50 }).then(function () { return true; }, function () { return false; });
+  var fin = await pb.evaluate(function () { var a = window.__toasts.filter(function (x) { return /기로 했어\. \(데모 규칙이 고름\)/.test(x.t); })[0]; return { toast: a ? a.t : '', exprs: a ? a.ex : [], wear: APP.state.settings.octWear || null, row: [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).filter(function (t) { return /선물/.test(t); }).pop() || '' }; });
   console.log('   답:', JSON.stringify(fin));
   ok(ans && NO.test(fin.toast) && /\(데모 규칙이 고름\)/.test(fin.row), '선물 상자: 답은 «' + fin.toast + '» · 기록 줄에 (데모 규칙이 고름)');
-  ok(ans && fin.exprs[0] === 'curious' && fin.exprs[fin.exprs.length - 1] === 'idle' && fin.exprs.indexOf('calm') < 0, '안 쓴다는 답이 뜬 순간까지의 장면 얼굴: 들여다보는 얼굴 → 보통 얼굴 (' + fin.exprs.join(' → ') + ') — 반눈 calm 없음');
+  ok(ans && fin.exprs.length >= 1 && fin.exprs.every(function (e) { return e === 'idle'; }), '안 쓴다는 답이 뜬 순간까지의 장면 얼굴: 들여다보는 틈도 답도 평소 얼굴 (11-15 주인 C6 b — 예전 curious → idle) (' + fin.exprs.join(' → ') + ') — 반눈 calm 없음');
   /* 8. 두 탭을 열어 둔 채 주가 바뀐다 (맨 끝에: 닫히는 탭은 한 번 더 저장하므로 그 뒤에 다른 검사를 두지 않는다). 가려진 탭이 먼저 새 주를 알아채 넣으면: 보이는 탭은 그 기록을 받아 따라가고 (제 차례에 또 넣지 않는다 — 둘 합쳐 한 번), 알림은 보이는 탭에서 뜬다 (가려진 탭은 띄우지 않는다) */
   await setUser(pb, SUN, { shells: 20, seeds: 1, days: [WK1, '2026-11-11', SUN], giftDay: SUN, week: WEEK() });   /* giftDay 일요일: 일요일 선물은 이미 받음 (11-12 — 34f77ad 부터 탭으로 돌아오면 그날 선물이 들어온다) */
   await pb.evaluate(function () { document.dispatchEvent(new Event('visibilitychange')); });   /* 이 탭의 '오늘' 을 일요일로 (앞 검사가 넘겨 둔 날짜에서) */
@@ -5078,7 +5763,7 @@ async function scenarioWeek(browser) {
   var TUE = '2026-11-17', WED = '2026-11-18', DAYT = /^오늘 선물: 조개 \d+ · 씨앗 1 \(들어온 날 \d+일째\)$/;
   function keyAddQ(k, n) { var p = k.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2] + n); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
   function Q7(ids, o) { return Object.assign({ key: MON, claimed: false, q: ids.map(function (id) { return typeof id === 'string' ? { id: id, n: 0, rr: 0 } : id; }) }, o || {}); }
-  function dayToasts(pg) { return pg.evaluate(function () { return window.__toasts.filter(function (x) { return /^오늘 선물/.test(x.t); }).map(function (x) { return { t: x.t, intro: x.intro, hid: x.hid }; }); }); }
+  function dayToasts(pg) { return pg.evaluate(function () { return window.__toasts.filter(function (x) { return /^오늘 선물/.test(x.t); }).map(function (x) { return { t: x.t, pic: x.pic, intro: x.intro, hid: x.hid }; }); }); }
   function dayWait(pg) { return pg.waitForFunction(function () { return window.__toasts.some(function (x) { return /^오늘 선물/.test(x.t); }); }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; }); }
   function disk(pg) { return pg.evaluate(function () { var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user; return { shells: u.shells, seeds: u.seeds, days: u.days, giftDay: u.giftDay, tell: u.giftTell || null, week: u.week }; }); }
   function rowsOf(pg) { return pg.evaluate(function () { document.getElementById('btn-bag').click(); var r = [].map.call(document.querySelectorAll('#bag-body .week-list > li'), function (li) { return li.querySelector('.week-txt').textContent + '|' + li.querySelector('.week-n').textContent; }); document.getElementById('bag-close').click(); return r; }); }
@@ -5103,7 +5788,7 @@ async function scenarioWeek(browser) {
   var d9b = await dayToasts(p9);
   await p9.evaluate(function () { INTRO.dismiss(); });
   var seen9 = await dayWait(p9), d9c = await dayToasts(p9), u9c = await disk(p9);
-  ok(!d9b.length && seen9 && d9c.length === 1 && d9c[0].intro === 'done' && d9c[0].t === '오늘 선물: 조개 3 · 씨앗 1 (들어온 날 4일째)' && !u9c.tell && u9c.shells === 23, '입장 중 새로고침해도 오늘 선물 줄은 남아 입장이 걷힌 뒤 한 번 «' + (d9c[0] && d9c[0].t) + '» (그때 ' + (d9c[0] && d9c[0].intro) + ') · 또 주지 않는다 (조개 ' + u9c.shells + ')');
+  ok(!d9b.length && seen9 && d9c.length === 1 && d9c[0].intro === 'done' && d9c[0].t === '오늘 선물: 조개 3 · 씨앗 1 (들어온 날 4일째)' && d9c[0].pic && !u9c.tell && u9c.shells === 23, '입장 중 새로고침해도 오늘 선물 줄은 남아 입장이 걷힌 뒤 한 번 «' + (d9c[0] && d9c[0].t) + '» (그때 ' + (d9c[0] && d9c[0].intro) + ') · 또 주지 않는다 (조개 ' + u9c.shells + ')');
   await c9.close();
 
   /* 10. 열어 둔 탭이 다음 날을 맞는다 (66c8110: 탭으로 돌아온 순간 · F3/C3): 그날 선물이 들어가고 들어온 날 기록 (user.days · '들어온 날 N일째') 이 하루 오른다 — 할 일 목록은 그대로 (11-12: '사흘 들어오기' 는 뺐다 — 주인 W4 (b)).
@@ -5124,7 +5809,7 @@ async function scenarioWeek(browser) {
     '열어 둔 탭이 다음 날로 (날짜 훅 + 탭으로 돌아옴): 그날 선물 조개 3 · 씨앗 1 · 들어온 날 ' + u10.days.length + ' · 알림 «' + (t10a[0] && t10a[0].t) + '» 은 보일 때 한 번 · 할 일 목록은 그대로 (들어온 날로 오르는 일 없음)');
   /* 그날 선물 알림은 떠 있는 다른 알림을 밀어내지 않는다 (F19): 다른 알림(씨앗 없음)이 뜬 채 그날 선물이 들어오면, 그 알림이 걷힌 뒤에 */
   var other = await pd.evaluate(function (d) { sessionStorage.setItem('__q_day', d); window.__ppolTest.today = d; window.__toasts = []; APP.state.user.seeds = 0;
-    document.getElementById('btn-bag').click(); document.querySelector('#bag-body .bag-plot').click(); document.getElementById('bag-close').click(); var t = document.getElementById('toast').textContent; APP.dailyGift(); return t; }, WED);   /* 날짜 넘김 · 다른 알림 · 그날 선물을 한 번에 (1분 틱이 끼어들 틈 없이) */
+    document.getElementById('btn-bag').click(); document.getElementById('btn-plot0').click();   /* 11-15: 밭 단추는 마당에 (시트엔 없다) */ document.getElementById('bag-close').click(); var t = document.getElementById('toast').textContent; APP.dailyGift(); return t; }, WED);   /* 날짜 넘김 · 다른 알림 · 그날 선물을 한 번에 (1분 틱이 끼어들 틈 없이) */
   var seen10b = await dayWait(pd), t10 = await pd.evaluate(function () { return window.__toasts.slice(); });
   var i10 = t10.map(function (x) { return DAYT.test(x.t); }).indexOf(true);
   ok(seen10b && /^씨앗이 없어/.test(other) && i10 === 1 && t10[0].t === other && t10[1].hid > t10[0].hid && t10.filter(function (x) { return DAYT.test(x.t); }).length === 1, '그날 선물 알림은 떠 있던 다른 알림(«' + other.slice(0, 8) + '…»)이 걷힌 뒤에 한 번 (밀어내지 않는다 — 걷힘 ' + (t10[0] && t10[0].hid) + ' → ' + (t10[1] && t10[1].hid) + ')');
@@ -5167,13 +5852,13 @@ async function scenarioWeek(browser) {
   await ready(pf);
   function qn(pg, id) { return pg.evaluate(function (id) { return APP.state.user.week.q.filter(function (x) { return x.id === id; })[0].n | 0; }, id); }
   var fm = await pf.evaluate(function () {
-    var sc = APP.scene, id = sc.furnItems()[0].id, r = { id: id };
+    var sc = APP.scene, id = 'crate', r = { id: id };
     function n() { return APP.state.user.week.q[1].n | 0; }
-    r.carry1 = sc.furnCarry(id); sc.furnConfirm(); r.same = n();   /* 들었다가 그 자리에 그대로 놓기 */
-    var a = sc.layout()[id]; r.carry2 = sc.furnCarry(id); sc.furnSetRot((a[2] + 90) % 360); sc.furnConfirm(); r.turned = n();   /* 돌려서 놓기 */
+    r.carry1 = sc.furnMode(true); sc.furnSelect(id); sc.furnSave(); r.same = n();   /* 11-15 가구 모드: 열고 아무것도 안 바꾸고 저장하기 */
+    r.carry2 = sc.furnMode(true); sc.furnSelect(id); r.rot = sc.furnRotate(); sc.furnSave(); r.turned = n();   /* 돌려서 저장하기 */
     return r;
   });
-  ok(fm.carry1 && fm.carry2 && fm.same === 0 && fm.turned === 1, '가구: 들어 올렸다 그 자리에 그대로 놓으면 안 센다 (' + fm.same + ') · 돌려 놓으면 센다 (' + fm.turned + ')');
+  ok(fm.carry1 && fm.carry2 && fm.rot && fm.same === 0 && fm.turned === 1, '가구: 모드를 열고 그대로 저장하면 안 센다 (' + fm.same + ') · 돌려 저장하면 센다 (' + fm.turned + ')');
   await pf.evaluate(function () { window.__plan = BRAIN.plan; BRAIN.plan = function () { BRAIN.plan = window.__plan; return Promise.reject(new Error('test: brain stop')); }; window.__toasts = []; document.getElementById('btn-go').click(); });
   var stop12 = await pf.waitForFunction(function () { return window.__toasts.some(function (x) { return /^두뇌가 잠깐 멈췄어/.test(x.t); }); }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
   var ask1 = await qn(pf, 'ask'), trips1 = await pf.evaluate(function () { return APP.state.trips.length; });
@@ -5228,7 +5913,7 @@ async function scenarioWeek(browser) {
     bad2d += [].concat.apply([], sw2.slots).filter(function (id) { return id === 'loft' || id === 'furn'; }).length;
   }
   console.log('   2D 주:', JSON.stringify(sw14));
-  ok(mode14 === '2d' && bad2d === 0 && keep14[1] === '위층 옷방 올라가 보기|0/1' && keep14[2] === '가구 하나 옮겨 놓기|0/1', '2D 장면: 새 주 · 바꾸기에서 «위층 옷방» · «가구» 가 나오지 않는다 (4주 — ' + bad2d + ') · 전에 나눈 칸은 그대로');
+  ok(mode14 === '2d' && bad2d === 0 && keep14[1] === '위층 옷방 가 보기|0/1' && keep14[2] === '가구 하나 옮기기|0/1', '2D 장면: 새 주 · 바꾸기에서 «위층 옷방» · «가구» 가 나오지 않는다 (4주 — ' + bad2d + ') · 전에 나눈 칸은 그대로');
   await c14.close();
 
   /* 15. 살림 시트 (360x740): 다섯 가지를 하면 받기 단추가 쪽지 바로 아래 · 화면 안 (F5). 꼬리표 점은 바탕과 떨어진 색 · 이름에도 (W8). 받으면 '받았어' 줄이 그 자리 · 키보드 자리도 그 줄 (F6) */
@@ -5257,7 +5942,7 @@ async function scenarioWeek(browser) {
     var b = li(6).querySelector('.week-rr'); b.focus(); b.click(); r.rr = li(6).contains(document.activeElement) && document.activeElement !== document.body; r.rrOn = document.activeElement.className;
     var b5 = li(5).querySelector('.week-rr'); b5.focus(); b5.click(); b5 = li(5).querySelector('.week-rr'); b5.focus(); b5.click(); r.rr2 = li(5).contains(document.activeElement); r.rr2On = document.activeElement.className;   /* 마지막 바꾸기: 단추가 없어지면 그 줄의 글 */
     document.getElementById('bag-close').click();
-    window.__toasts = []; document.getElementById('btn-sew').click(); var sl = document.querySelectorAll('#sew-body .week-list > li'), at = -1;
+    window.__toasts = []; document.getElementById('btn-sew').click(); document.querySelector('#sew-body details.sew-sets').open = true; var sl = document.querySelectorAll('#sew-body .week-list > li'), at = -1;   /* 11-15: 접힌 세트 도감을 펼친다 (다시 입기 뒤 다시 그려도 펼친 채) */
     [].forEach.call(sl, function (x, k) { if (/다락방 차림/.test(x.textContent)) at = k; });
     var w = sl[at].querySelector('.week-rr'); r.label = w.getAttribute('aria-label'); w.focus(); w.click();
     r.wear = document.querySelectorAll('#sew-body .week-list > li')[at].querySelector('.week-rr') === document.activeElement; r.toast = document.getElementById('toast').textContent;
@@ -5279,7 +5964,7 @@ async function scenarioWeek(browser) {
     var nb = document.querySelector('#week-claim .nobr'), ys = {}; [].forEach.call(nb.getClientRects(), function (q) { ys[Math.round(q.top)] = 1; }); r.amountLines = Object.keys(ys).length; r.amount = nb.textContent;
     r.rr = [].map.call(body.querySelectorAll('.week-rr'), hit); r.bagX = body.scrollWidth - body.clientWidth;
     r.rows = [].map.call(body.querySelectorAll('.week-row'), function (x) { var inner = Math.max.apply(null, [].map.call(x.children, function (c) { return c.getBoundingClientRect().height; })); return Math.round(x.getBoundingClientRect().height - Math.max(44, inner + 4)); });   /* 줄 높이 − max(44, 안의 것 + 위아래 2px) : 단추 때문에 더 커진 만큼 (테두리 2px 까지) */
-    document.getElementById('bag-close').click(); document.getElementById('btn-sew').click(); var sb = document.getElementById('sew-body');
+    document.getElementById('bag-close').click(); document.getElementById('btn-sew').click(); var sb = document.getElementById('sew-body'); sb.querySelector('details.sew-sets').open = true;   /* 11-15: 접힌 세트 도감을 펼쳐서 잰다 */
     r.wear = [].map.call(sb.querySelectorAll('.week-rr'), hit); r.sewX = sb.scrollWidth - sb.clientWidth; document.getElementById('sew-close').click();
     return r;
   });
@@ -5294,7 +5979,7 @@ async function scenarioWeek(browser) {
   await ready(pl);
   function lookPickQ(pg, tabId, cat, id) { return pg.evaluate(async function (a) { window.__toasts = []; if (!document.getElementById('look-sheet').open) APP.openLook(); document.getElementById('look-tab-' + a.tab).click(); document.querySelector('#look-items [data-part="' + a.cat + '"][data-id="' + a.id + '"]').click(); await Promise.resolve(); var st = APP.state.user.sets || {}; return { toasts: window.__toasts.map(function (x) { return x.t; }), attic: st.attic || null, outfit: APP.state.settings.player && APP.state.settings.player.outfit }; }, { tab: tabId, cat: cat, id: id }); }
   var h1 = await lookPickQ(pl, 'hair', 'hair', 'short');
-  var sew17 = await pl.evaluate(function () { document.getElementById('look-sheet').close(); document.getElementById('btn-sew').click(); var t = [].map.call(document.querySelectorAll('#sew-body h3'), function (x) { return x.textContent; }).filter(function (x) { return /세트 도감/.test(x); })[0] || ''; document.getElementById('sew-close').click(); return { h: t, attic: (APP.state.user.sets || {}).attic || null }; });
+  var sew17 = await pl.evaluate(function () { document.getElementById('look-sheet').close(); document.getElementById('btn-sew').click(); var t = [].map.call(document.querySelectorAll('#sew-body details.sew-sets > summary'), function (x) { return x.textContent; }).filter(function (x) { return /세트 도감/.test(x); })[0] || '';   /* 11-15: 세트 도감은 접힌 한 줄 (summary) */ document.getElementById('sew-close').click(); return { h: t, attic: (APP.state.user.sets || {}).attic || null }; });
   var o1 = await lookPickQ(pl, 'outfit', 'outfit', 'knit'), o2 = await lookPickQ(pl, 'outfit', 'outfit', 'dress');
   console.log('   세트 도감:', JSON.stringify({ hair: h1, sew: sew17, knit: o1, dress: o2 }));
   ok(h1.outfit === 'dress' && !h1.attic && !h1.toasts.length && !sew17.attic && /0\/9/.test(sew17.h), '기본 옷 그대로 머리만 바꾸면 세트 도감에 적지 않는다 (알림 ' + h1.toasts.length + ') · 재봉틀 시트를 열어도 («' + sew17.h + '»)');
@@ -5325,7 +6010,7 @@ async function scenarioWeek(browser) {
   await pz.reload(); await pz.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
   var re18 = await pz.evaluate(function (p) { window.__toasts = []; APP.openSettings(); var chips = document.querySelectorAll('.gift-chips .fchip'); chips[p.i].click(); document.getElementById('gift-go').click(); var t = document.getElementById('toast').textContent; return { toast: t, wear: APP.state.settings.octWear || null }; }, yesPick);
   console.log('   선물 상자 (쓰기로):', JSON.stringify({ pick: yesPick, atPress: at18, afterReload: re18 }));
-  ok(at18.asked && at18.wear && at18.wear[yesPick.slot] === yesPick.id && re18.wear && re18.wear[yesPick.slot] === yesPick.id && re18.toast === '오늘은 이미 물어봤어. 내일 다시 물어볼 수 있어',
+  ok(at18.asked && at18.wear && at18.wear[yesPick.slot] === yesPick.id && re18.wear && re18.wear[yesPick.slot] === yesPick.id && re18.toast === '오늘은 이미 물어봤어. 내일 또 물어볼 수 있어',
     '선물 상자: ' + yesPick.name + ' 을 내민 순간 «물어봄» 과 «쓰기로 함» 이 같이 저장 → 1.3 s 안에 새로고침해도 쓰고 있다 · 다시 내밀면 같은 한 줄');
   await c18.close();
 
@@ -5597,7 +6282,7 @@ async function scenarioLoft(browser) {
     o = o || {};
     var ctx = o.ctx;   /* o.ctx = 같은 문맥의 둘째 탭 (기록 · 시계 · 깨어 있는 틈 훅은 문맥 것 그대로) */
     if (!ctx) {
-      ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+      ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: o.dpr || 1, locale: 'ko-KR', colorScheme: o.dark ? 'dark' : 'light', hasTouch: true, isMobile: true });   /* 11-15 (UI 점검): o.dpr · o.dark = 폰 배율 · 어두운 테마 */
       await ctx.clock.install({ time: new Date('2026-11-09T11:00:00') });
       await ctx.addInitScript({ content: 'window.__ppolAwakeMs = ' + (o.awake | 0) + '; window.__snd = []; (function hook() { if (window.AUDIO && AUDIO.on && !AUDIO.__z) { var f = AUDIO.on; AUDIO.on = function (k) { window.__snd.push(k); return f.apply(this, arguments); }; AUDIO.__z = 1; } else setTimeout(hook, 50); })();' });   /* awake: 차례 뒤 깨어 있는 틈 (ms, 기본 0 = 바로 눕는다) */
     }
@@ -5637,7 +6322,11 @@ async function scenarioLoft(browser) {
     }
     return { done: false, t: secs };
   }
-  async function tap(pg, id) { var r = await pg.evaluate(function (id) { var e = document.getElementById(id); if (!e || e.hidden) return null; var q = e.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; }, id); if (r) await pg.touchscreen.tap(r.x, r.y); return !!r; }
+  async function tap(pg, id) { var r = await pg.evaluate(function (id) { var e = document.getElementById(id); if (!e || e.hidden) return null; var q = e.getBoundingClientRect(), c = { x: q.left + q.width / 2, y: q.top + q.height / 2 };
+    if (id !== 'btn-stair') return c;
+    if (e.dataset.spot === 'key') { e.click(); return { key: true }; }   /* 11-21: 계단이 화면 밖 (360 폭 기본 구도) 이면 단추는 안 보이는 키보드 칸 — 키보드가 하듯 단추를 누른다 (손가락 길은 tools/test-light.js L5 가 본다) */   /* 11-15: 계단 단추 칸은 바로 왼쪽 뒷벽 문간 (마당 문) 위까지 덮는다 — 보이는 계단을 톡 한다 (칸 안에서 장면이 '계단' 이라고 하는 점, 가운데에서 가까운 것) */
+    var best = null, bd = 1e9; for (var y = q.top + 2; y < q.bottom; y += 4) for (var x = q.left + 2; x < q.right; x += 4) { var k = APP.scene.pickAt(x, y), d = Math.hypot(x - c.x, y - c.y); if (k && k.id === 'atticStair' && d < bd) { bd = d; best = { x: x, y: y }; } }
+    return best || c; }, id); if (r && !r.key) await pg.touchscreen.tap(r.x, r.y); return !!r; }
   async function stair(pg, up) { await tap(pg, up ? 'btn-stair' : 'btn-loft-stair'); var r = await tick(pg, 16, up ? function () { var m = APP.scene.motion(); return APP.room === 'loft' && m.dq === '' && !m.trans; } : function () { var m = APP.scene.motion(); return !APP.room && m.dq === '' && !m.trans; }); await tick(pg, 0.5); return r.done; }
   async function tapMirror(pg) { var sp = await pg.evaluate(function () { var b = document.getElementById('btn-salon'); if (b.hidden) return null; var r = APP.scene.spotRect('salon'); return r && r.client ? { x: r.client.x + r.client.w / 2, y: r.client.y + r.client.h / 2 } : null; }); if (sp) { await pg.touchscreen.tap(sp.x, sp.y); await tick(pg, 0.6); } return !!sp; }
   function S(pg) { return pg.evaluate(function () { var m = APP.scene.motion(), t = document.getElementById('toast'), bb = document.getElementById('oct-bubble'), b = document.getElementById('btn-salon');
@@ -5646,13 +6335,13 @@ async function scenarioLoft(browser) {
       desc: document.getElementById('scene-desc').textContent, snd: window.__snd.filter(function (k) { return k === 'salon'; }).length, stairVis: getComputedStyle(document.getElementById('btn-stair')).visibility }; }); }
   function dist(a, b) { return Math.hypot(a[0] - b[0], a[2] - b[2]); }
   function outOfCorner(at) { return !(at[0] < -0.6 && at[2] < -0.75); }   /* 거울 구석 = 재봉 의자(x −0.61 까지) 왼쪽 · 거울 쪽 바닥 (마네킹 · 거울 · 대야 자리 사이) */
-  var A, pg, s, ZP = String(process.env.SMOKE_Z || '1,2,3,4,5').split(',');   /* SMOKE_Z=2 → 그 묶음만 (고침을 하나씩 되돌려 볼 때) */
+  var A, pg, s, ZP = String(process.env.SMOKE_Z || '1,2,3,4,5,6').split(',');   /* SMOKE_Z=2 → 그 묶음만 (고침을 하나씩 되돌려 볼 때) */
 
   /* 1. 걷던 문어가 계단을 따라 오른다 (걸음 중간 · 도착 폴짝 중) → 위층에서 idle · 폴짝 0. 위층 65 s (돌아다니기 타이머 20–40 s 가 두 번쯤): 그 자리 그대로.
         시트를 연 채 45 s 도 그대로 (예전엔 시트 밑으로 걸어 들어갔다). 내려오면 다시 돌아다닌다 */
   if (ZP.indexOf('1') >= 0) for (var D of [0.6, 0.15]) {
     A = await open({ w: 320, h: 568 }); pg = A.page;
-    await pg.evaluate(function () { APP.scene.debugPlayerAt(2.3, -2.05); });   /* 계단 앞: 단추를 누르면 바로 오른다 */
+    await pg.evaluate(function () { var a = APP.scene.doorAnchors.atticStair; APP.scene.debugPlayerAt(a[0], a[2]); });   /* 계단 발치 (11-18: 왼벽 앞쪽 구석 — 이 화면에선 왼쪽 밖이라 단추는 가장자리의 계단 그림 단추): 누르면 바로 오른다 */
     var w0 = await tick(pg, 60, function () { return APP.oct.state === 'walk'; });   /* 앱이 스스로 돌아다니기 시작 (걸음 첫 프레임까지 0.1 s 씩) */
     var tg = await pg.evaluate(function () { return APP.scene.anchors[APP.oct.anchor]; });
     await tick(pg, 10, new Function('var a = APP.scene.motion().gait.at, t = ' + JSON.stringify(tg) + '; return Math.hypot(a[0] - t[0], a[2] - t[2]) < ' + D + ';'));
@@ -5770,7 +6459,7 @@ async function scenarioLoft(browser) {
   await stair(pg, true); await tick(pg, 4);
   var allGood = await mirror('아래층에서 잠', { toast: '지금은 아래층에서 자고 있어.', hidden: false });
   await pg.evaluate(function () { APP.octState('idle'); clearTimeout(APP.oct.wanderTimer); }); await tick(pg, 0.5);   /* 내가 위층에 있는 동안 깼다 (스스로 깸과 같은 상태) — 혼자 올라오지 않는다. 돌아다니기 타이머는 같은 순간에 끈다 (아래층에서 걷기 시작하면 '깨어서 아래층' 읽기와 겨뤘다) */
-  allGood = await mirror('깨어서 아래층', { toast: '지금은 아래층에 있어.', hidden: false }) && allGood;
+  allGood = await mirror('깨어서 아래층', { toast: '깨어 있을 때 같이 올라오면 물어볼 수 있어.', hidden: false }) && allGood;
   s = await S(pg); allGood = allGood && !s.up && /문어는 아래층 .+에서 쉬고 있어\./.test(s.desc);
   lines.push('장면 설명: ' + s.desc);
   await pg.evaluate(function () { APP.walkTo(APP.oct.anchor === 'window' ? 'center' : 'window').then(function () { APP.octState('idle'); }); }); await tick(pg, 0.3);   /* 아래층에서 걷는 중 (내가 위층에서 들으면) */
@@ -5805,10 +6494,13 @@ async function scenarioLoft(browser) {
   ok(s.up && gap >= 0, '따라 올라온 문어는 빈 바닥에 선다: 방석과 몸(0.42) 사이 ' + gap.toFixed(2) + ' m ' + JSON.stringify({ at: s.at, cushions: cu }));
   await stair(pg, false);
   await tap(pg, 'btn-furn'); await tick(pg, 0.5);
-  var f0 = await pg.evaluate(function () { return document.documentElement.classList.contains('furn-on'); });
+  var f0 = await pg.evaluate(function () { return { on: document.documentElement.classList.contains('furn-on'), stair: getComputedStyle(document.getElementById('btn-stair')).visibility }; });
+  var fGo = await pg.evaluate(function () { return APP.goRoom('loft'); }); await tick(pg, 1);
+  var fIn = await pg.evaluate(function () { return { room: APP.room, on: document.documentElement.classList.contains('furn-on') }; });
+  await pg.evaluate(function () { document.getElementById('furn-ok').click(); }); await tick(pg, 0.5);
   var fUp = await stair(pg, true);
   var f1 = await pg.evaluate(function () { var g = document.getElementById('btn-go'); return { on: document.documentElement.classList.contains('furn-on'), ui: !document.getElementById('furn-ui').hidden, salon: !document.getElementById('btn-salon').hidden, go: getComputedStyle(g).visibility !== 'hidden' && getComputedStyle(g).display !== 'none' }; });
-  ok(f0 && fUp && !f1.on && !f1.ui && f1.salon && f1.go, '가구 배치 중 계단으로 오르면 배치는 끝난다 (위층에 죽은 판 없음 · 거울 · 큰 버튼 보임) ' + JSON.stringify(f1));
+  ok(f0.on && f0.stair === 'hidden' && !fGo.ok && fGo.reason === 'furn' && fIn.on && fIn.room !== 'loft' && fUp && !f1.on && !f1.ui && f1.salon && f1.go, '11-15 가구 모드 중엔 계단이 숨고 방을 안 옮긴다 · 저장하기 뒤 오르면 위층 그대로 (거울 · 큰 버튼 보임) ' + JSON.stringify([f0, fGo, fIn, f1]));
   /* 밀어 둔 화면(아래로 끌어 둠)에서 거울: 시트가 열리면 기본 구도로 돌아가고, 올림은 기본 구도에서 연 것과 같다 */
   await tapMirror(pg); await tick(pg, 1); var l0 = await pg.evaluate(function () { return APP.scene.lift().to; });
   await pg.evaluate(function () { document.getElementById('salon-close').click(); }); await tick(pg, 1);
@@ -5825,7 +6517,7 @@ async function scenarioLoft(browser) {
         문어는 다락 담요에 · 깨우지 않는다 · 거울은 '아래층' 한 줄 (물음 · 행 · 미용실 소리 0) · 틈은 보는 다락에서만 준다 (주인 11-08 — 위층에선 그대로). 틈이 끝나 깨어 있으면 예전처럼 따라 온다.
         11-13 주인 (OW-3 b): 이미 위층에 따라 와 있던 채 차례가 끝나면 내가 내려갈 때까지 위층 그 자리 (깨어 있는 틈) — 내려가면 (계단 · 새로고침) 다락 담요. 위층에서 자는 문어는 없다 */
   if (ZP.indexOf('5') >= 0) {
-  var AW = 60000, DOWN = '지금은 아래층에 있어.', DOWN_Z = '지금은 아래층에서 자고 있어.';   /* 깨어 있는 틈 60 s (테스트 훅) · 등불 4칸 (담요 자리가 있다) */
+  var AW = 60000, DOWN = '깨어 있을 때 같이 올라오면 물어볼 수 있어.', DOWN_Z = '지금은 아래층에서 자고 있어.';   /* 깨어 있는 틈 60 s (테스트 훅) · 등불 4칸 (담요 자리가 있다) */
   function R5(pg) { return pg.evaluate(function () { var t = document.getElementById('toast'); return { room: APP.room, up: APP.scene.octUp(), st: APP.oct.state, an: APP.oct.anchor, phase: APP.restPhase(), rest: APP.rest, saved: APP.state.octopus.state,
     running: APP.state.trips.some(function (x) { return x.status === 'running'; }), rows: document.querySelectorAll('#log .lrow').length, snd: window.__snd.filter(function (k) { return k === 'salon'; }).length, toast: t.classList.contains('show') ? t.textContent : '' }; }); }
   function J5(r) { return JSON.stringify({ room: r.room, up: r.up, st: r.st, an: r.an, phase: r.phase, left: r.rest && r.rest.left, saved: r.saved }); }
@@ -6043,13 +6735,157 @@ async function scenarioLoft(browser) {
     '위층에 따라 와 있는 동안 전체 초기화: 새 문어는 다락 창가 (거리 ' + w35.d + ') · 이름 창 · 이름 뒤 다시 오르면 따라 온다');
   reportErrors(bag, 'Z-5l'); await A.ctx.close();
   }
+  /* 6. 11-15 가구 모드 (망치 단추): 문어 · 캐릭터 숨김 · 기본 각도 · 끌면 칸에 딱딱 (뗀 자리 그대로) · 못 놓는 곳은 빨강 → 끌기 전 자리 · 돌리기 90° · 작게/크게 0.1 (0.7~1.5 끝에서 멈춤) ·
+        겹치면 안 바뀜 · 취소 = 연 때 그대로 · 저장하기 = 같은 모양 · 옛 15° / 0.85 배치는 그대로 · 양초는 상자 뚜껑 위 · 문어 자리는 가구 밖 · 문어 길은 가구를 돈다 · 문어가 나가면 저장하고 닫힘 */
+  if (ZP.indexOf('6') >= 0) {
+  var LAY6 = { sofa: [-1.9, 1.75, 15, 0.85], crate: [2, -0.75, 45, 0.85] };   /* 옛 슬라이더 배치 (15° · 45° · 0.05 칸 크기) */
+  var R6 = REC(5); R6.room.layout = JSON.parse(JSON.stringify(LAY6));
+  A = await open({ rec: R6 }); pg = A.page;
+  var L6 = function () { return pg.evaluate(function () { return APP.scene.layout(); }); };
+  var lay0 = await L6();
+  ok(lay0.sofa[2] === 15 && lay0.sofa[3] === 0.85 && Math.abs(lay0.sofa[1] - 1.75) < 1e-6 && lay0.crate[2] === 45 && lay0.crate[3] === 0.85, '옛 배치 (15° · 45° · 0.85) 를 그대로 읽는다 (칸에 다시 맞추지 않는다) ' + JSON.stringify(lay0));
+  /* 두 손가락 비틀기로 각도를 바꿔 둔 뒤 (지금 손짓이 각도를 바꾸면) 모드를 열면 기본 각도 */
+  var cdp6 = await A.ctx.newCDPSession(pg), T6 = function (type, pts) { return cdp6.send('Input.dispatchTouchEvent', { type: type, touchPoints: pts }); };
+  async function fingers(from, to, n) { var at = function (k) { return from.map(function (p, i) { return { x: p[0] + (to[i][0] - p[0]) * k, y: p[1] + (to[i][1] - p[1]) * k, id: i }; }); }; await T6('touchStart', at(0)); for (var i = 1; i <= n; i++) await T6('touchMove', at(i / n)); }
+  var tw = function (a) { var t = a * Math.PI / 180; return [[180 + 70 * Math.cos(t), 420 + 70 * Math.sin(t)], [180 - 70 * Math.cos(t), 420 - 70 * Math.sin(t)]]; };
+  await fingers(tw(0), tw(40), 16); await T6('touchEnd', []); await tick(pg, 0.3);
+  var y6 = await pg.evaluate(function () { return APP.scene.furnLook().yaw; });
+  await pg.evaluate(function () { APP.scene.jumpTo('window'); APP.oct.anchor = 'window'; APP.scene.setLayout({ crate: [0.5, -0.75, 45, 0.85] }); });   /* 끌어 볼 빈 바닥 (저장은 안 한다 — 저장값은 LAY6 그대로) */
+  var lay1 = await L6();
+  await tap(pg, 'btn-furn'); await tick(pg, 0.3);
+  var o6 = await pg.evaluate(function () { var l = APP.scene.furnLook(), st = document.getElementById('stick'); return { on: document.documentElement.classList.contains('furn-on'), oct: l.oct, pl: l.pl, yaw: l.yaw, zoom: l.zoom, stick: !st || st.hidden || getComputedStyle(st).display === 'none' || getComputedStyle(st).visibility === 'hidden', go: getComputedStyle(document.getElementById('invite')).visibility, hint: !document.getElementById('furn-hint').hidden, hand: !document.getElementById('furn-hand').hidden, ed: APP.scene.furnEditing() }; });
+  ok(o6.on && !o6.oct && !o6.pl && o6.yaw === 0 && o6.zoom <= 1 && o6.stick && o6.go === 'hidden' && o6.hint && o6.hand && o6.ed && !o6.ed.id, '망치 → 가구 모드: 문어 · 캐릭터 · 스틱 · 큰 버튼 숨김 · 기본 각도 (비튼 각도 ' + (y6 * 180 / Math.PI).toFixed(0) + '° → 0) · 바닥 다 보이게 ' + o6.zoom.toFixed(3) + '× · 안내 한 줄 ' + JSON.stringify(o6));
+  var gr6 = await pg.evaluate(function () { return APP.goRoom('loft'); });
+  ok(!gr6.ok && gr6.reason === 'furn', '모드 중엔 방을 옮기지 않는다 ' + JSON.stringify(gr6));
+  /* 끌기 (진짜 손가락): 상자를 왼쪽 아래로 → 손가락 밑 칸에 딱딱 · 떼면 보이던 자리 그대로 */
+  async function rect6(id) { return pg.evaluate(function (id) { var ui = document.getElementById('furn-ui').getBoundingClientRect(), s = APP.scene.furnEditing().id; APP.scene.furnSelect(id); var r = APP.scene.furnSelRect(); APP.scene.furnSelect(s); return { x: ui.left + (r.l + r.r) / 2, y: ui.top + r.b - 10, cx: ui.left + (r.l + r.r) / 2, cy: ui.top + (r.t + r.b) / 2, r: r }; }, id); }
+  var c6 = await rect6('crate');
+  await fingers([[c6.x, c6.y]], [[c6.x - 30, c6.y + 12]], 14); await tick(pg, 0.1);
+  var m6 = await pg.evaluate(function () { return { ed: APP.scene.furnEditing(), at: APP.scene.layout().crate, r: APP.scene.furnSelRect(), look: APP.scene.furnLook(), pan: APP.scene.pan() }; });
+  await T6('touchEnd', []); await tick(pg, 0.2);
+  var a6 = await pg.evaluate(function () { return { pan: APP.scene.pan(), ed: APP.scene.furnEditing(), at: APP.scene.layout().crate, r: APP.scene.furnSelRect(), row: !document.getElementById('furn-turn').disabled && document.getElementById('furn-meter').getAttribute('data-step') === String(Math.round((APP.scene.furnEditing().scale - 0.7) * 10) + 1),   /* 11-15 (UI 점검): 아래 한 판 — 고르면 단추가 켜지고 눈금이 지금 단계 */ hint: !document.getElementById('furn-hint').hidden }; });
+  var onGrid = function (v, lim) { return Math.abs(v / 0.25 - Math.round(v / 0.25)) < 1e-6 || lim; };
+  ok(m6.ed.dragging && !m6.ed.bad && m6.look.sel && !m6.look.nope && (m6.at[0] !== lay1.crate[0] || m6.at[1] !== lay1.crate[1]) && onGrid(m6.at[0]) && onGrid(m6.at[1]) && a6.at[0] === m6.at[0] && a6.at[1] === m6.at[1] && Math.abs(a6.r.l - m6.r.l) <= 1 && Math.abs(a6.r.t - m6.r.t) <= 1 && a6.ed.id === 'crate' && !a6.ed.dragging && a6.row && !a6.hint,
+    '끌면 0.25 m 칸에 딱딱 (' + m6.at.slice(0, 2) + ') ' + JSON.stringify([m6.at, a6.at]) + ' · 떼도 그 자리 (튐 없음, 화면 ' + (a6.r.l - m6.r.l) + ',' + (a6.r.t - m6.r.t) + ' px) · 고른 채 단추 줄 · 안내는 걷힘');
+  /* 못 놓는 곳: 상자를 소파 위로 → 흰 테 굵게 (11-15 검증 U-2: 빨강은 바닥 · 소파에 묻혔다) · 떼면 끌기 전 자리 */
+  var c6b = await rect6('crate'), s6 = await rect6('sofa'), before6 = await L6();
+  await fingers([[c6b.x, c6b.y]], [[s6.cx, s6.cy]], 20); await tick(pg, 0.1);
+  var r6 = await pg.evaluate(function () { return { ed: APP.scene.furnEditing(), look: APP.scene.furnLook(), at: APP.scene.layout().crate }; });
+  await T6('touchEnd', []); await tick(pg, 0.2);
+  var r6b = (await L6()).crate;
+  ok(r6.ed.bad && r6.look.nope && r6b[0] === before6.crate[0] && r6b[1] === before6.crate[1], '소파 위로 끌면 흰 테 굵게 (' + r6.at.slice(0, 2) + ') · 떼면 끌기 전 자리로 ' + JSON.stringify([before6.crate, r6b]));
+  /* 빈 바닥 한 손가락 = 밀기 (가구는 그대로) */
+  var p6 = await pg.evaluate(function () { return APP.scene.pan(); }), lp6 = await L6();
+  await fingers([[60, 520]], [[110, 480]], 8); await tick(pg, 0.1);   /* 11-15: 아래 한 판이 높아져 (단추 줄 + 가구 줄) 바닥은 그 위 */
+  var p6b = await pg.evaluate(function () { return { pan: APP.scene.pan(), ed: APP.scene.furnEditing() }; }); await T6('touchEnd', []); await tick(pg, 0.5);
+  ok(JSON.stringify(await L6()) === JSON.stringify(lp6) && !p6b.ed.dragging && JSON.stringify(p6b.pan) !== JSON.stringify(p6), '빈 바닥에서 끌면 화면이 밀리고 가구는 안 움직인다 ' + JSON.stringify([p6, p6b.pan]));
+  /* 단추 줄: 돌리기 90° · 작게/크게 0.1 · 끝에서 멈춤 (단추 꺼짐) */
+  async function btn6(id) { await pg.evaluate(function (id) { document.getElementById(id).click(); }, id); await tick(pg, 0.1); return pg.evaluate(function () { var e = APP.scene.furnEditing(); return { rot: e.rot, sc: e.scale, small: document.getElementById('furn-small').disabled, big: document.getElementById('furn-big').disabled }; }); }
+  var t6 = await btn6('furn-turn'), sc6 = [];
+  await pg.evaluate(function () { APP.scene.setLayout({ crate: [0.75, -0.5, 135, 0.85] }); APP.scene.furnSelect('crate'); });   /* 1.5 까지 키울 빈 자리 */
+  for (var k6 = 0; k6 < 3; k6++) sc6.push(await btn6('furn-small'));
+  ok(t6.rot === 135 && sc6[0].sc === 0.75 && sc6[1].sc === 0.7 && sc6[1].small && sc6[2].sc === 0.7, '돌리기 = 90° (45 → ' + t6.rot + ') · 작게 = 0.1 씩, 0.7 에서 멈추고 단추가 꺼진다 ' + JSON.stringify(sc6.map(function (x) { return x.sc; })));
+  var bg6 = []; for (k6 = 0; k6 < 9; k6++) bg6.push((await btn6('furn-big')).sc);
+  var bl6 = await pg.evaluate(function () { return document.getElementById('furn-big').disabled; });
+  ok(bg6[0] === 0.8 && bg6.indexOf(1.5) >= 0 && bg6[bg6.length - 1] === 1.5 && bl6, '크게 = 0.1 씩, 1.5 에서 멈추고 단추가 꺼진다 ' + JSON.stringify(bg6));
+  /* 겹치면 안 바뀐다: 소파를 상자 바로 옆에 두고 상자를 키운다 */
+  var ov6 = await pg.evaluate(function () {
+    var sc = APP.scene; sc.setLayout({ crate: [2, -0.75, 0, 1], sofa: [1, -0.75, 0, 1] }); sc.furnSelect('crate');
+    var a = sc.furnScale(1), s1 = sc.furnEditing().scale, b = sc.furnScale(1), s2 = sc.furnEditing().scale; return { a: a, b: b, s1: s1, s2: s2 };
+  });
+  ok(ov6.a && ov6.s1 === 1.1 && !ov6.b && ov6.s2 === 1.1, '키우면 소파와 겹칠 때는 안 바뀐다 ' + JSON.stringify(ov6));
+  /* 취소 = 연 때 그대로 */
+  await pg.evaluate(function () { document.getElementById('furn-x').click(); }); await tick(pg, 0.3);
+  var x6 = await pg.evaluate(function () { var l = APP.scene.furnLook(); return { lay: APP.scene.layout(), on: document.documentElement.classList.contains('furn-on'), oct: l.oct, pl: l.pl, zoom: l.zoom, saved: APP.state.room.layout }; });
+  ok(JSON.stringify(x6.lay) === JSON.stringify(lay1) && !x6.on && x6.oct && x6.pl && x6.zoom === 1 && JSON.stringify(x6.saved) === JSON.stringify(LAY6), '취소 = 연 때 그대로 (저장도 그대로) · 문어 · 캐릭터 다시 보임 · 1× ' + JSON.stringify(x6.lay));
+  /* 저장하기: 옮긴 가구만 같은 모양으로 · 안 건드린 소파는 옛 값 그대로 */
+  await tap(pg, 'btn-furn'); await tick(pg, 0.3);
+  var c6c = await rect6('crate');
+  await fingers([[c6c.x, c6c.y]], [[c6c.x - 30, c6c.y + 12]], 12); await T6('touchEnd', []); await tick(pg, 0.2);
+  var mv6 = (await L6()).crate;
+  await pg.evaluate(function () { document.getElementById('furn-ok').click(); }); await tick(pg, 0.3);
+  var sv6 = await pg.evaluate(function () { return { saved: APP.state.room.layout, disk: JSON.parse(localStorage.getItem('ppolppol_v2')).room.layout, on: document.documentElement.classList.contains('furn-on') }; });
+  ok(!sv6.on && JSON.stringify(sv6.saved.sofa) === JSON.stringify(LAY6.sofa) && Array.isArray(sv6.saved.crate) && sv6.saved.crate.length === 4 && sv6.saved.crate.every(function (v) { return typeof v === 'number'; }) && sv6.saved.crate[0] === mv6[0] && sv6.saved.crate[1] === mv6[1] && sv6.saved.crate[2] === 45 && sv6.saved.crate[3] === 0.85 && JSON.stringify(sv6.disk) === JSON.stringify(sv6.saved),
+    '저장하기: 옮긴 상자만 [x, z, rot, scale] 로 (' + JSON.stringify(sv6.saved.crate) + ') · 소파는 옛 값 그대로 · 디스크와 같다');
+  /* 양초: 상자 뚜껑 위 (0.7 · 1.0 · 1.5 × 0 · 90 · 180 · 270°) — 자리 · 높이 · 돌림 · 크기 · 빛 */
+  var cd6 = await pg.evaluate(function () {
+    var sc = APP.scene, bad = [], n = 0;
+    [0.7, 1, 1.5].forEach(function (s) { [0, 90, 180, 270].forEach(function (r) {
+      sc.setLayout({ crate: [1.5, 0.5, r, s] }); var f = sc.furnFoot('crate'), c = sc.furnCandle(), t = r * Math.PI / 180, dx = c.x - f.x, dz = c.z - f.z;
+      var lx = (dx * Math.cos(t) - dz * Math.sin(t)) / s, lz = (dx * Math.sin(t) + dz * Math.cos(t)) / s; n++;
+      if (Math.abs(lx - 0.05) > 1e-3 || Math.abs(lz + 0.05) > 1e-3 || Math.abs(c.y - 0.72 * s) > 1e-3 || Math.abs(c.sc - s) > 1e-6 || Math.abs(c.ry - t) > 1e-6 || Math.abs(c.lx - c.x) > 1e-6 || Math.abs(c.ly - c.y - 0.43 * s) > 1e-3) bad.push([s, r, lx, lz, c.y]);
+    }); });
+    sc.setLayout(APP.state.room.layout); return { n: n, bad: bad };
+  });
+  ok(cd6.n === 12 && !cd6.bad.length, '양초는 상자 뚜껑 위 · 상자와 같이 돌고 커진다 (12 가지) ' + JSON.stringify(cd6.bad));
+  /* 문어 자리: 어느 배치에서도 소파 · 상자 발자국(+ 문어 몸 0.42) 밖 · 가구 값은 안 바뀐다 */
+  var sp6 = await pg.evaluate(function () {
+    var sc = APP.scene, bad = [], cases = [{ sofa: [0, 0.2, 0, 1.5] }, { sofa: [-0.65, 1.0, 90, 1.5], crate: [-1.9, -1.0, 0, 1.5] }, { crate: [-0.65, 1.5, 0, 0.7] }, { sofa: [1.25, -1.0, 45, 1.3], crate: [-1.8, 0.4, 90, 1.2] }];
+    cases.forEach(function (c, i) {
+      sc.setLayout(c); var lay = sc.layout();
+      Object.keys(c).forEach(function (id) { if (Math.abs(lay[id][2] - c[id][2]) > 1e-6 || Math.abs(lay[id][3] - c[id][3]) > 1e-6) bad.push(['moved', i, id]); });
+      ['crate', 'blanket', 'center', 'window', 'door', 'board'].forEach(function (k) { var p = sc.octSpot(k); ['sofa', 'crate'].forEach(function (id) { var f = sc.furnFoot(id), dx = Math.max(Math.abs(p[0] - f.x) - f.hw, 0), dz = Math.max(Math.abs(p[1] - f.z) - f.hd, 0); if (dx < 0.42 - 1e-6 && dz < 0.42 - 1e-6) bad.push([i, k, id, p]); }); });
+    });
+    return bad;
+  });
+  ok(!sp6.length, '문어 자리 (상자 옆 · 담요 · 가운데 · 창가 · 문 · 보드) 는 어느 배치에서도 소파 · 상자 + 문어 몸 밖 (가구 값은 그대로) ' + JSON.stringify(sp6));
+  /* 문어 길: 소파를 가운데에 두고 창가 → 문 앞으로 걸으면 소파를 돌아간다 */
+  await pg.evaluate(function () { APP.scene.setLayout({ sofa: [0.25, -0.5, 0, 1.5] }); APP.scene.jumpTo('window'); window.__w6 = []; window.__zEach = function () { var m = APP.scene.motion(); window.__w6.push(m.gait.at); }; APP.scene.moveTo('door'); });
+  var wk6 = await tick(pg, 12, function () { return !APP.scene.motion().gait.moving && window.__w6.length > 5; });
+  var wb6 = await pg.evaluate(function () { window.__zEach = null; var f = APP.scene.furnFoot('sofa'), n = 0; window.__w6.forEach(function (p) { if (Math.abs(p[0] - f.x) < f.hw + 0.2 && Math.abs(p[2] - f.z) < f.hd + 0.2) n++; }); var e = window.__w6[window.__w6.length - 1], d = APP.scene.octSpot('door'); return { n: n, frames: window.__w6.length, end: e, door: d }; });
+  ok(wk6.done && wb6.n === 0 && Math.hypot(wb6.end[0] - wb6.door[0], wb6.end[2] - wb6.door[1]) < 0.05, '문어 길은 가운데 소파를 돌아간다 (소파 속 프레임 ' + wb6.n + ' / ' + wb6.frames + ') · 문 앞 도착');
+  await pg.evaluate(function () { APP.scene.setLayout(APP.state.room.layout); });
+  /* 담요에서 자던 문어: 담요를 옮기고 저장하면 새 담요 자리에 */
+  await pg.evaluate(function () { APP.scene.jumpTo('blanket'); APP.oct.anchor = 'blanket'; });
+  await tap(pg, 'btn-furn'); await tick(pg, 0.3);
+  var bk6 = await rect6('blanket');
+  await fingers([[bk6.cx, bk6.cy]], [[bk6.cx + 40, bk6.cy - 50]], 12); await T6('touchEnd', []); await tick(pg, 0.2);
+  var bm6 = await pg.evaluate(function () { return APP.scene.furnEditing(); });
+  await pg.evaluate(function () { document.getElementById('furn-ok').click(); }); await tick(pg, 0.3);
+  var bw6 = await pg.evaluate(function () { var f = APP.scene.furnFoot('blanket'), m = APP.scene.motion(); return { at: m.gait.at, bed: APP.scene.octSpot('blanket'), f: f, oct: APP.scene.furnLook().oct }; });
+  ok(bm6.id === 'blanket' && Math.hypot(bw6.at[0] - bw6.bed[0], bw6.at[2] - bw6.bed[1]) < 0.02 && Math.abs(bw6.bed[0] - bw6.f.x) < 1e-6 && bw6.oct, '담요에 있던 문어는 저장 뒤 담요의 새 자리에 ' + JSON.stringify(bw6));
+  /* (검증 11-15) 걷던 문어: 모드를 열면 도착해 있고, 그 자리엔 가구를 못 놓는다 · 소파를 담요 옆에서 돌리면 가까운 빈 칸으로 비켜 돈다 · 문어 자리 동그라미 */
+  await pg.evaluate(function () { APP.scene.setLayout(APP.state.room.layout); APP.scene.jumpTo('window'); APP.oct.anchor = 'board'; APP.scene.moveTo('board'); });
+  await tick(pg, 0.2); await tap(pg, 'btn-furn'); await tick(pg, 0.2);
+  var wv6 = await pg.evaluate(function () { var m = APP.scene.motion(), b = APP.scene.octSpot('board'); APP.scene.furnSelect('sofa'); var r = APP.scene.furnRotate(), e = APP.scene.furnEditing(); return { moving: m.gait.moving, d: Math.hypot(m.gait.at[0] - b[0], m.gait.at[2] - b[1]), here: APP.scene.furnDragTest('crate', b[0], b[1]), turn: r, rot: e.rot }; });
+  await pg.evaluate(function () { document.getElementById('furn-x').click(); }); await tick(pg, 0.2);
+  ok(!wv6.moving && wv6.d < 0.05 && !wv6.here && wv6.turn && wv6.rot === 105, '걷던 문어는 모드를 열 때 도착 (그 자리엔 가구 못 놓음) · 담요 옆 소파도 돌아간다 (15 → ' + wv6.rot + ') ' + JSON.stringify(wv6));
+  /* 11-15 (UI 점검 · 주인 답): 아래 한 판 (단추 줄이 가구 줄에 틈 없이) · 보이는 글자 0 · 가짜 굵게 없음 · 막히면 방 안 고른 가구 테가 흰색 굵게 깜빡 */
+  await tap(pg, 'btn-furn'); await tick(pg, 0.3);
+  var ui6 = await pg.evaluate(FURN_LOOK);
+  ok(ui6.pics && ui6.gap === 0 && !ui6.words.length && !ui6.titles.length && !ui6.bold.length && ui6.meter === '0' && ui6.off, '가구 모드 아래 한 판: 단추 줄 밑 = 가구 줄 위 (틈 ' + ui6.gap + 'px) · 보이는 글자 없음 ' + JSON.stringify(ui6.words) + ' · 올리면 뜨는 글 (title) 없음 ' + JSON.stringify(ui6.titles) + ' · 가짜 굵게 없음 ' + JSON.stringify(ui6.bold) + ' · 고른 것 없으면 단추 꺼짐 · 눈금 빈칸');
+  var np6 = await pg.evaluate(function () { var sc = APP.scene; sc.setLayout({ crate: [2, -0.75, 0, 1], sofa: [1, -0.75, 0, 1] }); sc.furnSelect('crate'); sc.furnScale(1); var ok1 = sc.furnScale(1); return { ok: ok1, step: document.getElementById('furn-meter').getAttribute('data-step') }; });
+  await tick(pg, 0.05); var np6a = await pg.evaluate(function () { return APP.scene.furnLook().nope; });
+  await tick(pg, 0.6); var np6b = await pg.evaluate(function () { return APP.scene.furnLook().nope; });
+  ok(!np6.ok && np6.step === '5' && np6a && !np6b, '키우기가 막히면 고른 상자 테가 잠깐 흰색 굵게 (' + np6a + ' → 0.6 s 뒤 ' + np6b + ') · 눈금은 지금 단계 (1.1 = 9칸 중 ' + np6.step + ')');
+  await pg.evaluate(function () { document.getElementById('furn-x').click(); }); await tick(pg, 0.3);
+  /* 문어가 나가면 (출발 의식) 모드는 저장하고 닫힌다 */
+  await tap(pg, 'btn-furn'); await tick(pg, 0.3);
+  var c6d = await rect6('crate');
+  await fingers([[c6d.x, c6d.y]], [[c6d.x + 40, c6d.y + 40]], 12); await T6('touchEnd', []); await tick(pg, 0.2);
+  var mv6d = (await L6()).crate;
+  await pg.evaluate(function () { APP.scene.departCeremony(); }); await tick(pg, 0.3);
+  var dp6 = await pg.evaluate(function () { return { on: document.documentElement.classList.contains('furn-on'), ui: !document.getElementById('furn-ui').hidden, saved: APP.state.room.layout.crate, cer: APP.scene.ceremony() }; });
+  ok(!dp6.on && !dp6.ui && dp6.cer === 'depart' && dp6.saved[0] === mv6d[0] && dp6.saved[1] === mv6d[1], '모드 중 문어가 나가면 저장하고 닫힌다 ' + JSON.stringify(dp6));
+  await cdp6.detach();
+  reportErrors(bag, 'Z-6'); await A.ctx.close();
+  /* 11-15 (UI 점검): 폰 배율 — 360x740 @3 (밝음) · 412x915 @2.625 (어두움) · 320x568 @2: 한 판 · 글자 0 · 그림 대비 3:1 이상 (예전 어두운 테마 1.1:1) · 가짜 굵게 없음 */
+  for (var ph6 of [{ w: 360, h: 740, dpr: 3 }, { w: 412, h: 915, dpr: 2.625, dark: true }, { w: 320, h: 568, dpr: 2 }]) {
+    A = await open({ rec: REC(5), w: ph6.w, h: ph6.h, dpr: ph6.dpr, dark: ph6.dark }); pg = A.page;
+    await tap(pg, 'btn-furn'); await tick(pg, 0.3); await pg.evaluate(function () { APP.scene.furnSelect('sofa'); }); await tick(pg, 0.1);
+    var q6 = await pg.evaluate(FURN_LOOK), tag6 = ph6.w + 'x' + ph6.h + ' @' + ph6.dpr + (ph6.dark ? ' 어두움' : '');
+    ok(q6.gap === 0 && !q6.words.length && !q6.bold.length && q6.minCon >= 3 && q6.meter === '4', tag6 + ': 한 판 (틈 ' + q6.gap + ') · 글자 없음 ' + JSON.stringify(q6.words) + ' · 그림 대비 최소 ' + q6.minCon.toFixed(2) + ':1 · 굵게 ' + JSON.stringify(q6.bold) + ' · 눈금 ' + q6.meter);
+    await pg.screenshot({ path: path.join(SHOTS, 'z6-furn-' + ph6.w + (ph6.dark ? 'd' : '') + '.png') });
+    reportErrors(bag, 'Z-6 ' + tag6); await A.ctx.close();
+  }
+  }
 }
 
 /* X. 바깥 텃밭 (검증 11-11): 흙 · 심은 것을 톡 하면 그 칸 (세 크기 · 칸마다 흙 격자 · 진짜 손가락) · 울타리 자리에 선 문어를 톡 하면 밭이 아니라 문어 ·
    키보드(단추 · Enter · 링이 제 칸 위) · 단추 이름(칸 · 든 것 · 누르면 할 일, 바뀔 때마다) · 2D 에선 '밭을 바로 톡' 글이 없다 · 모르는 꽃 색이어도 살림이 열리고 물 · 거두기 ·
    다른 탭 · 불러오기 · 전체 초기화 뒤 꼬리표 · 점 · 열린 살림 · 재봉틀 시트 · 바깥 밭 · 씨앗이 보인다(칸 상자 안 픽셀 차) · 울타리가 밭 밖 · 심은 것 지오메트리가 버릴 목록에 (늘지 않게) */
 async function scenarioGarden(browser) {
-  console.log('\n== X. 바깥 텃밭: 톡한 칸 · 울타리의 문어 · 키보드 · 단추 이름 · 2D 글 · 모르는 색 · 다른 탭 · 불러오기 · 초기화 · 씨앗 그림 · 울타리');
+  console.log('\n== X. 마당 텃밭 (11-15: 바깥 → 마당): 톡한 칸 · 바깥엔 밭 없음 · 키보드 · 단추 이름 · 2D 글 · 모르는 색 · 다른 탭 · 불러오기 · 초기화 · 씨앗 그림 · 울타리');
   var O = 'http://ppolppol.example', bag = []; bag.ignored = [];
   var RED = '#e8463c', BORN = 1762600000000, DAY = '2026-11-11', NEXT = '2026-11-12', WK = '2026-11-09';
   var WAIT = +process.env.SMOKE_WAIT || 180000;   /* '그 상태가 될 때까지' 의 넉넉한 끝 (검사가 아니다) */
@@ -6080,10 +6916,11 @@ async function scenarioGarden(browser) {
     await page.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
     return page;
   }
-  /* 산책 중과 같게: 앱 · 장면 문어는 'away' (돌아다니지 않고 안 보인다) · 바깥을 바로 → 밭 단추 셋이 올라올 때까지 */
+  /* 11-15: 밭은 마당에 — 마당 문으로 나가 밭 단추 셋이 올라올 때까지 (함께한 날 3 → 세 칸) */
   async function outside(pg) {
-    await pg.evaluate(function () { APP.oct.state = 'away'; APP.scene.setOctState('away'); APP.scene.setPlace('exterior', { instant: true }); });
-    await pg.waitForFunction(function () { return APP.scene.view() === 'exterior' && [0, 1, 2].every(function (i) { return !document.getElementById('btn-plot' + i).hidden; }); }, null, { timeout: WAIT });
+    await pg.waitForFunction(function () { return !APP.goResting; }, null, { timeout: WAIT });
+    await pg.evaluate(function () { return APP.goRoom('yard'); });
+    await pg.waitForFunction(function () { return APP.scene.view() === 'yard' && [0, 1, 2].every(function (i) { return !document.getElementById('btn-plot' + i).hidden; }); }, null, { timeout: WAIT });
   }
   function frames(pg) { return pg.evaluate(function () { return new Promise(function (res) { var n = 0; (function f() { if (++n > 6) res(); else requestAnimationFrame(f); })(); }); }); }
   function planted(pg) { return pg.waitForFunction(function () { var g = APP.state.user.garden, i = [0, 1, 2].filter(function (k) { return !!g[k]; }); return i.length ? i.join('+') : false; }, null, { timeout: 20000, polling: 50 }).then(function (h) { return h.jsonValue(); }, function () { return 'none'; }); }
@@ -6123,22 +6960,19 @@ async function scenarioGarden(browser) {
     }
     ok(!bad.length, tag + ': 진짜 손가락으로 흙 ' + taps.length + '곳 (칸마다 가운데 · 네 모서리) → 그 칸에 심었다' + (bad.length ? ' — 틀림: ' + bad.join(' ') : ''));
 
-    if (vp[0] === 412) {   /* 2. 문어가 정말 울타리 자리(numbers, 첫째 칸 옆)에 서 있을 때: 몸을 톡 → 밭이 아니라 문어 (산책 중이라 아무 일 없음) */
+    if (vp[0] === 412) {   /* 2. 11-15: 산책 바깥 화면엔 밭이 없다 — 문어가 울타리 자리(numbers)에 서 있어도 예전 밭 자리를 톡 하면 밭 단추가 아니다 · 밭 단추는 다 숨는다 · 마당엔 문어가 없다 */
+      var yo = await p1.evaluate(function () { var drawn = false; APP.scene.scene.traverseVisible(function (o) { if (o.name === 'oct') drawn = true; }); return { oct: APP.scene.octScreenPos(), oc: drawn }; });   /* 그려지는 그래프에 문어 그룹이 없다 */
+      await p1.evaluate(function () { return APP.goRoom('attic'); });
+      await p1.waitForFunction(function () { return APP.scene.view() === 'attic' && !APP.scene.room(); }, null, { timeout: WAIT });
       var oc = await p1.evaluate(async function () {
-        APP.scene.setGarden([null, null, null]);
+        APP.oct.state = 'away'; APP.scene.setOctState('away'); APP.scene.setPlace('exterior', { instant: true });
         await APP.scene.peekOutside({ corner: 'numbers', status: 'builtin' });
-        var pk = APP.scene.peek(), d = APP.scene.plotsDebug(), sp = APP.scene.extSpot('numbers'), g = __xp([d.origin[0] + sp.x, d.origin[1] + 0.02, d.origin[2] + sp.z]), h = APP.scene.octScreenPos();
-        var pts = [0.3, 0.5, 0.7].map(function (f) { return [g[0] + (h.x - g[0]) * f, g[1] + (h.y - g[1]) * f]; });
-        var withOct = pts.map(function (p) { var k = APP.scene.pickAt(p[0], p[1]); return k ? (k.kind === 'spot' ? k.id : k.kind) : null; });
-        return { pk: pk, pts: pts, withOct: withOct, sentinel: __xp(d.c[2]) };
+        var pk = APP.scene.peek(), old = [0.65, 1.52, 2.39].map(function (x) { var q = APP.scene.screenOf(x, 0.07, 2.3), r = document.getElementById('scene').getBoundingClientRect(); return [r.left + q.x, r.top + q.y]; });
+        return { pk: pk, view: APP.scene.view(), btns: [0, 1, 2, 3, 4, 5].filter(function (i) { return !document.getElementById('btn-plot' + i).hidden; }), picks: old.map(function (p) { var k = APP.scene.pickAt(p[0], p[1]); return k ? (k.kind === 'spot' ? k.id : k.kind) : null; }) };
       });
-      for (var q of oc.pts) await p1.touchscreen.tap(q[0], q[1]);
-      await p1.touchscreen.tap(oc.sentinel[0], oc.sentinel[1]);   /* 셋째 칸 톡이 들어온 뒤면 앞의 톡도 다 처리됐다 */
-      var after = await p1.waitForFunction(function () { var g = APP.state.user.garden; return g[2] ? g.map(function (x) { return x ? 1 : 0; }).join('') : false; }, null, { timeout: 20000, polling: 50 }).then(function (h) { return h.jsonValue(); }, function () { return 'none'; });
-      var without = await p1.evaluate(function (pts) { APP.scene.setOctState('away'); return pts.map(function (p) { var k = APP.scene.pickAt(p[0], p[1]); return k ? (k.kind === 'spot' ? k.id : k.kind) : null; }); }, oc.pts);
-      console.log('   울타리 자리 문어:', JSON.stringify({ peek: [oc.pk.on, oc.pk.key, oc.pk.onSpot], pts: oc.pts.map(function (p) { return p.map(Math.round); }), withOct: oc.withOct, withoutOct: without, garden: after }));
-      ok(oc.pk.on && oc.pk.key === 'numbers' && oc.pk.onSpot, '문어가 울타리 자리(numbers)에 서 있다');
-      ok(oc.withOct.every(function (k) { return !/^plot/.test(k || ''); }) && after === '001', '울타리 자리에 선 문어 몸을 세 번 톡 → 밭은 그대로 (톡 표적 ' + JSON.stringify(oc.withOct) + ' · 밭 ' + after + ' = 셋째 칸 확인 톡만)');
+      console.log('   바깥 (산책 중):', JSON.stringify(oc), '마당의 문어:', JSON.stringify(yo));
+      ok(oc.view === 'exterior' && oc.pk.on && oc.pk.key === 'numbers' && !oc.btns.length && oc.picks.every(function (k) { return !/^plot/.test(k || ''); }), '산책 바깥 화면: 밭 단추 없음 · 예전 밭 자리 톡도 밭이 아니다 (' + JSON.stringify(oc.picks) + ')');
+      ok(yo.oct === null && yo.oc === false, '마당엔 문어가 없다 (화면 자리 ' + JSON.stringify(yo.oct) + ' · 보임 ' + yo.oc + ')');
     }
 
     if (vp[0] === 360) {
@@ -6174,11 +7008,11 @@ async function scenarioGarden(browser) {
       await p1.keyboard.press('Enter'); await p1.waitForFunction(function () { return !APP.state.user.garden[0]; }, null, { timeout: WAIT });
       var L5 = await labels(p1);
       console.log('   단추 이름:', JSON.stringify({ L0: L0, L1: L1, L2: L2[0], L3: L3[0], L4: L4[0], L5: L5[0], S4: S4 }));
-      ok(L0[0] === '텃밭 첫째 칸, 빈 칸, 씨앗 심기' && L0[2] === '텃밭 셋째 칸, 빈 칸, 씨앗 심기' && JSON.stringify(S0) === JSON.stringify(L0), '빈 밭 (씨앗 1): «' + L0[0] + '» · 살림 시트 단추도 같은 이름');
-      ok(L1[0] === '텃밭 첫째 칸, 씨앗, 물 주기' && L1[1] === '텃밭 둘째 칸, 빈 칸, 씨앗이 없어' && JSON.stringify(S1) === JSON.stringify(L1), '심은 뒤: «' + L1[0] + '» · 씨앗이 떨어진 빈 칸 «' + L1[1] + '» · 시트도 같음');
+      ok(L0[0] === '텃밭 첫째 칸, 빈 칸, 씨앗 심기' && L0[2] === '텃밭 셋째 칸, 빈 칸, 씨앗 심기' && S0.length === 0, '빈 밭 (씨앗 1): «' + L0[0] + '» · 살림 시트엔 밭 단추가 없다 (11-15: 마당에서만)');
+      ok(L1[0] === '텃밭 첫째 칸, 씨앗, 물 주기' && L1[1] === '텃밭 둘째 칸, 빈 칸, 씨앗이 없어' && S1.length === 0, '심은 뒤: «' + L1[0] + '» · 씨앗이 떨어진 빈 칸 «' + L1[1] + '»');
       ok(L2[0] === '텃밭 첫째 칸, 새싹, 오늘은 물을 줬어', '물 준 날: «' + L2[0] + '»');
       ok(L3[0] === '텃밭 첫째 칸, 새싹, 물 주기', '다음 날 (포커스 때 다시): «' + L3[0] + '»');
-      ok(!!fl && L4[0] === '텃밭 첫째 칸, ' + fl + ' 꽃, 거두기' && S4[0] === L4[0], '꽃: «' + L4[0] + '» · 시트도 같음');
+      ok(!!fl && L4[0] === '텃밭 첫째 칸, ' + fl + ' 꽃, 거두기' && S4.length === 0, '꽃: «' + L4[0] + '»');
       ok(L5[0] === '텃밭 첫째 칸, 빈 칸, 씨앗이 없어', '거둔 뒤: «' + L5[0] + '»');
 
       /* 5. 그림: 씨앗 칸은 빈 칸과 칸 상자 안에서 눈에 띄게 다르다 (빈 칸끼리 차 = 잡음 바닥) · 울타리 끝 기둥은 첫째 칸 테 밖 */
@@ -6194,7 +7028,8 @@ async function scenarioGarden(browser) {
       await p1.evaluate(function () { APP.scene.setGarden([null, { color: '#c8323a', water: 0 }, null]); });
       var s1 = await boxPng(1), noise = await pxDiff(e1, e2), seedPx = await pxDiff(e1, s1);
       await p1.evaluate(function () { APP.scene.setGarden([null, null, null]); });
-      ok(seedPx >= 100 + noise, '씨앗을 심은 칸은 빈 칸과 칸 상자 안 ' + seedPx + ' px 다르다 (100 px 이상 — 예전 4×3 px 점 둔덕은 42 px · 빈 칸끼리 잡음 ' + noise + ' px)');
+      var gN = await p1.evaluate(function () { return APP.scene.pan().n || 27; }), gNeed = Math.round(100 * Math.pow(gN / 27, 2));   /* 11-22 7차: 넓은 바깥은 m 당 18 아트px (2/3 배) — 같은 둔덕이 화면에서 (2/3)² 넓이. 문턱도 같은 비로 (예전 점 둔덕 42 px 의 두 배 넘게 그대로) */
+      ok(seedPx >= gNeed + noise, '씨앗을 심은 칸은 빈 칸과 칸 상자 안 ' + seedPx + ' px 다르다 (' + gNeed + ' px 이상 · m 당 ' + gN + ' 아트px — 예전 4×3 px 점 둔덕은 27 배율에서 42 px · 빈 칸끼리 잡음 ' + noise + ' px)');
       var dbg = await p1.evaluate(function () { return APP.scene.plotsDebug(); });
       ok(dbg.fence[0] + 0.04 < dbg.c[0][0] - dbg.frame, '울타리 끝 기둥(x ' + (dbg.fence[0] + 0.04).toFixed(2) + ' 까지)은 첫째 칸 테(x ' + (dbg.c[0][0] - dbg.frame).toFixed(2) + ' 부터) 밖');
 
@@ -6213,21 +7048,20 @@ async function scenarioGarden(browser) {
     await c1.close();
   }
 
-  /* 7. 2D: 살림 시트에 '밭을 바로 톡' 글이 없다 (3D 엔 있다) */
+  /* 7. 11-15: 3D 살림 시트엔 밭 단추 없이 '텃밭은 마당에 있어.' 한 줄 · 2D 폴백 (마당 장면 없음) 은 열린 칸 단추 그대로 */
   var c2 = await ctxOf({ rec: REC(USER()) }), p2 = await tab(c2, '&scene=2d'), p3 = await tab(c2);
-  function noteOf(pg) { return pg.evaluate(function () { document.getElementById('btn-bag').click(); var t = [].map.call(document.querySelectorAll('#bag-body .set-note'), function (x) { return x.textContent; }).filter(function (x) { return /밭은/.test(x); })[0] || ''; document.getElementById('bag-close').click(); return { mode: APP.sceneMode, t: t }; }); }
+  function noteOf(pg) { return pg.evaluate(function () { document.getElementById('btn-bag').click(); var t = [].map.call(document.querySelectorAll('#bag-body .set-note'), function (x) { return x.textContent; }).filter(function (x) { return /밭/.test(x); })[0] || ''; var n = document.querySelectorAll('#bag-body .bag-plot').length; document.getElementById('bag-close').click(); return { mode: APP.sceneMode, t: t, n: n }; }); }
   var n2 = await noteOf(p2), n3 = await noteOf(p3);
-  ok(n2.mode === '2d' && n2.t === '밭은 집 앞마당에 있어.' && n3.mode === '3d' && /밭을 바로 톡 해도 돼/.test(n3.t), '2D 시트: «' + n2.t + '» · 3D 시트에는 바로 톡 한 줄');
+  ok(n2.mode === '2d' && n2.n === 3 && n2.t === '' && n3.mode === '3d' && n3.n === 0 && n3.t === '텃밭은 마당에 있어.', '2D 시트: 밭 단추 ' + n2.n + '개 · 3D 시트: 단추 ' + n3.n + '개 · «' + n3.t + '»');
   await c2.close();
 
   /* 8. 모르는 꽃 색 (손댄 기록 · 나중 빌드): 살림이 열리고 · 꽃으로 보이고 · 물 · 거두기가 되고 · 저장된 색은 그대로 · 객체가 아닌 칸만 빈 칸 */
   var c4 = await ctxOf({ rec: REC(USER({ garden: [{ color: 'teal', water: 2, wateredDay: '' }, 'junk', { color: 'teal', water: 1, wateredDay: '' }] })) }), p4 = await tab(c4);
   var u1 = await p4.evaluate(function () {
-    document.getElementById('btn-bag').click();
-    var sh = document.getElementById('bag-sheet'), o = { open: sh.open, labels: [].map.call(document.querySelectorAll('#bag-body .bag-plot'), function (b) { return b.getAttribute('aria-label'); }), scene: APP.scene.garden().map(function (g) { return g ? g.water : null; }), saved: JSON.parse(localStorage.getItem('ppolppol_v2')).user.garden };
-    var bp = document.querySelectorAll('#bag-body .bag-plot'); if (bp.length < 3) return o;   /* 시트가 못 그려졌으면 여기서 (아래 ok 가 실패로 적는다) */
+    document.getElementById('btn-bag').click();   /* 살림이 열리나 (11-15: 밭 단추는 마당 단추 — 숨어 있어도 click() 은 받는다) */
+    var sh = document.getElementById('bag-sheet'), bp = [0, 1, 2].map(function (i) { return document.getElementById('btn-plot' + i); }), o = { open: sh.open, labels: bp.map(function (b) { return b.getAttribute('aria-label'); }), scene: APP.scene.garden().map(function (g) { return g ? g.water : null; }), saved: JSON.parse(localStorage.getItem('ppolppol_v2')).user.garden };
     bp[2].click(); o.watered = JSON.parse(JSON.stringify(APP.state.user.garden[2]));
-    document.querySelectorAll('#bag-body .bag-plot')[0].click();
+    bp[0].click();
     o.harvested = APP.state.user.garden[0]; o.dyes = JSON.parse(JSON.stringify(APP.state.user.dyes)); o.toast = document.getElementById('toast').textContent; o.mem1 = APP.state.user.garden[1];
     document.getElementById('bag-close').click(); return o;
   });
@@ -6235,14 +7069,18 @@ async function scenarioGarden(browser) {
   ok(u1.open && u1.labels[0] === '텃밭 첫째 칸, 꽃, 거두기' && u1.labels[1] === '텃밭 둘째 칸, 빈 칸, 씨앗 심기' && u1.labels[2] === '텃밭 셋째 칸, 새싹, 물 주기' && JSON.stringify(u1.scene) === '[2,null,1]',
     '모르는 색 «teal»: 살림이 열린다 · 꽃 · 새싹으로 보이고 이름도 («' + u1.labels[0] + '») · 바깥 밭에도 [' + u1.scene + '] · 객체가 아닌 칸은 빈 칸');
   ok(u1.watered && u1.watered.color === 'teal' && u1.watered.water === 2 && u1.harvested === null && u1.dyes.teal === 1 && u1.toast === '꽃을 거뒀어', '물 주기 → 꽃 (색 «' + (u1.watered && u1.watered.color) + '» 그대로) · 거두기 → 기록엔 염료 teal 1 (나중 빌드를 위해) · 알림은 보이지 않는 염료를 말하지 않는다 «' + u1.toast + '» (11-13 재검증 V2)');
-  /* 11-13: 모르는 색 꽃은 바깥과 살림 시트에서 같은 한 색 · 염료 여섯 색 어느 것과도 OKLab 0.12 넘게 다르다 (예전엔 바깥은 노랑 #e8a93a, 시트는 분홍 #f07aa8 그대로) */
-  var u2 = await p4.evaluate(function () {
+  /* 11-13: 모르는 색 꽃은 마당과 (2D 폴백의) 살림 시트에서 같은 한 색 · 염료 여섯 색 어느 것과도 OKLab 0.12 넘게 다르다 (예전엔 바깥은 노랑 #e8a93a, 시트는 분홍 #f07aa8 그대로) */
+  var p4b = await tab(c4, '&scene=2d'), u2s = await p4b.evaluate(function () {
     function hx(c) { var m = /^\s*rgb/.test(c) && String(c).match(/\d+/g); return m && m.length >= 3 ? '#' + m.slice(0, 3).map(function (v) { return ('0' + (+v).toString(16)).slice(-2); }).join('') : String(c).trim().toLowerCase(); }
-    document.getElementById('btn-bag').click(); var pot = document.querySelectorAll('#bag-body .bag-pot')[2], o = { scene: APP.scene.garden()[2] && APP.scene.garden()[2].color, sheet: pot ? hx(getComputedStyle(pot).getPropertyValue('--fl')) : null, st2: !!pot && pot.classList.contains('st2') };
-    document.getElementById('bag-close').click();
+    document.getElementById('btn-bag').click(); var pot = document.querySelectorAll('#bag-body .bag-pot')[2], o = { sheet: pot ? hx(getComputedStyle(pot).getPropertyValue('--fl')) : null, st2: !!pot && pot.classList.contains('st2') };
+    document.getElementById('bag-close').click(); return o;
+  });
+  await p4b.close();
+  var u2 = await p4.evaluate(function (sh) {
+    var o = { scene: APP.scene.garden()[2] && APP.scene.garden()[2].color, sheet: sh.sheet, st2: sh.st2 };
     var u = APP.state.user, keep = u.garden; o.dyes = ['red', 'yellow', 'green', 'blue', 'purple', 'pink'].map(function (c) { u.garden = [{ color: c, water: 2, wateredDay: '' }, null, null]; APP.renderAll(); return APP.scene.garden()[0].color; });
     u.garden = keep; APP.renderAll(); return o;
-  });
+  }, u2s);
   function okl(h) { var c = [1, 3, 5].map(function (i) { var v = parseInt(h.slice(i, i + 2), 16) / 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
     var l = Math.cbrt(0.4122214708 * c[0] + 0.5363325363 * c[1] + 0.0514459929 * c[2]), m = Math.cbrt(0.2119034982 * c[0] + 0.6806995451 * c[1] + 0.1073969566 * c[2]), q = Math.cbrt(0.0883024619 * c[0] + 0.2817188376 * c[1] + 0.6299787005 * c[2]);
     return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * q, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * q, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * q]; }
@@ -6255,13 +7093,13 @@ async function scenarioGarden(browser) {
   var G4 = { color: 'green', water: 2, wateredDay: '' };
   var c6 = await ctxOf({ rec: REC(USER({ seeds: 0, shells: 17, garden: [{ water: 2, wateredDay: '' }, { color: 'red', water: -3, wateredDay: '' }, { color: 'blue', water: 'x', wateredDay: '' }, G4] })) }), p6 = await tab(c6);
   var d1 = await p6.evaluate(function () {
-    function sheet() { if (!document.getElementById('bag-sheet').open) document.getElementById('btn-bag').click(); return document.querySelectorAll('#bag-body .bag-plot'); }
+    function sheet() { return [0, 1, 2, 3, 4, 5].map(function (i) { return document.getElementById('btn-plot' + i); }); }   /* 11-15: 마당 밭 단추 (숨어 있어도 click() 은 받는다) */
     function lab(i) { return document.getElementById('btn-plot' + i).getAttribute('aria-label'); }
-    var o = { n: sheet().length, out0: lab(0), scene: APP.scene.garden().map(function (g) { return g ? g.water : null; }) };
-    var bp = sheet(); if (bp.length < 3) return o;
+    var o = { n: APP.scene.garden().length, out0: lab(0), scene: APP.scene.garden().map(function (g) { return g ? g.water : null; }) };
+    var bp = sheet();
     bp[0].click(); o.toast0 = document.getElementById('toast').textContent;
-    sheet()[1].click(); sheet()[2].click();
-    var bp2 = sheet(); o.st = [1, 2].map(function (i) { return bp2[i].querySelector('.bag-st').textContent; }); o.out = [1, 2].map(lab); o.sceneAfter = APP.scene.garden().map(function (g) { return g ? g.water : null; });
+    bp[1].click(); bp[2].click(); bp[3].click();   /* 넷째 칸은 아직 안 생겼다 (함께한 날 3) — 눌러도 아무 일 없음 */
+    o.st = [1, 2].map(function (i) { return /새싹/.test(lab(i)) ? '새싹' : lab(i); }); o.out = [1, 2].map(lab); o.sceneAfter = APP.scene.garden().map(function (g) { return g ? g.water : null; });
     var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user; o.saved = { dyes: u.dyes, water: [1, 2].map(function (i) { return u.garden[i] && u.garden[i].water; }), g3: u.garden[3], len: u.garden.length, shells: u.shells, days: u.days };
     document.getElementById('bag-close').click(); return o;
   });
@@ -6270,12 +7108,12 @@ async function scenarioGarden(browser) {
     '색 글자가 없는 칸은 빈 칸 («' + d1.out0 + '») · 누르면 «' + d1.toast0 + '» · 염료 ' + JSON.stringify(d1.saved && d1.saved.dyes));
   ok(!!d1.saved && JSON.stringify(d1.saved.water) === '[1,1]' && JSON.stringify(d1.st) === '["새싹","새싹"]' && d1.out[0] === '텃밭 둘째 칸, 새싹, 오늘은 물을 줬어' && d1.out[1] === '텃밭 셋째 칸, 새싹, 오늘은 물을 줬어' && JSON.stringify(d1.sceneAfter.slice(1)) === '[1,1]',
     '물 값이 -3 · 글자인 칸: 물을 한 번 주면 새싹 (기록 ' + JSON.stringify(d1.saved && d1.saved.water) + ' · 시트 ' + JSON.stringify(d1.st) + ' · 바깥 ' + JSON.stringify(d1.sceneAfter) + ')');
-  ok(d1.n === 3 && d1.scene.length === 3 && !!d1.saved && d1.saved.len === 4 && JSON.stringify(d1.saved.g3) === JSON.stringify(G4) && d1.saved.shells === 17 && d1.saved.days.join() === DAY,
-    '밭 기록이 넷: 살림 단추 ' + d1.n + '개 · 바깥 밭 ' + d1.scene.length + '칸 · 넷째 칸 ' + JSON.stringify(d1.saved && d1.saved.g3) + ' · 조개 · 들어온 날 그대로');
+  ok(d1.n === 3 && d1.scene.length === 3 && !!d1.saved && d1.saved.len === 6 && JSON.stringify(d1.saved.g3) === JSON.stringify(G4) && d1.saved.shells === 17 && d1.saved.days.join() === DAY,
+    '밭 기록이 넷 (11-15: 여섯 칸으로 늘며 빈 칸만 덧붙음 · 함께한 날 3 이라 열린 칸 셋): 마당 밭 ' + d1.scene.length + '칸 · 기록 ' + (d1.saved && d1.saved.len) + '칸 · 넷째 칸 ' + JSON.stringify(d1.saved && d1.saved.g3) + ' 그대로 (안 열린 칸을 눌러도) · 조개 · 들어온 날 그대로');
   var d2 = await p6.evaluate(function () {
     var u = APP.state.user; u.garden[0] = { color: 'pink', water: 9, wateredDay: '' }; APP.save(); APP.renderAll();
     var o = { out: document.getElementById('btn-plot0').getAttribute('aria-label'), scene: APP.scene.garden()[0] && APP.scene.garden()[0].water };
-    document.getElementById('btn-bag').click(); document.querySelectorAll('#bag-body .bag-plot')[0].click(); document.getElementById('bag-close').click();
+    document.getElementById('btn-plot0').click();
     o.dyes = JSON.parse(localStorage.getItem('ppolppol_v2')).user.dyes; o.g0 = APP.state.user.garden[0]; return o;
   });
   ok(d2.out === '텃밭 첫째 칸, 분홍 꽃, 거두기' && d2.scene === 2 && d2.dyes.pink === 1 && d2.g0 === null, '물 값이 9 인 칸: 꽃 («' + d2.out + '») · 거두면 분홍 염료 1 (' + JSON.stringify(d2.dyes) + ')');
@@ -6283,7 +7121,7 @@ async function scenarioGarden(browser) {
   var d3 = await p6.evaluate(function () {
     var u = APP.state.user; u.garden[0] = { color: '', water: 2, wateredDay: '' }; u.garden[1] = { color: 7, water: 2, wateredDay: '' }; APP.save(); APP.renderAll();
     var o = { out: [0, 1].map(function (i) { return document.getElementById('btn-plot' + i).getAttribute('aria-label'); }), scene: APP.scene.garden().slice(0, 2).map(function (g) { return g ? g.water : null; }), toast: [] };
-    document.getElementById('btn-bag').click(); [0, 1].forEach(function (i) { document.querySelectorAll('#bag-body .bag-plot')[i].click(); o.toast.push(document.getElementById('toast').textContent); }); document.getElementById('bag-close').click();
+    [0, 1].forEach(function (i) { document.getElementById('btn-plot' + i).click(); o.toast.push(document.getElementById('toast').textContent); });
     o.dyes = JSON.parse(localStorage.getItem('ppolppol_v2')).user.dyes; return o;
   });
   ok(d3.out[0] === '텃밭 첫째 칸, 빈 칸, 씨앗이 없어' && d3.out[1] === '텃밭 둘째 칸, 빈 칸, 씨앗이 없어' && JSON.stringify(d3.scene) === '[null,null]' && d3.toast.every(function (t) { return /^씨앗이 없어/.test(t); }) && JSON.stringify(d3.dyes) === '{"pink":1}',
@@ -6293,15 +7131,15 @@ async function scenarioGarden(browser) {
   /* 9. 다른 탭 · 불러오기 · 전체 초기화 뒤 화면이 기록을 따른다 (꼬리표 조개 수 · 점 · 열린 살림 · 열린 재봉틀 시트 · 바깥 밭) */
   var c5 = await ctxOf({ rec: REC(USER({ shells: 10, week: WEEK5 })) }), pa = await tab(c5), pb = await tab(c5);
   await pa.evaluate(function () { document.getElementById('btn-bag').click(); });
-  var a0 = await pa.evaluate(function () { var b = document.getElementById('btn-bag'); return { dot: b.classList.contains('has-gift'), chip: document.getElementById('bag-n').textContent, open: document.getElementById('bag-sheet').open }; });
+  var a0 = await pa.evaluate(function () { var b = document.getElementById('btn-bag'); return { dot: b.classList.contains('has-gift'), chip: b.textContent.trim(), open: document.getElementById('bag-sheet').open }; });   /* 11-15: 꼬리표 = 조개 그림 + 수 (글 '조개 ' 는 sr-only) */
   var b0 = await pb.evaluate(function () {
-    document.getElementById('btn-bag').click(); document.querySelectorAll('#bag-body .bag-plot')[0].click(); APP.earnFromPlay({ id: 'x-run-1', score: 0 });
+    document.getElementById('btn-bag').click(); document.getElementById('btn-plot0').click(); APP.earnFromPlay({ id: 'x-run-1', score: 0 });
     var c = document.getElementById('week-claim'), had = !!c; if (c) c.click(); document.getElementById('bag-close').click();
     return { had: had, shells: APP.state.user.shells };
   });
   var a1 = await pa.waitForFunction(function (n) {
     var b = document.getElementById('btn-bag'), line = (document.querySelector('#bag-body .bag-line') || {}).textContent || '', g = APP.scene.garden();
-    return b.textContent.trim() === '조개 ' + n && !b.classList.contains('has-gift') && /^조개 /.test(line) && line.indexOf('조개 ' + n + ' ') === 0 && !!g[0] && document.getElementById('bag-sheet').open && { chip: b.textContent.trim(), line: line, garden: g.map(function (x) { return x ? x.water : null; }), plot0: document.querySelector('#bag-body .bag-plot').getAttribute('aria-label') };
+    return b.textContent.trim() === '조개 ' + n && !b.classList.contains('has-gift') && /^조개 /.test(line) && line.indexOf('조개 ' + n + ' ') === 0 && !!g[0] && document.getElementById('bag-sheet').open && { chip: b.textContent.trim(), line: line, garden: g.map(function (x) { return x ? x.water : null; }), plot0: document.getElementById('btn-plot0').getAttribute('aria-label') };
   }, b0.shells, { timeout: WAIT, polling: 100 }).then(function (h) { return h.jsonValue(); }, function () { return null; });
   if (!a1) console.log('   다른 탭 뒤 A:', JSON.stringify(await pa.evaluate(function () { var b = document.getElementById('btn-bag'); return { chip: b.textContent.trim(), dot: b.classList.contains('has-gift'), line: (document.querySelector('#bag-body .bag-line') || {}).textContent, garden: APP.scene.garden(), saved: APP.state.user.shells }; })));
   ok(a0.dot && a0.chip === '조개 10' && a0.open && b0.had && !!a1 && a1.plot0 === '텃밭 첫째 칸, 씨앗, 물 주기', '다른 탭이 심고 · 조개를 벌고 · 주간 선물을 받으면 이 탭의 꼬리표(«' + (a1 && a1.chip) + '» · 점 꺼짐) · 열린 살림(«' + (a1 && a1.line) + '») · 바깥 밭(' + (a1 && JSON.stringify(a1.garden)) + ')이 따라온다');
@@ -6361,7 +7199,7 @@ async function scenarioGarden(browser) {
   ok(im5.shells === 9 && im5.stored === 9 && im5.chip === '조개 9', 'lastSeen 이 앞선 파일을 불러온 탭이 다시 저장하기 전에 새로고침해도 다른 탭이 그 뒤 쓴 기록 (조개 ' + im5.shells + ' · 저장소 ' + im5.stored + ' · «' + im5.chip + '»)');
   /* 전체 초기화: 이름 창 위에 꼬리표가 남지 않고 · 바깥 밭이 빈다 · 새 이름 뒤에도 빈 밭 · 꼬리표는 새 조개 수 */
   await pa.evaluate(function (rec) { APP.importJSON(JSON.stringify(rec)); }, REC(USER({ shells: 40, garden: [{ color: 'red', water: 1, wateredDay: '' }, { color: 'blue', water: 2, wateredDay: '' }, null] })));
-  var r0 = await pa.evaluate(function () { document.getElementById('btn-bag').click(); document.querySelectorAll('#bag-body .bag-plot')[2].click(); document.getElementById('bag-close').click(); return APP.scene.garden().map(function (g) { return g ? g.water : null; }); });   /* 셋째 칸에 심어 (gardenAct 가 직접 그린다) 바깥에 세 칸 다 있는 데서 초기화 */
+  var r0 = await pa.evaluate(function () { document.getElementById('btn-plot2').click(); return APP.scene.garden().map(function (g) { return g ? g.water : null; }); });   /* 셋째 칸에 심어 (gardenAct 가 직접 그린다) 바깥에 세 칸 다 있는 데서 초기화 */
   await pa.evaluate(function () { APP.openSettings(); });
   await resetTwice(pa);
   await pa.waitForSelector('#name-dialog[open]', { timeout: WAIT });
@@ -6369,7 +7207,7 @@ async function scenarioGarden(browser) {
   await pa.fill('#name-in', '구름'); await pa.click('#name-form button[type=submit]');
   var r2 = await pa.waitForFunction(function () { var b = document.getElementById('btn-bag'); return !b.hidden && APP.state.user && b.textContent.trim() === '조개 ' + APP.state.user.shells && { chip: b.textContent.trim(), garden: APP.scene.garden().map(function (g) { return g ? g.water : null; }), saved: APP.state.user.garden }; }, null, { timeout: WAIT, polling: 100 }).then(function (h) { return h.jsonValue(); }, function () { return null; });
   ok(JSON.stringify(r0) === '[1,2,0]' && r1.hidden && JSON.stringify(r1.garden) === '[null,null,null]', '전체 초기화: 이름 창 위에 꼬리표가 안 보이고 바깥 밭(전 ' + JSON.stringify(r0) + ')이 빈다 (' + JSON.stringify(r1) + ')');
-  ok(!!r2 && JSON.stringify(r2.garden) === '[null,null,null]' && JSON.stringify(r2.saved) === '[null,null,null]', '새 이름 뒤: 꼬리표 «' + (r2 && r2.chip) + '» · 바깥 밭도 기록도 빈 밭');
+  ok(!!r2 && JSON.stringify(r2.garden) === '[null,null,null]' && JSON.stringify(r2.saved) === '[null,null,null,null,null,null]', '새 이름 뒤: 꼬리표 «' + (r2 && r2.chip) + '» · 바깥 밭도 기록도 빈 밭');
   /* 11-13 (재검증 C4 · C6 · C2): 불러오기의 '먼저 그려 보기' 는 저장소에 쓰지 않는다 (파일의 미래 lastSeen 이 저장소 · 다른 탭으로 가지 않게) · storage 이벤트의 기록은 한 번만 읽는다 ·
      불러오기 전에 쓰인 기록은 불러온 직후에만 버린다 — 그 뒤 기기 시계가 뒤로 간 다른 탭의 초기화는 따른다 (이 탭의 다음 저장이 옛 기록을 되쓰지 않는다) */
   var g1 = await pa.evaluate(function (rec) {
@@ -6465,7 +7303,7 @@ async function scenarioGarden(browser) {
     document.getElementById('btn-plot2').click();   /* 끝으로 셋째 칸 단추: 빈 칸이면 심는다 (앞의 톡이 셋째 칸을 심었으면 물을 준다) */
     var u = APP.state.user; return { g: u.garden.map(function (g) { return g ? g.water : null; }), seeds: u.seeds }; }); }, function () { return null; });
   console.log('   화면 끝 칸:', JSON.stringify({ vis: vis8, pan: b8.pan, btn: e8.btn, pts: e8.pts.length, bad: e8.bad.slice(0, 4), taps: taps8, after: f8 }));
-  ok(vis8 >= 6 && vis8 <= 7.8 && e8.btn[0] === false && e8.btn[1] === false && e8.btn[2] === true && taps8.length >= 3 && e8.bad.length === 0 && !!f8 && JSON.stringify(f8.g) === '[null,null,0]' && f8.seeds === 59,
+  ok(vis8 >= 6 && vis8 <= 7.8 && e8.btn[0] === false && e8.btn[1] === false && e8.btn[2] === true && taps8.length >= 3 && e8.bad.length === 0 && !!f8 && JSON.stringify(f8.g) === '[null,null,0,null,null,null]' && f8.seeds === 59,
     '돌리고 키워 민 화면: 둘째 칸이 왼쪽 끝에 ' + (+vis8).toFixed(1) + ' px (단추 숨음) · 그 흙 ' + e8.pts.length + '점은 아무 칸도 아님 (옆 칸 ' + e8.bad.length + ') · 진짜 톡 ' + taps8.length + '번 뒤 셋째 칸 톡 → 밭 ' + JSON.stringify(f8 && f8.g) + ' · 씨앗 ' + (f8 && f8.seeds));
   await c8.close();
 
@@ -6475,7 +7313,10 @@ async function scenarioGarden(browser) {
   await c9.clock.install();
   var q1 = await tab(c9), q2 = await tab(c9);
   var go9 = await q1.evaluate(function () { return APP.importEvents([{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 60000, target: { kind: 'room', id: 'hat' }, status: 'builtin', aside: '모자' }, { type: 'return', t: 120000, reason: 'enough' }, { type: 'wrap_up', t: 120100, reaction: '덤덤' }]); });
-  var up9 = await q1.waitForFunction(function () { return APP.scene.view() === 'exterior' && [0, 1, 2].every(function (i) { return !document.getElementById('btn-plot' + i).hidden; }); }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  /* 11-15: 산책 중엔 바깥 화면 왼쪽 아래 마당 단추로 마당에 나가 밭 단추를 본다 (바깥 화면엔 밭이 없다) */
+  var ext9 = await q1.waitForFunction(function () { var y = document.getElementById('btn-yard'); return APP.scene.view() === 'exterior' && !y.hidden && y.dataset.spot === 'edge' && [0, 1, 2, 3, 4, 5].every(function (i) { return document.getElementById('btn-plot' + i).hidden; }); }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  if (ext9) await q1.evaluate(function () { document.getElementById('btn-yard').click(); });
+  var up9 = ext9 && await q1.waitForFunction(function () { return APP.scene.view() === 'yard' && [0, 1, 2].every(function (i) { return !document.getElementById('btn-plot' + i).hidden; }); }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
   var now9 = await q1.evaluate(function () { return Date.now(); });
   for (var k9 = 0; k9 < 5; k9++) { try { await q1.clock.pauseAt(now9 + 500 + k9 * 2000); break; } catch (e) { now9 = await q1.evaluate(function () { return Date.now(); }); } }
   var L0 = await labels(q1);
@@ -6484,17 +7325,1381 @@ async function scenarioGarden(browser) {
   for (var i9 = 0; i9 < 400 && !(s9 && s9.seeds === 2); i9++) s9 = await q1.evaluate(function () { return { seeds: APP.state.user.seeds, busy: document.getElementById('btn-go').classList.contains('away'), view: APP.scene.view(),
     btn: [0, 1, 2].map(function (i) { return !document.getElementById('btn-plot' + i).hidden; }), L: [0, 1, 2].map(function (i) { return document.getElementById('btn-plot' + i).getAttribute('aria-label'); }) }; });
   console.log('   산책 중 다른 탭 씨앗:', JSON.stringify({ go: go9, up: up9, L0: L0, claim: w9, after: s9 }));
-  ok(go9 && up9 && L0[1] === '텃밭 둘째 칸, 빈 칸, 씨앗이 없어' && w9.had && w9.seeds === 2 && !!s9 && s9.seeds === 2 && s9.busy && s9.view === 'exterior' && s9.btn.every(Boolean) && s9.L.every(function (l, i) { return l === '텃밭 ' + ['첫째', '둘째', '셋째'][i] + ' 칸, 빈 칸, 씨앗 심기'; }),
-    '산책 중 다른 탭이 주간 선물(씨앗 ' + w9.seeds + ')을 받으면 바깥 단추 이름도 «' + (s9 && s9.L[1]) + '» (전 «' + L0[1] + '») · 산책 중 ' + (s9 && s9.busy));
+  ok(go9 && up9 && L0[1] === '텃밭 둘째 칸, 빈 칸, 씨앗이 없어' && w9.had && w9.seeds === 2 && !!s9 && s9.seeds === 2 && s9.busy && s9.view === 'yard' && s9.btn.every(Boolean) && s9.L.every(function (l, i) { return l === '텃밭 ' + ['첫째', '둘째', '셋째'][i] + ' 칸, 빈 칸, 씨앗 심기'; }),
+    '산책 중 (바깥 화면엔 밭 없음 ' + ext9 + ' → 마당) 다른 탭이 주간 선물(씨앗 ' + w9.seeds + ')을 받으면 마당 단추 이름도 «' + (s9 && s9.L[1]) + '» (전 «' + L0[1] + '») · 산책 중 ' + (s9 && s9.busy));
   /* 11-13 (재검): 산책 중 다른 탭이 밭을 바꾸면 (첫째 칸에 심기) 이 탭의 바깥 그림도 곧바로 — 예전엔 이름만 바뀌어 빈 칸 그림 위에 '씨앗' 이름이 붙었다 (거두면 꽃이 그대로 그려졌다) */
-  var p9 = await q2.evaluate(function () { document.getElementById('btn-bag').click(); document.querySelectorAll('#bag-body .bag-plot')[0].click(); document.getElementById('bag-close').click(); var g = APP.state.user.garden[0]; return g ? g.water : null; });
+  var p9 = await q2.evaluate(function () { document.getElementById('btn-plot0').click(); var g = APP.state.user.garden[0]; return g ? g.water : null; });
   var g9 = null;
   for (var j9 = 0; j9 < 400 && !(g9 && g9.scene[0] === 0); j9++) g9 = await q1.evaluate(function () { return { scene: APP.scene.garden().map(function (g) { return g ? g.water : null; }), L0: document.getElementById('btn-plot0').getAttribute('aria-label'), busy: document.getElementById('btn-go').classList.contains('away') }; });
   ok(p9 === 0 && !!g9 && g9.busy && JSON.stringify(g9.scene) === '[0,null,null]' && g9.L0 === '텃밭 첫째 칸, 씨앗, 물 주기',
     '산책 중 다른 탭이 첫째 칸에 심으면 바깥 그림도 곧바로 ' + JSON.stringify(g9 && g9.scene) + ' · 이름 «' + (g9 && g9.L0) + '» · 산책 중 ' + (g9 && g9.busy));
   await c9.close();
+
+  /* 13. 11-15 마당: 다락 뒷벽 문간(문어 산책 문)을 진짜 손가락으로 톡 → 마당 · 현관 톡 → 다락 · 함께한 날 6 → 세 칸, 7 → 넷, 15 → 다섯, 30 → 여섯 (잠긴 칸은 단추도 그림도 없다) ·
+     새 칸 한 줄은 한 번 (알린 칸 수를 기록에) · 마당에서 심기 · 물 · 거두기 → 염료 · 주간 할 일이 센다 · 세 칸에 심어 둔 옛 기록은 자리 · 내용 그대로 (뒤에 빈 칸만) · 출발 의식 동안 마당 문은 기다린다 */
+  function DAYS(n) { var out = []; for (var i = 0; i < n; i++) out.push(new Date(Date.UTC(2026, 8, 1) + i * 864e5).toISOString().slice(0, 10)); return out; }
+  var Y3 = [{ color: 'red', water: 2, wateredDay: '' }, { color: 'blue', water: 1, wateredDay: '' }, { color: 'green', water: 0, wateredDay: '' }];
+  var WK0 = { key: WK, q: ['ask', 'run', 'water', 'plant', 'harvest', 'furn', 'loft'].map(function (id) { return { id: id, n: 0, rr: 0 }; }), claimed: false };
+  var recY = REC(USER({ seeds: 3, garden: JSON.parse(JSON.stringify(Y3)), week: WK0 })); recY.octopus.days = DAYS(7);
+  var cY = await ctxOf({ rec: recY });
+  await cY.addInitScript({ content: "window.__toasts = []; document.addEventListener('DOMContentLoaded', function () { var t = document.getElementById('toast'); if (!t) return; new MutationObserver(function (ms) { if (t.classList.contains('show') && ms.some(function (m) { return m.type === 'childList'; })) window.__toasts.push(t.textContent); }).observe(t, { childList: true, attributes: true, attributeFilter: ['class'] }); });" });
+  var pY = await tab(cY);
+  var NEWP = '마당에 밭 한 칸이 새로 생겼어';
+  var toldY = await pY.waitForFunction(function (w) { return window.__toasts.indexOf(w) >= 0; }, NEWP, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  var y0 = await pY.evaluate(function () { var d = JSON.parse(localStorage.getItem('ppolppol_v2')).user; return { told: d.plotTold, garden: d.garden, mem: APP.state.user.garden.slice(0, 3), n: APP.scene.garden().length, yb: (function () { var b = document.getElementById('btn-yard'); return { hidden: b.hidden, spot: b.dataset.spot, label: b.getAttribute('aria-label') }; })() }; });
+  ok(toldY && y0.told === 4 && y0.n === 4 && JSON.stringify(y0.mem) === JSON.stringify(Y3) && y0.garden.length === 6 && JSON.stringify(y0.garden.slice(0, 3)) === JSON.stringify(Y3) && y0.garden.slice(3).every(function (g) { return g === null; }),
+    '함께한 날 7: 한 줄 «' + NEWP + '» · 알린 칸 ' + y0.told + ' · 열린 칸 ' + y0.n + ' · 옛 세 칸은 자리 · 내용 그대로, 뒤에 빈 칸 셋 (' + JSON.stringify(y0.garden) + ')');
+  await pY.waitForFunction(function () { return !APP.goResting && !document.querySelector('dialog[open]'); }, null, { timeout: WAIT });
+  var dr = await pY.evaluate(function () { var b = document.getElementById('btn-yard'), r = b.getBoundingClientRect(); return { hidden: b.hidden, spot: b.dataset.spot, x: r.left + r.width / 2, y: r.top + r.height * 0.6 }; });
+  if (!dr.hidden) await pY.touchscreen.tap(dr.x, dr.y);
+  var inY = await pY.waitForFunction(function () { return APP.scene.view() === 'yard' && APP.scene.player().place === 'yard' && APP.scene.room() === 'yard' && [0, 1, 2, 3].every(function (i) { return !document.getElementById('btn-plot' + i).hidden; }) && document.getElementById('btn-plot4').hidden && document.getElementById('btn-plot5').hidden && !document.getElementById('btn-yard-door').hidden; }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  var y1 = await pY.evaluate(function () { return { title: document.getElementById('scene').getAttribute('aria-label'), desc: document.getElementById('scene-desc').textContent, oct: APP.scene.octScreenPos(), door: document.getElementById('btn-yard-door').getAttribute('aria-label') }; });
+  ok(dr.spot === 'over' && !dr.hidden && y0.yb.label === '마당으로' && inY && y1.title === '마당' && y1.oct === null && /텃밭 4칸/.test(y1.desc) && y1.door === '집으로',
+    '다락 뒷벽 문간(«' + y0.yb.label + '») 을 손가락으로 톡 → 마당 (밭 단추 넷 · 다섯째 · 여섯째 없음 · 문어 없음 · «' + y1.desc + '»)');
+  /* 마당에서 손가락으로: 넷째 칸 심기 · 둘째 칸 물 · 첫째 칸 거두기 */
+  async function tapPlot(i) { var r = await pY.evaluate(function (i) { var q = document.getElementById('btn-plot' + i).getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; }, i); await pY.touchscreen.tap(r[0], r[1]); }
+  await tapPlot(3); var a3 = await pY.waitForFunction(function () { return !!APP.state.user.garden[3]; }, null, { timeout: 20000, polling: 50 }).then(function () { return true; }, function () { return false; });
+  await tapPlot(1); var a1y = await pY.waitForFunction(function () { return APP.state.user.garden[1].water === 2; }, null, { timeout: 20000, polling: 50 }).then(function () { return true; }, function () { return false; });
+  await tapPlot(0); var a0y = await pY.waitForFunction(function () { return APP.state.user.garden[0] === null; }, null, { timeout: 20000, polling: 50 }).then(function () { return true; }, function () { return false; });
+  var y2 = await pY.evaluate(function () { var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user, q = {}; u.week.q.forEach(function (x) { q[x.id] = x.n; }); return { seeds: u.seeds, dyes: u.dyes, g: u.garden.map(function (g) { return g ? g.water : null; }), q: q, scene: APP.scene.garden().map(function (g) { return g ? g.water : null; }) }; });
+  ok(a3 && a1y && a0y && y2.seeds === 2 && y2.dyes.red === 1 && JSON.stringify(y2.g) === '[null,2,0,0,null,null]' && JSON.stringify(y2.scene) === '[null,2,0,0]' && y2.q.plant === 1 && y2.q.water === 1 && y2.q.harvest === 1,
+    '마당에서 톡: 넷째 칸 심기 · 둘째 칸 물 (꽃) · 첫째 칸 거두기 → 빨강 염료 1 · 주간 할 일 심기 ' + y2.q.plant + ' · 물 ' + y2.q.water + ' · 거두기 ' + y2.q.harvest + ' · 밭 ' + JSON.stringify(y2.g));
+  var bagY = await pY.evaluate(function () { document.getElementById('btn-bag').click(); var o = { plots: document.querySelectorAll('#bag-body .bag-plot').length, note: [].map.call(document.querySelectorAll('#bag-body .set-note'), function (x) { return x.textContent; }).join(' | ') }; document.getElementById('bag-close').click(); return o; });
+  ok(bagY.plots === 0 && /텃밭은 마당에 있어\./.test(bagY.note) && /빨강 1/.test(bagY.note), '살림 시트: 밭 단추 없음 · «텃밭은 마당에 있어.» · 염료 수는 그대로 (' + bagY.note.slice(-40) + ')');
+  /* 현관 톡 → 다락 */
+  await pY.waitForFunction(function () { return !APP.goResting && !document.querySelector('dialog[open]'); }, null, { timeout: WAIT });
+  var hd = await pY.evaluate(function () { var q = document.getElementById('btn-yard-door').getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; });
+  await pY.touchscreen.tap(hd[0], hd[1]);
+  var backY = await pY.waitForFunction(function () { return APP.scene.view() === 'attic' && !APP.scene.room() && APP.scene.player().place === 'attic'; }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  ok(backY, '마당 현관을 손가락으로 톡 → 다락 (내 캐릭터도 다락)');
+  /* 함께한 날로 열리는 칸 수 */
+  var cnt = await pY.evaluate(function (D) { var out = {}; [6, 7, 14, 15, 29, 30, 40].forEach(function (n) { APP.state.octopus.days = D.slice(0, n); APP.renderAll(); out[n] = APP.scene.garden().length; }); APP.state.octopus.days = D.slice(0, 7); APP.renderAll(); return out; }, DAYS(40));
+  ok(JSON.stringify(cnt) === JSON.stringify({ 6: 3, 7: 4, 14: 4, 15: 5, 29: 5, 30: 6, 40: 6 }), '함께한 날 → 열린 칸: ' + JSON.stringify(cnt));
+  /* 다시 열어도 한 줄은 다시 안 뜬다 (알린 칸 수 = 열린 칸 수) */
+  await pY.reload(); await pY.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
+  var y3 = await pY.evaluate(function () { return { told: APP.state.user.plotTold, open: APP.scene.garden().length }; });
+  ok(y3.told === 4 && y3.open === 4, '다시 열어도 알린 칸 ' + y3.told + ' = 열린 칸 ' + y3.open + ' (그 한 줄은 다시 없다)');
+  /* 출발 의식 동안: 마당 문 단추는 숨고 goRoom('yard') 은 기다린다 · 스틱으로 문간에 밀어도 안 나간다 */
+  await pY.waitForFunction(function () { return !APP.goResting && !document.querySelector('dialog[open]'); }, null, { timeout: WAIT });
+  var dep = await pY.evaluate(function () { window.__dep = new Promise(function (r) { APP.scene.departCeremony(r); }); return new Promise(function (res) { requestAnimationFrame(function () { requestAnimationFrame(function () { var b = document.getElementById('btn-yard'); Promise.resolve(APP.goRoom('yard')).then(function (r) { res({ cer: APP.scene.ceremony(), hidden: b.hidden, r: r, view: APP.scene.view() }); }); }); }); }); });
+  await pY.evaluate(function () { return window.__dep; });
+  ok(dep.cer === 'depart' && dep.hidden && dep.r && dep.r.ok === false && dep.r.reason === 'ceremony' && dep.view === 'attic', '문어 출발 의식 동안 마당 문은 숨고 · 나가지 않는다 (' + JSON.stringify(dep.r) + ')');
+  await cY.close();
   reportErrors(bag, 'X');
 }
+
+/* E2. 장면 톡 뒤 따라오는 진짜 click (11-15 4차 갈래 E): 장면이 pointerup 에서 단추를 누르고 시트가 열리면, 브라우저가 같은 손가락의 click 을 그 자리에 또 보낸다 —
+   시트 바깥이면 닫히고(재봉틀이 첫 톡에 안 열리던 결함) 안이면 염료 칩이 눌렸다. 진짜 손가락(touchscreen.tap)으로 재봉틀을 톡 → 시트가 열린 채 · 칩은 안 눌림 (토스트 · 조개 그대로).
+   관성으로 흐르는 중에 단추를 톡 해도 연다 (예전엔 멈추기만). 세트 도감은 접힌 한 줄 · 시트는 화면 반쯤 */
+/* 11-18 6차 (주인: "폰이랑 컴퓨터 기준 중앙에서 오른쪽으로 뽈뽈"): 로딩 문어 — app.js 를 붙잡아 덮개를 세워 두고 잰다.
+   가운데에서 출발 (±1 기기 px) · 크기 56u × 39u (u = max(round(2·dpr), floor(짧은 변·dpr/200)) / dpr) · 0.5 초에 아트 26 px (52 px/초 ±10 %) · 자리와 크기는 기기 px 정수 ·
+   동작 줄이기면 가운데 멈춤 · 최소 1.0 초 (booted 가 일찍 와도 boot-min 전엔 안 걷힘) · 아무것도 안 붙잡으면 첫 표시부터 ≥ 1.0 초 뒤 booted 와 함께 걷힘 */
+async function bootCrawl(browser) {
+  var holdApp = function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* held back by tools/smoke.js */' }); };
+  var probe = function () {
+    var e = document.querySelector('#boot .boot-oct'), cross = e.getAnimations().filter(function (a) { return a.animationName === 'boot-cross'; })[0], dpr = devicePixelRatio, vw = innerWidth, vh = innerHeight;
+    var U = Math.max(Math.round(2 * dpr), Math.floor(Math.min(vw, vh) * dpr / 200)), u = U / dpr, cs = getComputedStyle(e);
+    function at(t) { if (cross) { cross.pause(); cross.currentTime = t; } var r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }
+    var a0 = at(0), a5 = at(500); if (cross) cross.play();
+    return { dpr: dpr, u: u, U: U, cross: !!cross, cw: parseFloat(cs.width), ch: parseFloat(cs.height), a0: a0, a5: a5, cx0: Math.round((vw / 2 - 28 * u) * dpr) / dpr, cy0: Math.round((vh / 2 - 19.5 * u) * dpr) / dpr };
+  };
+  function whole(v, dpr) { return Math.abs(v * dpr - Math.round(v * dpr)) < 0.06; }
+  for (var V of [[360, 740, 2], [412, 915, 2.625], [1280, 800, 1]]) {
+    var tag = V[0] + 'x' + V[1] + '@' + V[2];
+    var c = await browser.newContext({ viewport: { width: V[0], height: V[1] }, deviceScaleFactor: V[2], locale: 'ko-KR' });
+    var p = await c.newPage(); await p.route(/\/js\/app\.js$/, holdApp);
+    await p.goto(INDEX + '?dev=0&intro=0'); await p.waitForSelector('#boot .boot-oct'); await p.waitForTimeout(150);
+    var b = await p.evaluate(probe);
+    var mv = (b.a5.x - b.a0.x) / b.u;
+    ok(b.cross && Math.abs(b.a0.x - b.cx0) * b.dpr <= 1 && Math.abs(b.a0.y - b.cy0) * b.dpr <= 1, '11-18 로딩 문어 ' + tag + ': 가운데에서 출발 (x ' + b.a0.x.toFixed(2) + ' · 기대 ' + b.cx0.toFixed(2) + ')');
+    ok(Math.abs(b.cw - 56 * b.u) < 0.02 && Math.abs(b.ch - 39 * b.u) < 0.02 && (V[2] !== 1 || V[0] !== 1280 || b.u === 4), '11-18 로딩 문어 ' + tag + ': 크기 56u × 39u (u ' + b.u.toFixed(3) + ' CSS px = 기기 ' + b.U + ' px · ' + b.cw.toFixed(2) + '×' + b.ch.toFixed(2) + ')');
+    ok(Math.abs(mv - 26) <= 2.6, '11-18 로딩 문어 ' + tag + ': 0.5 초에 아트 ' + mv.toFixed(1) + ' px 오른쪽 (52 px/초 ±10 %)');
+    ok([b.a0.x, b.a5.x, b.a0.y, b.a0.w, b.a0.h].every(function (v) { return whole(v, b.dpr); }), '11-18 로딩 문어 ' + tag + ': 자리 · 크기가 기기 px 정수 (' + [b.a0.x, b.a5.x, b.a0.w].map(function (v) { return (v * b.dpr).toFixed(2); }).join(' · ') + ')');
+    if (V[0] === 360) {   /* 최소 1.0 초: booted 를 일찍 붙여도 boot-min 전엔 덮개가 그대로.
+        11-24: booted 는 새 쪽에서 #boot 가 생기는 순간 붙인다 (MutationObserver) — 예전엔 'load' · 문어 재기 뒤에 붙여서, CI 러너가 느린 날엔 이미 1 초가 지나 boot-min 이 붙은 뒤였다 (CI d5e0582 스모크 Z: min true · early none) */
+      var pm = await c.newPage(); await pm.route(/\/js\/app\.js$/, holdApp);
+      await pm.addInitScript(function () {
+        var done = false;
+        function go() {
+          var b = document.getElementById('boot'); if (done || !b) return; done = true;
+          var de = document.documentElement, t0 = performance.now(), min = de.classList.contains('boot-min');
+          de.classList.add('booted');
+          var d = getComputedStyle(b).display;
+          (function w() { if (getComputedStyle(b).display === 'none') window.__bootMin = { early: d, min: min, at: performance.now() - t0 }; else setTimeout(w, 20); })();
+        }
+        new MutationObserver(function (m, o) { go(); if (done) o.disconnect(); }).observe(document, { childList: true, subtree: true });
+      });
+      await pm.goto(INDEX + '?dev=0&intro=0', { waitUntil: 'commit' });
+      await pm.waitForFunction(function () { return !!window.__bootMin; }, null, { timeout: 8000 }).catch(function () {});
+      var mc = await pm.evaluate(function () { return window.__bootMin || null; });
+      await pm.close();
+      ok(!!mc && !mc.min && mc.early !== 'none' && mc.at < 1200, '11-18 로딩 최소 1.0 초: 일찍 온 booted 에도 덮개가 남았다가 boot-min 과 함께 걷힘 (' + JSON.stringify(mc) + ')');
+    }
+    await c.close();
+  }
+  var c2 = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, locale: 'ko-KR', reducedMotion: 'reduce' });
+  var p2 = await c2.newPage(); await p2.route(/\/js\/app\.js$/, holdApp);
+  await p2.goto(INDEX + '?dev=0&intro=0'); await p2.waitForSelector('#boot .boot-oct'); await p2.waitForTimeout(400);
+  var rm = await p2.evaluate(function () { var e = document.querySelector('#boot .boot-oct'), r = e.getBoundingClientRect(); return { n: e.getAnimations().length, x: r.left, mid: innerWidth / 2 - r.width / 2, bp: getComputedStyle(e).backgroundPosition, min: document.documentElement.classList.contains('boot-min') }; });
+  ok(rm.n === 0 && Math.abs(rm.x - rm.mid) <= 0.5 && /^0(px)? 0(px)?$/.test(rm.bp) && rm.min, '11-18 로딩 문어 동작 줄이기: 가운데 멈춘 첫 칸 · 최소 시간 없음 (' + JSON.stringify(rm) + ')');
+  await c2.close();
+  var c3 = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: 'ko-KR' });
+  await c3.addInitScript({ content: "window.__ppolAwakeMs = 0; (function () { var r = window.__cov = { shown: null, hide: null, booted: null }; requestAnimationFrame(function t() { var b = document.getElementById('boot'); if (b) { var d = getComputedStyle(b).display; if (d !== 'none' && r.shown == null) r.shown = performance.now(); if (d === 'none' && r.shown != null) { r.hide = performance.now(); r.booted = document.documentElement.classList.contains('booted'); return; } } requestAnimationFrame(t); }); })();" });
+  var p3 = await c3.newPage(); await p3.goto(INDEX + '?dev=0&intro=0');
+  await p3.waitForFunction(function () { return window.__cov && window.__cov.hide != null; }, null, { timeout: 30000 });
+  var cv = await p3.evaluate(function () { return window.__cov; });
+  ok(cv.booted && cv.hide - cv.shown >= 950, '11-18 로딩 덮개 (아무것도 안 붙잡음, 1280×800@1): 첫 표시부터 ' + Math.round(cv.hide - cv.shown) + ' ms 뒤 booted 와 함께 걷힘 (≥ 1.0 초)');
+  await c3.close();
+}
+
+async function scenarioSceneTap(browser) {
+  console.log('\n== Z2. 장면 톡: 재봉틀 첫 톡 · 관성 중 톡 · 재봉틀 시트 크기');
+  var bag = []; bag.ignored = [];
+  var RED = '#e8463c', BORN = '2026-11-06T10:00:00.000Z';
+  var rec = { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 5, days: ['2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10'], affinity: {}, visits: {}, state: 'idle', color: RED,
+    colors: [{ at: BORN, date: '2026-11-06', color: RED, how: 'first', by: 'player' }] }, room: { lantern: 5, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
+    settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
+  var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+  await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+  var page = await ctx.newPage(); watchErrors(page, bag);
+  if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+  await page.addInitScript({ content: "if (!localStorage.getItem('__e2_seed')) { localStorage.setItem('__e2_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(rec)) + "); } window.__ppolTest = { today: '2026-11-10' };" });
+  /* 11-15 5차 검증 K-1: 부엌 쪽 (cook.html) 에서만 — 그림 기록 (paint) · <html> 에 ck-embed 가 붙은 때 · 프레임마다 문 (.ck-home) 이 그려졌나 */
+  await page.addInitScript(function () {
+    if (!/cook\.html$/.test(location.pathname)) return;
+    var r = window.__ckBoot = { embedAt: null, paints: [], homeFrames: 0, frames: 0 };
+    try { new PerformanceObserver(function (l) { l.getEntries().forEach(function (e) { r.paints.push([e.name, e.startTime]); }); }).observe({ type: 'paint', buffered: true }); } catch (e) { /* 기록 없음 → 아래 검사가 실패로 본다 */ }
+    function on(de) { function see() { if (r.embedAt === null && de.classList.contains('ck-embed')) r.embedAt = performance.now(); } see(); new MutationObserver(see).observe(de, { attributes: true, attributeFilter: ['class'] }); }
+    if (document.documentElement) on(document.documentElement);
+    else new MutationObserver(function (m, ob) { if (document.documentElement) { ob.disconnect(); on(document.documentElement); } }).observe(document, { childList: true });
+    requestAnimationFrame(function tick() { var h = document.querySelector('.ck-home'), cs = h && getComputedStyle(h); r.frames++; if (cs && cs.display !== 'none' && cs.visibility !== 'hidden') r.homeFrames++; if (r.frames < 400) requestAnimationFrame(tick); });
+  });
+  await page.goto(INDEX + '?dev=0&intro=0');
+  await page.waitForFunction(function () { return window.APP && APP.sceneMode && !APP.goResting && !document.getElementById('btn-go').classList.contains('away'); }, null, { timeout: 30000 });
+  /* 0. 로딩 문어 (11-15): 정적 HTML 에 #boot (스크립트 전부터) · 그 전엔 2D 벡터 문어를 숨기는 규칙 · 게임이 서면 걷힌다 */
+  var html0 = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  var bootStatic = /<body>\s*<div id="boot" aria-hidden="true"><i class="boot-oct"><\/i><\/div>/.test(html0) && html0.indexOf('html:not(.booted) #oct-svg { visibility: hidden; }') > 0 && /loading_oct\.png/.test(html0);
+  var bootDone = await page.waitForFunction(function () { var b = document.getElementById('boot'); return document.documentElement.classList.contains('booted') && b && getComputedStyle(b).display === 'none'; }, null, { timeout: 10000 }).then(function () { return true; }, function () { return false; });
+  ok(bootStatic && bootDone, '로딩 문어: 정적 HTML 의 첫 줄 #boot (스크립트 전부터 · 벡터 문어는 숨김) · 게임이 서면 걷힌다');
+  await bootCrawl(browser);
+  if (await page.evaluate(function () { return APP.sceneMode !== '3d'; })) { console.log('   (3D 장면이 없어 건너뜀)'); await ctx.close(); return; }
+  await page.evaluate(function () { return APP.goRoom('loft'); });
+  await page.waitForFunction(function () { var e = document.getElementById('btn-sew'); return APP.room === 'loft' && e && !e.hidden && e.getBoundingClientRect().width > 0 && !APP.goResting; }, null, { timeout: 20000 });
+  await page.waitForTimeout(600);
+  /* 1. 진짜 손가락 톡 (단추 칸 가운데 · 위쪽) */
+  var taps = [];
+  for (var f of [[0.5, 0.5], [0.3, 0.25]]) {
+    var r = await page.evaluate(function () { window.__toasts = []; var q = document.getElementById('btn-sew').getBoundingClientRect(); return { x: q.x, y: q.y, w: q.width, h: q.height, shells: APP.state.user.shells, dye: APP.state.user.dye || null }; });
+    await page.touchscreen.tap(r.x + r.w * f[0], r.y + r.h * f[1]);
+    var opened = await page.waitForSelector('#sew-sheet[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+    await page.waitForTimeout(900);   /* 따라오는 click 이 올 틈 (800 ms 막이 지난 뒤에도 열려 있는지) */
+    taps.push(await page.evaluate(function (r0) { var d = document.getElementById('sew-sheet'), q = d.getBoundingClientRect(); return { opened: true, open: d.open, toasts: (function () { var t = document.getElementById('toast'); return t && t.classList.contains('show') && /모자라|물들였어/.test(t.textContent) ? [t.textContent] : []; })(), shells: APP.state.user.shells === r0.shells, dye: (APP.state.user.dye || null) === r0.dye, frac: +(q.height / innerHeight).toFixed(2), sets: !!document.querySelector('#sew-body details.sew-sets:not([open]) > summary'), title: document.getElementById('sew-h').textContent }; }, r));
+    taps[taps.length - 1].opened = opened;
+    await page.evaluate(function () { document.getElementById('sew-close').click(); });
+    await page.waitForFunction(function () { return !document.getElementById('sew-sheet').open && !APP.goResting; }, null, { timeout: 5000 });
+    await page.waitForTimeout(700);
+  }
+  console.log('   재봉틀 톡:', JSON.stringify(taps));
+  ok(taps.every(function (t) { return t.opened && t.open && !t.toasts.length && t.shells && t.dye; }), '진짜 손가락으로 재봉틀을 톡 하면 시트가 열린 채 남고, 그 톡이 염료 칩을 누르지 않는다 (알림 · 조개 · 옷 색 그대로)');
+  ok(taps[0].frac <= 0.5 && taps[0].sets && taps[0].title === '재봉틀', '재봉틀 시트는 화면 반 이하 (' + taps[0].frac + ') · 제목 «' + taps[0].title + '» · 세트 도감은 접힌 한 줄');
+  /* 11-15 (검증 O-3): 조개가 모자란 색 칸을 진짜 손가락으로 톡 → 긴 안내 글 대신 그 칸의 값 표가 짧게 흔들리고 알림은 조개 그림 + 모자란 수 한 줄 (읽어 주기는 예전 글 그대로) · 진동 없음 · 조개 · 옷 색 그대로.
+     (위 검사의 알림 보기도 11-15 에 바꿨다: 이 문맥엔 알림 기록기 (__toasts) 가 없어 늘 비어 있었다 — 떠 있는 알림을 바로 본다) */
+  await page.evaluate(function () { document.getElementById('btn-sew').click(); });
+  await page.waitForSelector('#sew-sheet[open]', { timeout: 5000 }); await page.waitForTimeout(900);
+  var sc0 = await page.evaluate(function () { window.__vib = []; navigator.vibrate = function (p) { window.__vib.push(p); return true; }; var b = [].filter.call(document.querySelectorAll('#sew-body .sew-chip'), function (x) { return !x.classList.contains('on') && !x.querySelector('.sew-cost.own'); })[0], q = b.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2, shells: APP.state.user.shells, dye: APP.state.user.dye || null }; });
+  await page.touchscreen.tap(sc0.x, sc0.y); await page.waitForTimeout(120);
+  var sc1 = await page.evaluate(function (r0) {
+    var t = document.getElementById('toast'), vis = '', sr = [].filter.call(t.children, function (c) { return c.classList.contains('sr-only'); })[0], hid = t.querySelector('[aria-hidden="true"]');
+    (function walk(n) { if (n.nodeType === 3) { vis += n.nodeValue; return; } if (n.nodeType !== 1 || n.classList.contains('sr-only')) return; [].forEach.call(n.childNodes, walk); })(t);
+    return { show: t.classList.contains('show'), vis: vis, sr: sr ? sr.textContent : '', pic: !!(hid && hid.querySelector('.shell-amt .shell-ico')), shake: !!document.querySelector('#sew-body .sew-cost.furn-no'), vib: window.__vib.length, same: APP.state.user.shells === r0.shells && (APP.state.user.dye || null) === r0.dye };
+  }, sc0);
+  await page.evaluate(function () { document.getElementById('sew-close').click(); });
+  await page.waitForFunction(function () { return !document.getElementById('sew-sheet').open && !APP.goResting; }, null, { timeout: 5000 });
+  ok(sc0.shells < 6 && sc1.show && sc1.pic && sc1.vis === (6 - sc0.shells) + ' 모자라' && sc1.sr === '조개가 ' + (6 - sc0.shells) + '개 모자라. 다락방 달리기나 들어온 날 선물로 생겨' && sc1.shake && !sc1.vib && sc1.same,
+    '조개가 모자란 색 칸: 알림은 조개 그림 + «' + sc1.vis + '» 한 줄 (읽어 주기 «' + sc1.sr + '») · 값 표가 흔들림 ' + sc1.shake + ' · 진동 ' + sc1.vib + ' · 조개 ' + sc0.shells + ' · 옷 색 그대로 ' + sc1.same);
+  /* 11-18: 위층 마네킹 (흰 원피스) — 진짜 손가락으로 톡 하면 재봉틀과 같은 창. 단추 칸이 뜬다는 것은 장면의 단추 목록 (SPOT_KEYS) · 앱의 단추 표 (ROOM_SPOT) 에 마네킹이 들어 있다는 뜻 (둘 다 그 표의 줄 밖에서 덧붙인다) */
+  var dl = await page.evaluate(function () { var e = document.getElementById('btn-sew-doll'), q = e.getBoundingClientRect(), k = APP.scene.pickAt(q.x + q.width / 2, q.y + q.height / 2); return { hidden: e.hidden, x: q.x, y: q.y, w: q.width, h: q.height, pick: k && k.id, title: e.getAttribute('title'), name: e.getAttribute('aria-label') || '' }; });
+  await page.touchscreen.tap(dl.x + dl.w / 2, dl.y + dl.h / 2);
+  var dlOpen = await page.waitForSelector('#sew-sheet[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+  await page.waitForTimeout(900);
+  var dlStay = await page.evaluate(function () { return document.getElementById('sew-sheet').open; });
+  await page.evaluate(function () { document.getElementById('sew-close').click(); });
+  await page.waitForFunction(function () { return !document.getElementById('sew-sheet').open && !APP.goResting; }, null, { timeout: 5000 });
+  ok(!dl.hidden && dl.w >= 44 && dl.h >= 44 && (dl.pick === 'sewDoll' || dl.pick === 'sew') && dl.title === null && /마네킹/.test(dl.name) && dlOpen && dlStay,
+    '위층 마네킹을 진짜 손가락으로 톡 하면 재봉틀 창이 열린 채 남는다 (단추 칸 ' + Math.round(dl.w) + '×' + Math.round(dl.h) + ' · 장면 톡 = ' + dl.pick + ' · 이름 «' + dl.name + '» · title ' + dl.title + ')');
+  await page.waitForTimeout(700);
+  /* 2. 관성 중 톡: 느린 기계에선 CDP 손가락 사이가 길어 관성이 안 생긴다 → 페이지 안에서 8 ms 간격 합성 PointerEvent 로 밀어 놓고 그 사이 재봉틀 칸을 톡 */
+  await page.evaluate(function () { APP.scene.zoomTo(9999); }); await page.waitForTimeout(600);
+  var co = await page.evaluate(function () {
+    var cv = document.querySelector('#scene3d canvas'), keep = cv.setPointerCapture; cv.setPointerCapture = function () {};
+    function wait(ms) { var t = performance.now(); while (performance.now() - t < ms); }
+    function ev(type, x, y, id) { cv.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: id, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, button: 0, buttons: type === 'pointerup' ? 0 : 1 })); }
+    var q0 = document.getElementById('btn-sew').getBoundingClientRect(), x0 = q0.x + q0.width / 2, y0 = Math.max(120, q0.y - 40), dir = x0 > innerWidth / 2 ? 1 : -1;
+    ev('pointerdown', x0, y0, 7); for (var i = 1; i <= 5; i++) { wait(8); ev('pointermove', x0 + dir * i * 4, y0, 7); } wait(4); ev('pointerup', x0 + dir * 20, y0, 7);
+    var mode = APP.scene.pan().mode, q = document.getElementById('btn-sew').getBoundingClientRect(), x = q.x + q.width / 2, y = q.y + q.height / 2, k = APP.scene.pickAt(x, y);
+    ev('pointerdown', x, y, 8); ev('pointerup', x, y, 8);
+    cv.setPointerCapture = keep;
+    /* 11-24: 장면 톡은 손 뗌 처리가 끝난 다음 차례에 연다 (scene3d afterUp — closedby="any" 가 그 손 뗌으로 바로 닫지 않게) → 메시지 한 차례 뒤에 본다 */
+    return new Promise(function (res) { var ch = new MessageChannel(); ch.port1.onmessage = function () {
+      var r = { mode: mode, pick: k && k.kind + ':' + k.id, open: document.getElementById('sew-sheet').open };
+      document.getElementById('sew-sheet').close();
+      res(r); }; ch.port2.postMessage(0); });
+  });
+  console.log('   관성 중 톡:', JSON.stringify(co));
+  ok(co.mode === 'coast' && co.pick === 'spot:sew' && co.open, '관성으로 흐르는 중에 재봉틀을 톡 하면 멈추고 시트도 연다 (' + co.mode + ' · ' + co.pick + ')');
+  /* 3. 놀이방 조리대 톡 → 부엌 (cook.html?embed=1 iframe) · 부엌의 닫기 → 놀이방 그대로 (장면 · 밀기 · 포커스는 조리대 단추) · 다시 열고 Esc 도 닫는다 */
+  await page.evaluate(function () { APP.scene.zoomTo(1); return APP.goRoom('attic'); });
+  await page.waitForFunction(function () { return APP.scene.view() === 'attic' && !APP.goResting; }, null, { timeout: 20000 }); await page.waitForTimeout(600);
+  await page.evaluate(function () { return APP.goRoom('play'); });
+  await page.waitForFunction(function () { var e = document.getElementById('btn-cook'); return APP.scene.view() === 'play' && e && !e.hidden && !APP.goResting; }, null, { timeout: 20000 }); await page.waitForTimeout(600);
+  var cpt = await page.evaluate(function () { var q = document.getElementById('btn-cook').getBoundingClientRect(), F = [0.5, 0.35, 0.65, 0.2, 0.8]; for (var i = 0; i < F.length; i++) for (var j = 0; j < F.length; j++) { var x = q.x + q.width * F[j], y = q.y + q.height * F[i], k = APP.scene.pickAt(x, y); if (k && k.kind === 'spot' && k.id === 'counter') return { x: x, y: y, w: q.width, h: q.height, label: document.getElementById('btn-cook').getAttribute('aria-label'), pan: JSON.stringify(APP.scene.pan()) }; } return null; });
+  var ck = { spot: !!cpt }, k2 = {};
+  /* 11-21 7차 (T): 요리 쟁반은 없다 — 조리대 톡이 바로 부엌 덮개를 연다 (레시피 북은 부엌 안) */
+  async function pickDish() { return page.waitForSelector('#cook-overlay[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; }); }
+  function cookStore() { return page.evaluate(function () { return localStorage.getItem('ppolppol_cook_v0'); }); }
+  if (cpt) {
+    /* 11-18 (점검 rel-01): 부엌 쪽이 못 열리면 (cook.html 대신 빈 쪽 = 네트워크가 끊겨 'ready' 가 오지 않는 것처럼) 300 ms 뒤 문어 그림 + 게임 쪽 닫기 → 놀이방으로.
+       또 막힌 채 열면 6 초 뒤 덮개를 닫고 토스트 한 줄. 저장은 그대로. 풀고 나서 열면 새로 불러와 부엌이 열린다 */
+    await page.evaluate(function () {
+      var d = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src'); window.__ckBlock = true;
+      Object.defineProperty(HTMLIFrameElement.prototype, 'src', { configurable: true, get: function () { return d.get.call(this); },
+        set: function (v) { if (/cook\.html/.test(String(v))) window.__ckLastSrc = String(v); d.set.call(this, window.__ckBlock && /cook\.html/.test(String(v)) ? 'about:blank#k2-blocked' : v); } });   /* 아무것도 안 오는 쪽 = 'ready' 없음 */
+    });
+    k2.s0 = await cookStore();
+    await page.touchscreen.tap(cpt.x, cpt.y);
+    k2.direct = await page.waitForSelector('#cook-overlay[open]', { timeout: 5000 }).then(function () {
+      return page.evaluate(function () { var f = document.querySelector('#cook-overlay iframe'), raw = f ? f.getAttribute('src') || '' : '', m = /[?&]ctx=([^&]*)/.exec(window.__ckLastSrc || raw), c = null; try { c = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) { c = 'bad'; }
+        return { tray: !!document.getElementById('dish-pick'), go: getComputedStyle(document.getElementById('btn-go')).visibility, ctx: c }; });
+    }, function () { return null; });
+    k2.wait = await page.waitForSelector('#cook-wait:not([hidden])', { timeout: 3000 }).then(function () {
+      return page.evaluate(function () { var c = document.getElementById('cook-close'), r = c.getBoundingClientRect(), o = document.querySelector('#cook-wait .cw-oct').getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+        return { label: c.getAttribute('aria-label'), text: c.textContent, title: c.hasAttribute('title'), w: r.width, h: r.height, top: r.top, right: window.innerWidth - r.right, oct: [o.width * dpr % 56, o.x * dpr % 1, o.y * dpr % 1] }; });
+    }, function () { return null; });
+    await page.tap('#cook-close');
+    k2.closed = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open && document.getElementById('cook-wait').hidden; }, null, { timeout: 3000 })   /* 11-21: 'close' 이벤트는 닫힌 뒤 따로 온다 — 기다림 그림이 걷힌 상태까지 기다린다 */.then(function () {
+      return page.evaluate(function () { return { view: APP.scene.view(), focus: document.activeElement && document.activeElement.id, waitHidden: document.getElementById('cook-wait').hidden }; }); }, function () { return null; });
+    await page.waitForTimeout(700);
+    await page.touchscreen.tap(cpt.x, cpt.y);
+    await pickDish('jeon');
+    await page.waitForTimeout(6400);
+    k2.timeout = await page.evaluate(function () { var t = document.getElementById('toast'); return { open: document.getElementById('cook-overlay').open, toast: t && t.classList.contains('show') ? t.textContent : null }; });
+    k2.s1 = await cookStore();
+    await page.evaluate(function () { window.__ckBlock = false; });
+    await page.waitForTimeout(2700);
+    await page.touchscreen.tap(cpt.x, cpt.y);
+    k2.pickFirst = await pickDish('jeon');
+    ck.open = await page.waitForSelector('#cook-overlay[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+    var fh = await page.$('#cook-overlay iframe'), fr = fh && await fh.contentFrame();
+    ck.kitchen = !!fr && await fr.waitForFunction(function () { return window.COOK && COOK.isOpen() && document.documentElement.classList.contains('ck-embed'); }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
+    if (ck.kitchen) {
+      ck.home = await fr.evaluate(function () { var h = document.querySelector('.ck-home'); return h ? getComputedStyle(h).display : 'none'; });
+      ck.boot = await fr.waitForFunction(function () { var r = window.__ckBoot; return !!r && r.paints.some(function (p) { return p[0] === 'first-contentful-paint'; }); }, null, { timeout: 5000 }).catch(function () { /* 아래 검사가 본다 */ }).then(function () {
+        return fr.evaluate(function () { var r = window.__ckBoot; if (!r) return null; var f = r.paints.filter(function (p) { return p[0] === 'first-contentful-paint'; })[0]; return { fcp: f ? Math.round(f[1]) : null, embedAt: r.embedAt === null ? null : Math.round(r.embedAt), homeFrames: r.homeFrames, frames: r.frames }; });
+      });
+      /* 11-15 5차 (가까이 보기 §12 · §15.3): 열자마자 단계 · 글자 0 · 닫기는 그림 단추 · 부모가 잰 안전 여백이 --ck-safe-* 로 · 닫을 때 키보드였는지 */
+      await page.evaluate(function () { window.__ckMsgs = []; window.addEventListener('message', function (e) { var d = e.data; if (d && typeof d === 'object' && d.ppolCook) window.__ckMsgs.push(JSON.parse(JSON.stringify(d))); }); });
+      await fr.waitForFunction(function () { return getComputedStyle(document.documentElement).getPropertyValue('--ck-safe-t').trim() !== ''; }, null, { timeout: 5000 }).catch(function () { /* 아래에서 본다 */ });
+      ck.z = await fr.evaluate(function () {
+        var l = COOK.live(), d = document.getElementById('cook-dlg'), c = document.querySelector('.ck-close'), cr = c && c.getBoundingClientRect(), dc = d && d.cloneNode(true), say = dc && dc.querySelector('.ck-say');
+        if (say) say.remove();
+        var cs = getComputedStyle(document.documentElement);
+        return { screen: l.screen, kind: l.kind, id: l.id, text: dc ? dc.textContent : null, titles: d ? d.querySelectorAll('[title]').length : -1,
+          close: c ? { label: c.getAttribute('aria-label'), text: c.textContent, w: cr.width, h: cr.height } : null,
+          safe: ['t', 'r', 'b', 'l'].map(function (k) { return cs.getPropertyValue('--ck-safe-' + k).trim(); }), credits: document.querySelectorAll('#cook-dlg .ckh-credits').length };
+      });
+      /* 부모 쪽에서 노치 · 홈 막대가 있는 폰처럼 보낸다 (헤드리스 크로미움의 env() 는 0): 값이 들어가고, 0..200 으로 자르고, 숫자가 아니면 0 */
+      await page.evaluate(function () { document.querySelector('#cook-overlay iframe').contentWindow.postMessage({ ppolCook: 'safe', t: 47, r: 999, b: 34, l: 'x' }, '*'); });
+      ck.safe2 = await fr.waitForFunction(function () { return getComputedStyle(document.documentElement).getPropertyValue('--ck-safe-t').trim() === '47px'; }, null, { timeout: 3000 }).then(function () {
+        return fr.evaluate(function () { var cs = getComputedStyle(document.documentElement), v = COOK.live().view; return { css: ['t', 'r', 'b', 'l'].map(function (k) { return cs.getPropertyValue('--ck-safe-' + k).trim(); }), view: v ? v.safe : null }; });
+      }, function () { return null; });
+      await page.evaluate(function () { window.dispatchEvent(new Event('resize')); });   /* 크기가 바뀌면 (100 ms 모아서) 부모가 진짜 값을 다시 보낸다 */
+      ck.safe3 = await fr.waitForFunction(function () { return getComputedStyle(document.documentElement).getPropertyValue('--ck-safe-t').trim() === '0px'; }, null, { timeout: 3000 }).then(function () { return true; }, function () { return false; });
+      await (await fr.$('.ck-close')).tap();
+      ck.closed = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+      ck.after = await page.evaluate(function () { return { view: APP.scene.view(), room: APP.room, focus: document.activeElement && document.activeElement.id, pan: JSON.stringify(APP.scene.pan()) }; });
+      ck.tapMsg = await page.evaluate(function () { return window.__ckMsgs.filter(function (m) { return m.ppolCook === 'close'; }).pop() || null; });
+      await page.waitForTimeout(700);
+      await fr.evaluate(function () { window.__ckIn = []; window.addEventListener('message', function (e) { var d = e.data; if (d && typeof d === 'object' && d.ppolCook) window.__ckIn.push(d.ppolCook); }); });
+      await page.evaluate(function () { window.__ckMsgs = []; document.getElementById('btn-cook').click(); });
+      await pickDish('jeon');
+      ck.again = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+      ck.again2 = await fr.evaluate(function () { var l = COOK.live(); return { screen: l.screen, kind: l.kind, id: l.id }; });
+      ck.inOrder = await fr.evaluate(function () { return window.__ckIn.slice(); });   /* 다시 열 때 iframe 이 받은 차례: 'safe' 가 'open' 바로 앞 */
+      await page.keyboard.press('Escape');
+      ck.esc = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+      ck.escShut = !(await fr.evaluate(function () { return COOK.isOpen(); }));
+      ck.escMsg = await page.evaluate(function () { return window.__ckMsgs.filter(function (m) { return m.ppolCook === 'close'; }).pop() || null; });
+      /* 5차 검증 K-11: Esc 로 닫은 뒤 손가락으로 다시 열면 칩에 포커스 링이 없다 (부엌 안의 마지막 입력이 그 Esc 여도 — 게임이 'open' 에 kbd 를 실어 보낸다) */
+      await page.waitForTimeout(600);
+      await page.touchscreen.tap(cpt.x, cpt.y);
+      await pickDish('jeon');
+      ck.finger = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(function () {
+        return fr.evaluate(function () { var v = document.querySelector('.ck-verb'); return { ring: document.getElementById('cook-dlg').classList.contains('ck-kbd'), chipFocus: document.activeElement === v, quiet: COOK.live().quiet }; });
+      }, function () { return null; });
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).catch(function () { /* 아래 검사가 본다 */ });
+      /* 5차 검증 K-5: 게임 설정 › 화면 › 모션 '모션 줄이기' 가 부엌 iframe 에도 닿는다 (COOK.live().reduced · data-motion) — 톡톡 단계가 끝나 화덕으로 가도 미끄러짐 0 */
+      await page.waitForTimeout(600);
+      await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]'); await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); }); await page.selectOption('#set-motion', 'reduce'); await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+      await page.waitForTimeout(400);
+      await page.touchscreen.tap(cpt.x, cpt.y);
+      await pickDish('jeon');
+      ck.red = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(async function () {
+        var r0 = await fr.evaluate(function () { var l0 = COOK.live(); if (l0.screen === 'book' && typeof COOK.pick === 'function') COOK.pick('jeon2'); var l = COOK.live(); COOK.auto(true); return { reduced: l.reduced, motion: document.documentElement.getAttribute('data-motion'), kind: l.kind }; });   /* 11-21 (lane/7-k 와 함께): 책이 먼저면 해초전을 고른다 */
+        var flip = await fr.waitForFunction(function () { var l = COOK.live(); return (l.kind === 'flip' || l.si >= 1) && l.phase === 'step'; }, null, { timeout: 30000 }).then(function () { return true; }, function () { return false; });
+        var r1 = await fr.evaluate(function () { COOK.auto(false); var l = COOK.live(); return { kind: l.kind, slides: l.stats.slides, shake: l.stats.shake, parts: l.stats.parts }; });
+        return { open: r0, flip: flip, after: r1 };
+      }, function () { return null; });
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).catch(function () { /* 끝 */ });
+      /* 11-18 6차 (K2) 쟁반 규칙: 단계를 끝낸 냄비 (부엌의 tuneOf 그대로) → 쟁반 없이 바로 그 요리 · 빈 냄비 (si 0) → 쟁반 · 옛 판 냄비 → 쟁반,
+         고르면 그 냄비는 potOld 에 바이트 그대로 · 다른 요리를 고르면 빈 냄비도 potOld 로 · 주먹밥을 다 만들면 'result' 한 번 */
+      async function shut(noKey) {   /* Esc 로 닫고, 바쁜 기계에서 Esc 가 빠졌으면 덮개를 직접 닫는다 — 다음 검사는 부엌까지 닫힌 데서 시작 */
+        if (!noKey) await page.keyboard.press('Escape');
+        var gone = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 3000 }).then(function () { return true; }, function () { return false; });
+        if (!gone) await page.evaluate(function () { var d = document.getElementById('cook-overlay'); if (d.open) d.close(); });
+        var shutOk = await fr.waitForFunction(function () { return !COOK.isOpen(); }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+        (k2.shuts = k2.shuts || []).push(shutOk ? 1 : await fr.evaluate(function () { var l = COOK.live(); return { r: l.recipe, si: l.si, s: l.screen, url: location.search }; }).catch(function (e) { return String(e).slice(0, 80); }));
+        await page.waitForTimeout(700);
+      }
+      await shut(true);
+      async function setPot(pot) { await page.evaluate(function (p) { var o = JSON.parse(localStorage.getItem('ppolppol_cook_v0') || '{}'); o.pot = p; localStorage.setItem('ppolppol_cook_v0', JSON.stringify(o)); }, pot); }
+      async function tapCounter() { await page.touchscreen.tap(cpt.x, cpt.y); await page.waitForTimeout(500); return page.evaluate(function () { return { tray: !!document.getElementById('dish-pick'), overlay: document.getElementById('cook-overlay').open }; }); }
+      k2.straight = [];
+      for (var rid of ['jeon', 'jumeokbap', 'kkochi']) {
+        var pot1 = await fr.evaluate(function (id) { var b = [{ t: 400, k: 'b' }, { t: 800, k: 'b' }, { t: 1200, k: 'b' }, { t: 1600, k: 'b' }]; return COOK.potOf(COOK.simulate(id, 5, [b], { run: true }).run, 1); }, rid);
+        await setPot(pot1);
+        var tc = await tapCounter();
+        var lv = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(function () { return fr.evaluate(function () { var l = COOK.live(); return { r: l.recipe, si: l.si }; }); }, function () { return null; });
+        k2.straight.push({ id: rid, tune: pot1.tune, tray: tc.tray, overlay: tc.overlay, live: lv });
+        await shut();
+      }
+      /* 11-21 7차 (T · 계약 C2): 빈 냄비여도 쟁반 없이 부엌이 열린다 · 'open' 에 ctx { canCall, unlocked } · 요리를 다 만들면 'result' 한 번, 게임은 'ctx' 로 답한다 ·
+         부엌의 'serve' 뒤에 닫히면 요리가 식탁에 띡 놓이지 않고 내 캐릭터가 들고 간다 (끝나면 식탁에 · 저장은 result 때 그대로) */
+      await setPot(null);
+      await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]'); await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); }); await page.selectOption('#set-motion', 'auto'); await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });   /* 위에서 켠 모션 줄이기를 되돌린다 (들고 가는 걸음을 본다) */
+      await page.waitForTimeout(400);
+      await fr.evaluate(function () { window.__ckOpen = []; window.addEventListener('message', function (e) { var d = e.data; if (d && typeof d === 'object' && (d.ppolCook === 'open' || d.ppolCook === 'ctx')) window.__ckOpen.push(JSON.parse(JSON.stringify(d))); }); });
+      await page.evaluate(function () { window.__ckMsgs = []; });
+      k2.empty = await tapCounter();
+      k2.openMsg = await fr.waitForFunction(function () { return COOK.isOpen() && window.__ckOpen.length > 0; }, null, { timeout: 5000 }).then(function () { return fr.evaluate(function () { return window.__ckOpen[0]; }); }, function () { return null; });
+      await fr.evaluate(function () { var l0 = COOK.live(); if (l0.screen === 'book' && typeof COOK.pick === 'function') COOK.pick('jeon2'); COOK.auto(true); });
+      k2.result = await fr.waitForFunction(function () { return COOK.live().screen === 'reveal'; }, null, { timeout: 90000 }).then(async function () {
+        await page.waitForTimeout(500);
+        return page.evaluate(function () { return window.__ckMsgs.filter(function (m) { return m.ppolCook === 'result'; }); });
+      }, function () { return null; });
+      await fr.evaluate(function () { COOK.auto(false); });
+      k2.ctxBack = await fr.evaluate(function () { return window.__ckOpen.filter(function (m) { return m.ppolCook === 'ctx'; }); });
+      k2.waiting = await page.evaluate(function () { var u = APP.state.user || {}, i = APP.scene.tableInfo ? APP.scene.tableInfo() : null; return { table: u.table ? u.table.id : null, scene: i && i.dish ? i.dish.id : null }; });
+      var rid0 = k2.result && k2.result[0] ? k2.result[0].id : '';
+      /* 새 부엌 (lane/7-k) 이면 진짜 끝 단추 '식탁에 두기' 를 누른다 (900 ms 지킴 뒤 · serve 다음에 스스로 닫힌다). 옛 부엌이면 같은 글을 보내고 닫기 칩 */
+      k2.realEnd = await fr.waitForFunction(function () { var t = document.querySelector('.ck-table'); return !!t && !t.hidden; }, null, { timeout: 4000 }).then(function () { return true; }, function () { return false; });
+      if (k2.realEnd) { await page.waitForTimeout(1200); await fr.evaluate(function () { document.querySelector('.ck-table').click(); }); }
+      else { await fr.evaluate(function (id) { window.parent.postMessage({ ppolCook: 'serve', id: id, mode: 'table' }, '*'); }, rid0); await page.waitForTimeout(150); await (await fr.$('.ck-close')).tap(); }
+      k2.serve = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).then(function () {
+        return page.evaluate(function () { var i = APP.scene.tableInfo ? APP.scene.tableInfo() : null; return { meal: APP.meal && APP.meal.stage, busy: APP.mealBusy(), carry: i && i.carry, dish: i && i.dish ? i.dish.id : null }; }); }, function () { return null; });
+      k2.busyTap = k2.serve && k2.serve.busy ? await tapCounter() : null;   /* 들고 가는 동안 조리대는 아무것도 안 한다 */
+      k2.served = await page.waitForFunction(function () { return !APP.mealBusy(); }, null, { timeout: 15000 }).then(function () {
+        return page.evaluate(function () { var u = APP.state.user || {}, i = APP.scene.tableInfo ? APP.scene.tableInfo() : null; return { table: u.table ? u.table.id : null, scene: i && i.dish ? i.dish.id : null, carry: i && i.carry, me: i && i.me, meals: (u.meals || []).length }; }); }, function () { return null; });
+      /* R19: 문어를 부르는 동안 (M 의 mealBusy() 가 참) 조리대는 아무것도 안 한다 — smoke EAT 가 본다 */
+      /* 조리대를 두 번 톡 (120 ms) 해도 부엌은 한 번만 열리고 열린 채 */
+      await page.waitForTimeout(700);
+      var cdpT = await page.context().newCDPSession(page);   /* touchscreen.tap 은 한 번에 수백 ms 걸려서 진짜 두 번 톡 (톡 사이 120 ms) 은 CDP 로 */
+      for (var tt = 0; tt < 2; tt++) {
+        await cdpT.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cpt.x, y: cpt.y, id: 7 + tt }] }); await page.waitForTimeout(40);
+        await cdpT.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); if (!tt) await page.waitForTimeout(120);
+      }
+      await page.waitForTimeout(600);
+      k2.dbl = await page.evaluate(function () { return { overlay: document.getElementById('cook-overlay').open, frames: document.querySelectorAll('#cook-overlay iframe').length }; });
+      await shut();
+    }
+  }
+  console.log('   K2 쟁반 · 못 열린 부엌:', JSON.stringify(k2));
+  var dr = k2.direct || {}, UNL = ['jeon2', 'gyeran', 'jumeokbap2'];
+  ok(k2.direct && dr.tray === false && dr.go === 'visible', '빈 저장에 조리대 톡 → 요리 쟁반 없이 바로 부엌 덮개 (#dish-pick 은 없다 · ' + JSON.stringify(dr) + ')');
+  ok(dr.ctx && typeof dr.ctx.canCall === 'boolean' && Array.isArray(dr.ctx.unlocked) && UNL.every(function (id) { return dr.ctx.unlocked.indexOf(id) >= 0; }), "부엌 주소에 ctx { canCall, unlocked } (계약 C2 · 처음 여는 길): " + JSON.stringify(dr.ctx));
+  ok(k2.wait && k2.wait.label === '닫기' && k2.wait.text === '' && !k2.wait.title && k2.wait.w >= 44 && k2.wait.oct.join() === '0,0,0', '부엌이 못 열리면 300 ms 뒤 문어 그림 + 글자 없는 닫기 그림 단추 (aria-label 닫기 · title 없음 · 44px 이상 · 문어는 기기 px 위) (' + JSON.stringify(k2.wait) + ')');
+  ok(k2.closed && k2.closed.view === 'play' && k2.closed.focus === 'btn-cook' && k2.closed.waitHidden, '그 닫기 → 놀이방 그대로 · 포커스 조리대 (' + JSON.stringify(k2.closed) + ')');
+  ok(k2.timeout && !k2.timeout.open && k2.timeout.toast === '부엌을 못 열었어. 다시 눌러 줘.', "막힌 채 6 초 → 덮개 닫힘 · 토스트 '부엌을 못 열었어. 다시 눌러 줘.' (" + JSON.stringify(k2.timeout) + ')');
+  ok(k2.s0 === k2.s1, '못 열린 부엌은 저장을 건드리지 않는다 (ppolppol_cook_v0 그대로)');
+  ok(k2.pickFirst && ck.open && ck.kitchen, '풀고 다시 누르면 새로 불러와 부엌이 열린다');
+  ok((k2.straight || []).length === 3 && k2.straight.every(function (q) { return !q.tray && q.overlay && q.live; }),
+    '단계를 끝낸 냄비가 있어도 쟁반 없이 부엌이 열린다 — 이을지는 부엌이 정한다 (게임은 요리를 정해 주지 않는다 · ' + JSON.stringify(k2.straight) + ')');
+  ok(k2.empty && !k2.empty.tray && k2.empty.overlay, '냄비가 없어도 쟁반 없이 부엌 (' + JSON.stringify(k2.empty) + ')');
+  var om = k2.openMsg || {};
+  ok(om.ppolCook === 'open' && om.ctx && typeof om.ctx.canCall === 'boolean' && Array.isArray(om.ctx.unlocked) && UNL.every(function (id) { return om.ctx.unlocked.indexOf(id) >= 0; }), "다시 열 때의 'open' 에 ctx { canCall, unlocked } (" + JSON.stringify(om) + ')');
+  var rs = k2.result || [];
+  ok(rs.length === 1 && typeof rs[0].recipe === 'string' && rs[0].v === 1 && /^ck_/.test(rs[0].id) && rs[0].look && /^\d{4}-\d{2}-\d{2}$/.test(rs[0].day), "요리를 다 만들면 게임이 'result' 를 한 번 받는다 (" + JSON.stringify(rs) + ')');
+  ok((k2.ctxBack || []).length >= 1 && typeof k2.ctxBack[0].canCall === 'boolean', "'result' 에 게임이 'ctx' { canCall } 로 답한다 (" + JSON.stringify(k2.ctxBack) + ')');
+  ok(k2.waiting && rs[0] && k2.waiting.table === rs[0].id && k2.waiting.scene !== rs[0].id, '요리는 result 때 저장되고 (user.table), 부엌이 열려 있는 동안 식탁엔 아직 없다 (' + JSON.stringify(k2.waiting) + ')');
+  var sv = k2.serve || {}, sd = k2.served || {};
+  ok(sv.meal === 'serving' && sv.busy === true && sv.carry && sv.dish === (rs[0] && rs[0].id), "부엌의 'serve' (식탁에 두기) 뒤 닫힘 → 띡 놓이지 않고 내 캐릭터가 든다 (" + JSON.stringify(sv) + ')');
+  ok(k2.busyTap && !k2.busyTap.overlay, '들고 가는 동안 조리대는 아무것도 안 한다 (' + JSON.stringify(k2.busyTap) + ')');
+  ok(sd.table === (rs[0] && rs[0].id) && sd.scene === sd.table && !sd.carry && sd.me !== 'seated' && sd.meals === 0, "끝: 요리는 식탁에 · 서 있다 · 아무것도 먹지 않았다 (" + JSON.stringify(sd) + ')');
+  ok(k2.dbl && k2.dbl.overlay && k2.dbl.frames === 1, '조리대 두 번 톡 (120 ms) → 부엌은 하나, 열린 채 (' + JSON.stringify(k2.dbl) + ')');
+  console.log('   조리대:', JSON.stringify({ pt: cpt, ck: ck }));
+  ok(ck.spot && cpt.w >= 44 && cpt.h >= 44 && cpt.label === '부엌', '놀이방 조리대 위에 부엌 단추 (44px 이상 · «' + (cpt && cpt.label) + '»)');
+  ok(ck.open && ck.kitchen && ck.home === 'none', '조리대를 손가락으로 톡 → 게임 안 화면 가득 부엌 (cook.html?embed=1 · 자기 문 · 링크는 숨김)');
+  var kb = ck.boot || {};
+  ok(kb.fcp != null && kb.embedAt != null && kb.embedAt <= kb.fcp && kb.frames > 0 && kb.homeFrames === 0, '처음 여는 부엌: 첫 그림 (FCP ' + kb.fcp + ' ms) 전에 ck-embed (' + kb.embedAt + ' ms) · 문 · 링크가 그려진 프레임 0 (' + kb.homeFrames + ' / ' + kb.frames + ')');
+  ok(ck.closed && ck.after && ck.after.view === 'play' && ck.after.focus === 'btn-cook' && ck.after.pan === cpt.pan, '부엌의 닫기 → 놀이방 그대로 (장면 ' + (ck.after && ck.after.view) + ' · 포커스 ' + (ck.after && ck.after.focus) + ')');
+  ok(ck.again && ck.esc && ck.escShut, '다시 열고 Esc 로도 닫힌다 (부엌도 닫힌다)');
+  var z = ck.z || {};
+  ok(z.screen === 'book' || (z.screen === 'step' && z.kind === 'tap'), '부엌은 열자마자 레시피 북 (lane/7-k 와 함께) — 옛 부엌이면 바로 요리 단계 (' + z.screen + ' · ' + z.kind + ')');
+  ok(z.text === '' && z.titles === 0 && z.credits === 0, '부엌 창의 보이는 글자 0 · title 0 · 창 안 크레딧 링크 0 (' + JSON.stringify(z.text) + ')');
+  ok(z.close && z.close.label === '닫기' && z.close.text === '' && z.close.w >= 48 && z.close.h >= 48, '닫기는 글자 없는 그림 단추 · aria-label 닫기 · 48px 이상 (' + JSON.stringify(z.close) + ')');
+  ok(z.safe && z.safe[0] === '0px' && z.safe.every(function (v) { return /^\d+(\.\d+)?px$/.test(v); }), 'iframe 의 --ck-safe-* 를 부모가 보냈다 (준비됐을 때: ' + JSON.stringify(z.safe) + ')');
+  ok(ck.safe2 && ck.safe2.css.join() === '47px,200px,34px,0px' && (!ck.safe2.view || ck.safe2.view.join() === '47,200,34,0'), "부모의 'safe' 47 · 999 · 34 · 'x' → --ck-safe-* 47 · 200 · 34 · 0 px, 열린 부엌이 다시 맞춤 (" + JSON.stringify(ck.safe2) + ')');
+  ok(ck.safe3, '부모 창 크기가 바뀌면 진짜 값을 다시 보낸다 (100 ms 모아서)');
+  ok(ck.inOrder && ck.inOrder.slice(0, 3).join() === 'safe,motion,open', "다시 열기 바로 전에 'safe' · 'motion' 을 먼저 보낸다 (" + JSON.stringify(ck.inOrder) + ')');
+  ok(ck.again2 && (ck.again2.screen === 'book' ? z.screen === 'book' : ck.again2.screen === 'step' && ck.again2.id === z.id), '다시 열면 같은 자리 (책이면 책 · 하던 판이면 그 판: ' + (ck.again2 && ck.again2.screen) + ' · run ' + (ck.again2 && ck.again2.id) + ')');
+  ok(ck.tapMsg && ck.tapMsg.kbd === false && ck.escMsg && ck.escMsg.kbd === true, "부엌이 닫힐 때 알린다: 손가락 닫기 kbd false · Esc kbd true (" + JSON.stringify([ck.tapMsg, ck.escMsg]) + ')');
+  ok(ck.finger && !ck.finger.ring && !ck.finger.chipFocus && ck.finger.quiet, 'Esc 로 닫은 뒤 손가락으로 다시 열면 칩에 포커스 링 · 포커스 없음 (' + JSON.stringify(ck.finger) + ')');
+  var kr = ck.red || {};
+  ok(kr.open && kr.open.reduced === true && kr.open.motion === 'reduce' && kr.flip && kr.after && kr.after.slides === 0 && kr.after.shake === 0 && kr.after.parts === 0, "게임 설정 '모션 줄이기' → 부엌도 줄임 (reduced · data-motion) · 다음 단계로 가도 미끄러짐 · 흔들림 · 입자 0 (" + JSON.stringify(kr) + ')');
+  ok(!bag.length, '장면 톡 시나리오 오류 없음' + (bag.length ? ': ' + bag.join(' | ') : ''));
+  await ctx.close();
+}
+
+/* ── CAM. 11-15 돌려 보기 (갈래 A): 두 손가락 비틀기 1:1 · 끝 없음 · 핀치와 데드존 · 관성 (모션 줄이기면 없음) · 스틱은 돌려도 '위 = 화면 안쪽' · 단추가 그 물건 위 ·
+   180° 에서 카메라 쪽 벽은 잘리고 먼 벽은 온전 · 바닥 안에 허공 색이 없다 · 새로고침하면 0° · setYaw(0) · 바깥(산책)에선 기본 구도로 갔다가 돌아온다 · 셰이더 수 그대로.
+   진짜 손가락 = CDP Input.dispatchTouchEvent. 각은 장면 값(APP.scene.yawInfo)으로, 끝 상태를 기다린다 (시간이 아니라) ── */
+async function scenarioTurn(browser) {
+  console.log('\n== CAM. 돌려 보기: 두 손가락 비틀기 · 핀치 · 관성 · 스틱 · 단추 · 벽 자르기 · 새로고침 · 바깥');
+  var O = 'http://ppolppol.example', bag = []; bag.ignored = [];
+  var RED = '#e8463c', BORN = 1762600000000, WAIT = +process.env.SMOKE_WAIT || 180000;
+  var REC = { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 5, days: ['2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10'], affinity: {}, visits: {}, state: 'idle', color: RED,
+    colors: [{ at: BORN, date: '2026-11-06', color: RED, how: 'first', by: 'player' }] }, room: { lantern: 5, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
+    settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
+  var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+  await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+  await ctx.addInitScript({ content: "if (!localStorage.getItem('__cam_seed')) { localStorage.setItem('__cam_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(REC)) + '); } ' +
+    "window.__ppolTest = { today: '2026-11-11' }; window.__ppolLook = { hour: 13, weather: 'clear' };" });
+  var page = await ctx.newPage(); watchErrors(page, bag); page.setDefaultNavigationTimeout(WAIT);
+  if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+  await routeWiki(page, 'ok'); await routeRepo(page, O);
+  async function boot() { await page.waitForSelector('#btn-go:not(.away)', { timeout: WAIT }); await page.waitForFunction(function () { return window.APP && APP.scene && APP.scene.yawInfo; }, null, { timeout: WAIT }); }
+  await page.goto(O + '/index.html?dev=0&intro=0'); await boot();
+  var cdp = await ctx.newCDPSession(page);
+  function info() { return page.evaluate(function () { var y = APP.scene.yawInfo(); y.zoom = APP.scene.pan().zoom; return y; }); }
+  function rest() { return page.waitForFunction(function () { var y = APP.scene.yawInfo(); return !y.easing && !y.mode && !APP.scene.pan().mode; }, null, { timeout: WAIT, polling: 50 }); }
+  /* 두 손가락: 가운데 (cx, cy) 둘레 반지름 r0 → r1 로, 각 a0 → a1 (도). hold = 끝에서 멈춘 채 120 ms (관성 0) */
+  async function fingers(a0, a1, r0, r1, n, hold, stamp) {   /* stamp = 손가락이 움직인 시각을 16 ms 간격으로 달아 보낸다 (느린 기계에서도 관성 속도가 같게 — 밀기 관성 검사와 같은 방법) */
+    var cx = 180, cy = 330, T0 = Date.now() + 50;
+    function at(k) { var a = (a0 + (a1 - a0) * k) * Math.PI / 180, r = r0 + (r1 - r0) * k; return [{ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), id: 1 }, { x: cx - r * Math.cos(a), y: cy - r * Math.sin(a), id: 2 }]; }
+    function ev(type, pts, i) { var o = { type: type, touchPoints: pts }; if (stamp) o.timestamp = (T0 + 16 * i) / 1000; return cdp.send('Input.dispatchTouchEvent', o); }
+    await ev('touchStart', at(0), 0);
+    for (var i = 1; i <= n; i++) { await ev('touchMove', at(i / n), i); await page.waitForTimeout(16); }
+    if (stamp && !hold) { await ev('touchEnd', [], n + 1); return; }
+    if (hold) { await page.waitForTimeout(130); await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(1) }); await page.waitForTimeout(130); }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  }
+  var progs0 = await page.evaluate(function () { return APP.scene.stats().programs; });
+
+  /* 1. +90° 비틀기 → 90° (±2) · 줌 그대로 · 2. 180° · 360° 를 넘어도 계속 (끝 없음) */
+  var y0 = await info();
+  await fingers(0, 90, 90, 90, 18, true); await rest(); var y1 = await info();
+  ok(Math.abs(y1.yaw - y0.yaw - 90) <= 2 && y1.shown === y1.yaw && y1.zoom === y0.zoom, '두 손가락 +90° 비틀기 → 방도 ' + (y1.yaw - y0.yaw) + '° (±2) · 줌 그대로 ' + y1.zoom);
+  await fingers(0, 120, 90, 90, 24, true); await rest(); var y2 = await info();
+  await fingers(0, 170, 90, 90, 34, true); await rest(); var y3 = await info();
+  ok(y2.yaw > 180 && y3.yaw > 360 && Math.abs(y3.yaw - y0.yaw - 380) <= 4, '180° · 360° 를 넘어도 끝없이: ' + y1.yaw + ' → ' + y2.yaw + ' → ' + y3.yaw + '° (9° 계단 · ±25° 끝 없음)');
+  await fingers(0, -60, 90, 90, 12, true); await rest(); var y3b = await info();
+  ok(Math.abs(y3b.yaw - y3.yaw + 60) <= 2, '거꾸로 −60° 비틀면 ' + (y3b.yaw - y3.yaw) + '° (방이 손가락과 같은 쪽으로)');
+  /* 3. 핀치만 (각 그대로, 거리 ×1.6) → 안 돈다 · 줌은 는다 · 데드존 안의 작은 비틀기 (5°) 는 안 돈다 */
+  var p0 = await info(); await fingers(30, 30, 60, 96, 12, true); await rest(); var p1 = await info();
+  ok(p1.yaw === p0.yaw && p1.zoom > p0.zoom, '핀치만: 각 그대로 (' + p0.yaw + ' → ' + p1.yaw + ') · 줌 ' + p0.zoom + ' → ' + p1.zoom);
+  await fingers(30, 35, 96, 96, 5, true); await rest(); var p2 = await info();
+  ok(p2.yaw === p1.yaw && p2.zoom === p1.zoom, '데드존 안의 5° 비틀기는 안 돈다 (' + p2.yaw + ') · 줌도 그대로');
+  /* 4. setYaw(0) · 관성 (멈추지 않고 떼면 조금 더 돌고 0.5 s 안에 선다) · 모션 줄이기면 관성 없음 */
+  var z0 = await page.evaluate(function () { APP.scene.setYaw(0, true); APP.scene.zoomStep(0); return APP.scene.yawInfo(); });
+  ok(z0.yaw === 0 && z0.shown === 0, 'setYaw(0, true) → 0° (보이는 각도 0)');
+  await rest();
+  await fingers(0, 60, 90, 90, 6, false, true); var c0 = await info(); await rest(); var c1 = await info();
+  ok(c0.v > 0 && c1.yaw > c0.yaw && c1.yaw - c0.yaw <= 30 && c1.v === 0, '떼는 순간 돌던 손이면 살짝 관성: 뗄 때 ' + c0.yaw + '° (v ' + c0.v + ') → 멈춤 ' + c1.yaw + '° (더 돈 것 ≤ 30°)');
+  await page.evaluate(function () { APP.scene.setReducedMotion(true); APP.scene.setYaw(0, true); });
+  await fingers(0, 60, 90, 90, 6, false, true); var r0 = await info(); await page.waitForTimeout(200); var r1 = await info();
+  ok(r0.v === 0 && r1.yaw === r0.yaw && Math.abs(r0.yaw - 60) <= 2, '모션 줄이기: 관성 없음 (뗄 때 ' + r0.yaw + '° → ' + r1.yaw + '°)');
+  await page.evaluate(function () { APP.scene.setReducedMotion(false); });
+  /* 5. 180° 에서: 스틱 위 = 화면 안쪽 (카메라에서 멀어짐) · 다락 벽 (왼 · 뒤 잘림, 오른 · 앞 온전) */
+  await page.evaluate(function () { APP.scene.setYaw(180, true); }); await rest();
+  var st5 = await page.evaluate(function () { var p = APP.scene.player(); APP.scene.debugPlayerAt(0.4, 0.6); return { at: APP.scene.player().at, was: p.at }; });
+  await page.evaluate(function () { APP.scene.setPlayerInput({ x: 0, y: 1 }); });
+  await page.waitForFunction(function (a) { var p = APP.scene.player().at; return Math.hypot(p[0] - a[0], p[2] - a[2]) > 0.5; }, st5.at, { timeout: WAIT, polling: 30 });
+  var st6 = await page.evaluate(function () { APP.scene.setPlayerInput(null); return { at: APP.scene.player().at, shown: APP.scene.yawInfo().shown, cut: APP.scene.yawInfo().cut }; });
+  var a6 = (45 + st6.shown) * Math.PI / 180, dx = st6.at[0] - st5.at[0], dz = st6.at[2] - st5.at[2], away = -(dx * Math.sin(a6) + dz * Math.cos(a6)) / Math.hypot(dx, dz);
+  ok(away > 0.9, '180° 에서 스틱 위 → 캐릭터가 카메라에서 멀어진다 (방향 내적 ' + away.toFixed(3) + ')');
+  ok(st6.cut.left && st6.cut.back && st6.cut.corner && !st6.cut.right && !st6.cut.front, '다락 180°: 카메라 쪽 왼벽 · 뒷벽 · 모서리 잘림 · 오른벽 · 앞벽 온전 ' + JSON.stringify(st6.cut));
+  var c90 = await page.evaluate(function () { APP.scene.setYaw(0, true); return APP.scene.yawInfo().cut; });
+  ok(c90.right && c90.front && !c90.left && !c90.back && !c90.corner && !c90.stair && !c90.either, '다락 0°: 예전처럼 앞 · 오른쪽이 열려 있다 (새 벽 숨김) · 예전 벽은 온전 ' + JSON.stringify(c90));
+  /* 6. 방마다 180°: 잘린 벽 · 먼 벽 · 바닥 안에 허공 색 없음 (바닥 네 모서리 투영을 안쪽으로 20 % 줄인 다각형 안의 픽셀) · 90° · 180° 에 단추가 그 물건 위 */
+  function voidIn(corners, H) {   /* 방 그림자 실루엣 (바닥 네 모서리 + 안 잘린 벽이 닿는 모서리는 벽 높이 H 까지) 의 볼록 껍질을 가운데로 6 % 줄인 안쪽 3 px 마다: 그 픽셀이 허공인가
+                                     (장면 레이캐스트 — 보이고 그려지는 메시에 하나도 안 맞음). 먼 벽이 없으면 (예전 다락을 뒤에서 보면) 바닥 너머 위쪽이 허공으로 걸린다 */
+    return page.evaluate(function (a) {
+      var cut = APP.scene.yawInfo().cut, adj = [['left', 'back'], ['right', 'back'], ['right', 'front'], ['left', 'front']], r = document.getElementById('scene').getBoundingClientRect(), pts = [];
+      a.cs.forEach(function (c, i) { [0, a.H].forEach(function (h) { if (h && cut[adj[i][0]] && cut[adj[i][1]]) return; if (h && !(!cut[adj[i][0]] || !cut[adj[i][1]])) return; var p = APP.scene.screenOf(c[0], h, c[1]); pts.push([r.left + p.x, r.top + p.y]); }); });
+      pts.sort(function (p, q) { return p[0] - q[0] || p[1] - q[1]; });
+      function cr(o, p, q) { return (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0]); }
+      var lo = [], up = []; pts.forEach(function (p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); });
+      pts.slice().reverse().forEach(function (p) { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); });
+      var P = lo.slice(0, -1).concat(up.slice(0, -1)), mx = 0, my = 0; P.forEach(function (p) { mx += p[0] / P.length; my += p[1] / P.length; }); P = P.map(function (p) { return [mx + (p[0] - mx) * 0.94, my + (p[1] - my) * 0.94]; });
+      function inside(x, y) { var c = false; for (var i = 0, j = P.length - 1; i < P.length; j = i++) { var xi = P[i][0], yi = P[i][1], xj = P[j][0], yj = P[j][1]; if (((yi > y) !== (yj > y)) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; }
+      var n = 0, bad = 0, at = null;
+      for (var y = Math.max(r.top, 0); y < Math.min(r.bottom, innerHeight); y += 3) for (var x = 0; x < innerWidth; x += 3) if (inside(x, y)) { n++; if (APP.scene.voidAt(x, y) && APP.scene.voidAt(x + 1.5, y) && APP.scene.voidAt(x, y + 1.5)) { bad++; if (!at) at = [x, y]; } }   /* 이웃도 허공일 때만 (판자 두 개가 맞닿은 금을 지나는 한 줄기 빗나감은 허공이 아니다) */
+      return { n: n, bad: bad, at: at };
+    }, { cs: corners, H: H });
+  }
+  var CORN = { attic: [[-2.5, -2.5], [3.5, -2.5], [3.5, 3.5], [-2.5, 3.5]], loft: [[-2.2, -2.2], [2.2, -2.2], [2.2, 2.2], [-2.2, 2.2]], play: [[-2.8, -2.8], [2.8, -2.8], [2.8, 2.8], [-2.8, 2.8]] };
+  var WALL_H = { attic: 3.0, loft: 1.5, play: 2.2 };   /* 위층은 무릎벽 높이 (박공은 그보다 높다) */
+  for (var room of ['attic', 'loft', 'play']) {
+    if (room !== 'attic') { await page.evaluate(function (r) { return APP.goRoom(r); }, room); await page.waitForFunction(function (r) { return APP.scene.view() === r && !APP.scene.motion().dq && !APP.scene.motion().trans; }, room, { timeout: WAIT }); }
+    var cc = await page.evaluate(function () { APP.scene.setYaw(180, true); APP.scene.zoomStep(0); return APP.scene.yawInfo().cut; }); await rest();
+    var vd = await voidIn(CORN[room], WALL_H[room]);
+    ok(cc.left && cc.back && !cc.right && !cc.front && vd.n > 400 && vd.bad === 0, room + ' 180°: 왼 · 뒤 잘림 · 오른 · 앞 온전 · 방 실루엣 안에 허공 ' + vd.bad + '/' + vd.n + ' 칸' + (vd.at ? ' (처음 ' + vd.at + ')' : ''));
+    for (var a2 of [90, 270]) {
+      await page.evaluate(function (a) { APP.scene.setYaw(a, true); }, a2); await rest();
+      var v2 = await voidIn(CORN[room], WALL_H[room]);
+      ok(v2.n > 400 && v2.bad === 0, room + ' ' + a2 + '°: 방 실루엣 안에 허공 ' + v2.bad + '/' + v2.n + ' 칸' + (v2.at ? ' (처음 ' + v2.at + ')' : ''));
+    }
+    if (room === 'play') {   /* 11-18 주인: 내 캐릭터는 카메라 쪽으로 슉 돌지 않는다 — 방을 돌려도 · 스틱을 놓아도 마지막으로 보던 쪽 그대로 */
+      await page.waitForFunction(function () { var p = APP.scene.player(); return !p.walking && !p.pending; }, null, { timeout: 20000, polling: 100 });
+      var pf = await page.evaluate(function () {
+        var a = APP.scene.player().yaw; APP.scene.setYaw(APP.scene.yawInfo().yaw + 90, true);
+        return new Promise(function (r) { setTimeout(function () { r({ before: a, after: APP.scene.player().yaw, walking: APP.scene.player().walking }); }, 900); });
+      });
+      ok(!pf.walking && pf.after === pf.before, '놀이방: 방을 90° 더 돌려도 쉬는 내 캐릭터는 보던 쪽 그대로 (' + pf.before + '° → ' + pf.after + '°)');
+      var ps = await page.evaluate(function () {
+        APP.scene.setPlayerInput({ x: 1, y: 0 });
+        return new Promise(function (r) { setTimeout(function () { var mid = APP.scene.player().yaw; APP.scene.setPlayerInput(null); setTimeout(function () { r({ mid: mid, after: APP.scene.player().yaw }); }, 900); }, 600); });
+      });
+      ok(ps.after === ps.mid, '놀이방: 스틱을 놓아도 내 캐릭터는 걷던 쪽 그대로 (' + ps.mid + '° → ' + ps.after + '°, 카메라 쪽으로 돌지 않음)');
+    }
+    if (room === 'attic') {   /* 270° (11-18: 계단이 왼벽 앞쪽 구석으로 옮겨 가며 90° → 270°): 계단이 잘려 아래 두 칸만 — 위층 단추도 그 두 칸 위만 (방 가운데 톡이 위층으로 가지 않게) */
+      var sr = await page.evaluate(function () { APP.scene.setYaw(90, true); var a = APP.scene.spotRect('atticStair'); APP.scene.setYaw(270, true); var b = APP.scene.spotRect('atticStair'); var cut = APP.scene.yawInfo().cut.stair; var mid = APP.scene.screenOf(0.5, 0.3, 0.5), r = document.getElementById('scene').getBoundingClientRect(), k = APP.scene.pickAt(r.left + mid.x, r.top + mid.y); return { a: a && a.h, b: b && b.h, cut: cut, mid: k && k.id }; });
+      ok(sr.cut && sr.b && sr.a && sr.b < sr.a * 0.6 && sr.mid !== 'atticStair', '다락 270°: 계단이 잘리면 위층 단추도 낮은 두 칸만 (높이 ' + sr.a + ' → ' + sr.b + ') · 방 가운데 톡은 계단이 아니다 (' + sr.mid + ')');
+      await page.evaluate(function () { APP.scene.setYaw(180, true); });
+    }
+    if (room === 'play') for (var ang of [90, 180]) {
+      await page.evaluate(function (a) { APP.scene.setYaw(a, true); }, ang); await rest();
+      var hs = await page.evaluate(function () { var s = APP.scene.spotRect('machine'), q = APP.scene.screenOf(-1.8, 0.83, -2.47); return { s: s && { x: s.x, y: s.y, w: s.w, h: s.h }, q: q }; });
+      ok(!!hs.s && hs.q.x >= hs.s.x && hs.q.x <= hs.s.x + hs.s.w && hs.q.y >= hs.s.y && hs.q.y <= hs.s.y + hs.s.h, '놀이방 ' + ang + '°: 오락기 단추가 오락기 위 ' + JSON.stringify(hs));
+    }
+    await page.evaluate(function () { APP.scene.setYaw(0, true); });
+    if (room !== 'attic') { await page.evaluate(function () { return APP.goRoom('attic'); }); await page.waitForFunction(function () { return APP.scene.view() === 'attic' && !APP.scene.motion().dq && !APP.scene.motion().trans; }, null, { timeout: WAIT }); }
+  }
+  var progs1 = await page.evaluate(function () { return APP.scene.stats().programs; });
+  /* 7. 바깥(산책 화면)은 기본 구도 · 돌아오면 돌려 둔 각 그대로 · 새로고침 = 0° (저장 안 함) */
+  await page.evaluate(function () { APP.scene.setYaw(120, true); APP.scene.setPlace('exterior', { instant: true }); }); await rest();
+  var ex = await info();
+  await page.evaluate(function () { APP.scene.setPlace('attic', { instant: true }); }); await rest(); var bk = await info();
+  ok(ex.held && Math.abs(ex.shown % 360) < 0.01 && ex.yaw === 120 && !bk.held && bk.shown === 120, '바깥에선 기본 구도 (' + ex.shown + '°, 돌린 각 ' + ex.yaw + ' 은 그대로) → 다락으로 오면 ' + bk.shown + '°');
+  var saved = await page.evaluate(function () { return localStorage.getItem('ppolppol_v2'); });
+  await page.reload(); await boot(); var rl = await info();
+  ok(rl.yaw === 0 && rl.shown === 0 && !/yaw/i.test(saved), '새로고침하면 0° (기록에 각도가 없다)');
+  ok(progs1 === progs0 || progs1 <= progs0 + 2, '돌리고 세 방을 오가도 셰이더 프로그램 ' + progs0 + ' → ' + progs1 + ' (방이 처음 지어질 때 것만)');
+  ok(bag.length === 0, 'CAM 페이지 에러 없음' + (bag.length ? ' — ' + bag.slice(0, 3).join(' | ') : ''));
+  await ctx.close();
+}
+/* ───────── EAT. 11-18 식탁 (lane M · docs/MEAL.md · wip/round6/eat-spec.md §4.3–§6) ─────────
+   기다리는 해초전 → 놀이방 → 식탁 → 앉기 → 부르기 칩 (이름 · 글자 0 · title 없음 · 44 px) → 문어가 와서 앉음 → 생각 '…' 이 보이고 소리 없음 → 알림 '데모 규칙' →
+   한 입씩 → 효과 둘 (처음 = 먹기) → 기록 (table null · meals 하나: ask + ate) → 연출 중 오락기 · 조리대가 아무것도 안 함 → 앉은 채 둘째 요리: 문어 위 칩 · 걸어오지 않음 →
+   새로고침: 효과 그대로 → 다음 날: 효과 없음 · 기록 그대로 → 혼자 먹기 (식사 행만) → 자는 문어: 칩 없음 · 저장 없음 → 다른 탭이 쉬는 차례를 끝냄 + 숨김 · 보임:
+   식탁에서 잠들지 않고 다락 자리로 뛰지 않음 · 떠난 뒤에 잠 → 두 탭 (다른 탭에 효과) → 모션 줄이기 → ?scene=2d (식탁 UI 없음 · 에러 0).
+   lane D 의 식탁이 아직 없는 장면이면 tools/meal-stub-scene.js 대역으로 돈다 (그림 없이 상태 · 부른 기록만 — 로그에 '대역' 이라고 적는다).
+   부엌 result 글은 APP.mealDish 로 대신 넣는다 (K2 의 cookMsg 가 부르는 것과 같은 함수) */
+async function scenarioEat(browser) {
+  console.log('\n== EAT. 식탁: 앉기 · 부르기 · 데모 대답 · 한 입씩 · 효과 · 하루 · 혼자 · 잠 · 두 탭 · 모션 줄이기 · 2D');
+  var bag = []; bag.ignored = [];
+  var BORN = 1762600000000, D1 = '2026-11-18', D2 = '2026-11-19';
+  var STUB = { path: path.join(ROOT, 'tools/meal-stub-scene.js') };
+  var appSrc = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+  var cookGuarded = (appSrc.match(/typeof mealBusy === 'function' && mealBusy\(\)\) return false;/g) || []).length >= 2;   /* K2 의 openCook 줄이 들어왔나 */
+  function dish(id, recipe) { return { ppolCook: 'result', v: 1, id: id, recipe: recipe || 'jeon', seed: 5, look: { band: 1, plate: 0 }, day: D1 }; }
+  function REC(o) {
+    o = o || {};
+    return { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 2, days: ['2026-11-16', '2026-11-17'], affinity: {}, visits: {}, state: 'idle', color: '#4a86d8',
+      colors: [{ at: BORN, date: '2026-11-06', color: '#4a86d8', how: 'first', by: 'player' }] }, room: { lantern: 2, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
+      settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: '#4a86d8', flipped: false, pixelFont: true, albumSeen: 0 },
+      user: { table: o.table === undefined ? { v: 1, id: 'ck_first', recipe: 'jeon', seed: 5, look: { band: 1, plate: 0 }, day: D1, at: 1 } : o.table, meals: o.meals || [] } };
+  }
+  async function open(o) {
+    o = o || {};
+    var ctx = o.ctx || await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: o.dpr || 1, locale: 'ko-KR', reducedMotion: o.reduced ? 'reduce' : 'no-preference' });
+    if (!o.ctx) await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var page = await ctx.newPage(); watchErrors(page, bag);
+    if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+    await page.addInitScript(STUB);
+    await page.addInitScript({ content: "if (!localStorage.getItem('__eat_seed')) { localStorage.setItem('__eat_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(o.rec || REC())) + '); } ' +
+      "window.__ppolTest = { today: sessionStorage.getItem('__eat_day') || '" + D1 + "' }; window.__eatSounds = [];" });
+    await routeWiki(page, 'ok');
+    await page.goto(INDEX + '?intro=0' + (o.q || ''));
+    await page.waitForFunction(function () { return window.APP && APP.scene && document.documentElement.classList.contains('booted'); }, null, { timeout: 30000 });
+    await page.evaluate(function () { if (window.AUDIO && AUDIO.on && !AUDIO.__eat) { var f = AUDIO.on; AUDIO.on = function (k, d) { window.__eatSounds.push(k + ':' + (d && (d.kind || d.act) || '')); return f.apply(this, arguments); }; AUDIO.__eat = true; } });
+    return { ctx: ctx, page: page };
+  }
+  function st(pg) { return pg.evaluate(function () {
+    var sc = APP.scene, info = sc && sc.tableInfo ? sc.tableInfo() : null, call = document.getElementById('btn-call'), tb = document.getElementById('btn-table'), seat = document.getElementById('btn-seat'), bb = document.getElementById('oct-bubble'), t = document.getElementById('toast');
+    function box(b) { var r = b.getBoundingClientRect(); return { hidden: b.hidden || getComputedStyle(b).visibility === 'hidden', w: r.width, h: r.height, x: r.left, y: r.top, label: b.getAttribute('aria-label'), title: b.hasAttribute('title'), text: b.textContent.replace(/\s/g, '') }; }
+    var rows = [].map.call(document.querySelectorAll('#log .lrow[data-meal]'), function (r) { var x = r.querySelector('.ltext'), by = x && x.querySelector('.lby'); return { day: (r.closest('[data-day]') || { getAttribute: function () { return null; } }).getAttribute('data-day'), n: +r.getAttribute('data-n'), label: (r.querySelector('.ltool') || {}).textContent, text: x ? x.textContent : '', tail: by ? by.textContent : null, expr: r.dataset.expr || null }; });
+    var u = APP.state.user || {};
+    return { stub: !!window.__mealStub, info: info, call: box(call), table: box(tb), seat: box(seat), meal: APP.meal, busy: APP.mealBusy(), atTable: APP.octAtTable(), oct: APP.oct.state, anchor: APP.oct.anchor,
+      bubble: bb && !bb.hidden ? bb.textContent : '', octVis: getComputedStyle(document.getElementById('oct')).visibility, toast: t.classList.contains('show') ? t.textContent : '', tail: (t.querySelector('.lby') || {}).textContent || null,
+      rows: rows, table0: u.table ? u.table.id : null, meals: (u.meals || []).map(function (m) { return { dish: m.dish, ask: m.ask ? m.ask.action + '/' + m.ask.by + '/' + (m.ask.rule || '') : null, ate: m.ate ? { oct: m.ate.oct, fx: m.ate.fx, date: m.ate.date } : null }; }),
+      saved: JSON.parse(localStorage.getItem('ppolppol_v2') || '{}').user || null, sounds: window.__eatSounds.slice(), calls: window.__mealStub ? window.__mealStub.calls.slice() : [], desc: document.getElementById('scene-desc').textContent,
+      aura: info && info.aura ? info.aura : null, room: APP.room };
+  }); }
+  async function toPlay(pg) { await pg.evaluate(function () { return APP.goRoom('play'); }); return pg.waitForFunction(function () { return APP.room === 'play' && !document.getElementById('btn-table').hidden; }, null, { timeout: 20000 }).then(function () { return true; }, function () { return false; }); }
+  async function tapSpot(pg, sel) {   /* 11-18 리드 (합친 뒤): 진짜 장면 (lane D) 에선 장면 위 단추 (data-spot="over") 가 누름을 받지 않는다 — 손가락 · 마우스는
+                                         캔버스로 가고 장면이 보이는 면으로 고른다 (진짜 길 · 오락기 · 조리대와 같다). 대역 장면에선 그 자리의 단추가 받는다 */
+    var c = await pg.evaluate(function (s) { var r = document.querySelector(s).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
+    await pg.mouse.click(c.x, c.y);
+  }
+  async function sit(pg) { await tapSpot(pg, '#btn-table'); return pg.waitForFunction(function () { var i = APP.scene.tableInfo(); return i && i.me === 'seated'; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; }); }
+  async function poke(pg, from) {   /* 다른 탭(from)의 storage 이벤트를 손으로 (헤드리스에선 늦거나 저장소 경합에 묻힐 수 있다) — 그 탭이 가진 기록 그대로 */
+    var v = await from.evaluate(function () { return JSON.stringify(APP.state); });
+    return pg.evaluate(function (v) { window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v })); }, v);
+  }
+  function idle(pg, ms) { return pg.waitForFunction(function () { return !APP.mealBusy(); }, null, { timeout: ms || 20000 }).then(function () { return true; }, function () { return false; }); }
+
+  /* 1. 처음 부름 = 먹기 */
+  var A = await open({ dpr: 2 });
+  var pa = A.page, s0 = await st(pa);
+  console.log('  (식탁 장면: ' + (s0.stub ? '대역 tools/meal-stub-scene.js — lane D 를 합친 뒤 진짜로 다시' : '진짜 (lane D)') + ')');
+  ok(s0.table0 === 'ck_first' && s0.meals.length === 0, '기다리는 해초전 하나 · 식탁 기록 없음');
+  ok(await toPlay(pa), '놀이방: 식탁 단추가 보인다');
+  var s1 = await st(pa);
+  ok(s1.table.label === '식탁, 해초전' && !s1.table.title && s1.table.text === '' && s1.table.w >= 44 && s1.table.h >= 44, "식탁 단추: '식탁, 해초전' · title 없음 · 글자 0 · 44 px (" + JSON.stringify(s1.table) + ')');
+  ok(!s1.seat.hidden && s1.seat.label === '식탁에 앉기' && !s1.seat.title && s1.seat.w >= 44, "노란 점: '식탁에 앉기' · title 없음 · 44 px");
+  ok(s1.call.hidden, '앉기 전엔 부르기 칩 없음');
+  ok(await sit(pa), '식탁을 누르면 앉는다');
+  await pa.waitForFunction(function () { return !document.getElementById('btn-call').hidden; }, null, { timeout: 5000 }).catch(function () {});
+  var s2 = await st(pa);
+  ok(!s2.call.hidden && s2.call.label === '뚜루 부르기' && !s2.call.title && s2.call.text === '' && s2.call.w >= 44 && s2.call.h >= 44, "부르기 칩: '뚜루 부르기' · 그림만 · title 없음 · 44 px (" + JSON.stringify(s2.call) + ')');
+  ok(s2.table.label === '해초전 먹기' && s2.seat.hidden, "앉은 뒤 식탁 단추 = '해초전 먹기' · 노란 점은 숨음");
+  var dprOk = await pa.evaluate(function () { var b = document.getElementById('btn-call'), r = b.getBoundingClientRect(), d = window.devicePixelRatio; var a = b.querySelector('.call-art').getBoundingClientRect(); return [r.left, r.top, a.left, a.top, a.width].every(function (v) { return Math.abs(v * d - Math.round(v * d)) < 0.01; }) && Math.round(a.width * d) === 16 * Math.floor(2 * d); });
+  ok(dprOk, '칩 자리 · 그림이 기기 px 에 맞고 한 칸 = floor(2·dpr) 기기 px');
+  await pa.screenshot({ path: path.join(SHOTS, 'eat-call-chip.png') });
+  await pa.evaluate(function () { window.__eatSounds.length = 0; });
+  await pa.click('#btn-call');
+  await pa.waitForFunction(function () { var m = APP.meal; return m && m.stage === 'thinking'; }, null, { timeout: 15000 }).catch(function () {});
+  var s3 = await st(pa);
+  ok(s3.busy && s3.atTable && s3.bubble === '…' && s3.octVis === 'visible', "문어가 와서 앉고 생각 말풍선 '…' 이 보인다 (" + JSON.stringify({ busy: s3.busy, at: s3.atTable, b: s3.bubble, v: s3.octVis }) + ')');
+  ok(s3.sounds.filter(function (x) { return /^bubble/.test(x); }).length === 0, '생각 말풍선은 소리 훅을 부르지 않는다 (' + s3.sounds.join(',') + ')');
+  ok(s3.meals.length === 1 && s3.meals[0].ask === 'eat/demo-rules/first' && s3.meals[0].ate === null && s3.saved.meals.length === 1 && s3.saved.meals[0].ask, '대답은 누른 순간 저장 (처음 = 먹기 · 아직 안 먹음)');
+  ok(s3.call.hidden && s3.table.hidden, '연출 중엔 칩 · 식탁 단추가 숨는다');
+  var blocked = await pa.evaluate(function () { var r = APP.openMachine(); var c = document.getElementById('btn-cook'); if (c) c.click(); return { machine: r, runner: !!document.querySelector('.rn-overlay[open], dialog#runner[open], #runner-dlg[open]'), cook: document.getElementById('cook-overlay').open }; });
+  ok(blocked.machine === false && !blocked.runner, '연출 중 오락기는 아무것도 안 한다');
+  if (cookGuarded) ok(!blocked.cook, '연출 중 조리대는 아무것도 안 한다 (K2 openCook 줄)');
+  else console.log('  (조리대 막기: K2 의 openCook 줄이 아직 없다 — 합친 뒤 다시)');
+  if (blocked.cook) await pa.evaluate(function () { document.getElementById('cook-overlay').close(); });
+  await pa.waitForFunction(function () { return document.getElementById('toast').textContent.indexOf('데모 규칙') >= 0; }, null, { timeout: 8000 }).catch(function () {});
+  var s4 = await st(pa);
+  ok(s4.toast === '뚜루도 같이 먹기로 했어. 데모 규칙' && s4.tail === '데모 규칙', "알림: '뚜루도 같이 먹기로 했어.' + 꼬리 '데모 규칙' (" + s4.toast + ')');
+  var tl = await pa.evaluate(function () { var t = document.getElementById('toast'), b = t.querySelector('.lby'), cs = getComputedStyle(b); return { rects: b.getClientRects().length, fs: cs.fontSize, tfs: getComputedStyle(t).fontSize, col: cs.color, tcol: getComputedStyle(t).color }; });
+  ok(tl.rects === 1 && tl.fs === tl.tfs && tl.col !== tl.tcol, '알림 꼬리는 한 줄 통째 · 글자 크기 그대로 · 꼬리 색 (' + JSON.stringify(tl) + ')');
+  await pa.screenshot({ path: path.join(SHOTS, 'eat-answer.png') });
+  ok(await idle(pa), '식사가 끝난다');
+  var s5 = await st(pa);
+  ok(s5.table0 === null && s5.meals.length === 1 && s5.meals[0].ate && s5.meals[0].ate.oct === true && s5.meals[0].ate.fx === 'sparkle', '기록: 식탁 비움 · ate { oct: true, fx: sparkle }');
+  ok(s5.saved.table === null && s5.saved.meals[0].ate, '식사가 저장됐다');
+  ok(s5.rows.length === 2 && s5.rows[0].label === '식탁' && s5.rows[0].text === '뚜루도 같이 먹기로 했어. 데모 규칙' && s5.rows[0].tail === '데모 규칙' && s5.rows[1].text === '해초전을 같이 먹었어. 오늘 하루 둘 다 반짝이가 따라다녀.', "로그 '식탁' 행 둘 (" + JSON.stringify(s5.rows) + ')');
+  ok(s5.rows.every(function (r) { return r.expr === null; }), '식탁 행에 초상 · 얼굴 없음 (집 목소리)');
+  ok(s5.aura && s5.aura.me === 'sparkle' && s5.aura.oct === 'sparkle', '효과: 나 · 문어 둘 다 반짝이');
+  if (s5.stub) {
+    var bites = s5.calls.filter(function (c) { return c[0] === 'bite'; }).map(function (c) { return c[1]; }).join(',');
+    ok(bites === 'me,oct,me,oct', '한 입씩: 나 · 문어 · 나 · 문어 (' + bites + ')');
+    ok(s5.calls.some(function (c) { return c[0] === 'aura' && c[1] === 'me' && c[2] === 'sparkle' && c[3]; }), '효과는 피어나며 (bloom) 켜진다');
+    var beats = s5.calls.filter(function (c) { return c[0] === 'beat'; }).map(function (c) { return c[1]; }).join(',');
+    ok(beats === 'think,ponder,eat', '박자: think · ponder · eat (' + beats + ')');
+  }
+  ok(s5.atTable && !s5.call.hidden === false || s5.atTable, '식사 뒤 문어는 앉아 있다 (내가 앉아 있는 동안)');
+  ok(/뚜루는 식탁 맞은편에 앉아 있어\./.test(s5.desc) && /반짝이가 따라다녀\./.test(s5.desc), '장면 설명: 맞은편 · 효과 (' + s5.desc + ')');
+  await pa.screenshot({ path: path.join(SHOTS, 'eat-after.png') });
+
+  /* 2. 앉은 채 둘째 요리 → 문어 위 칩 → 걸어오지 않고 묻는다 */
+  await pa.evaluate(function (d) { APP.mealDish(d); }, dish('ck_second', 'kkochi'));
+  await pa.waitForFunction(function () { return !document.getElementById('btn-call').hidden; }, null, { timeout: 5000 }).catch(function () {});
+  var s6 = await st(pa);
+  ok(!s6.call.hidden && s6.atTable && s6.table0 === 'ck_second', '둘째 요리: 앉아 있는 문어 위에 칩');
+  var comes0 = s6.calls.filter(function (c) { return c[0] === 'come'; }).length;
+  await pa.click('#btn-call');
+  ok(await idle(pa), '둘째 식사도 끝난다');
+  var s7 = await st(pa);
+  ok(s7.meals.length === 2 && s7.meals[1].ask && s7.meals[1].ate && s7.meals[1].ate.oct === (s7.meals[1].ask.indexOf('eat/') === 0), '둘째 요리에 대답 하나 · 대답대로 먹음');
+  if (s7.stub) { var c2 = s7.calls.filter(function (c) { return c[0] === 'come'; }).slice(comes0); ok(c2.length === 1 && c2[0][2] === 'seated', '이미 앉아 있어서 걸어오지 않는다 (octToTable 은 바로 풀림)'); }
+  else ok(s7.info.oct === 'seated', '문어는 그대로 앉아 있다');
+  ok(s7.aura.me === 'petal', '내 효과는 늦게 먹은 꽃잎으로 바뀐다');
+
+  /* 3. 새로고침: 효과 그대로 · 다시 묻지 않음 */
+  await pa.reload(); await pa.waitForFunction(function () { return window.APP && APP.scene && document.documentElement.classList.contains('booted'); }, null, { timeout: 30000 });
+  await pa.waitForTimeout(300);
+  var s8 = await st(pa);
+  ok(s8.meals.length === 2 && s8.meals.every(function (m) { return m.ate; }) && s8.aura && s8.aura.me === 'petal', '새로고침: 기록 그대로 · 효과 다시 (' + JSON.stringify(s8.aura) + ')');
+  ok(s8.rows.length >= 3, '새로고침: 오늘 칸에 식탁 행이 다시 그려진다 (' + s8.rows.length + ')');
+  /* 4. 다음 날: 효과 없음 · 기록 그대로 */
+  await pa.evaluate(function (d) { sessionStorage.setItem('__eat_day', d); window.__ppolTest.today = d; APP.mealApply(); }, D2);
+  var s9 = await st(pa);
+  ok(s9.aura && s9.aura.me === null && s9.aura.oct === null && s9.meals.length === 2, '다음 날: 효과 없음 · 기록 그대로');
+  await pa.screenshot({ path: path.join(SHOTS, 'eat-next-day.png') });
+  /* 5. 혼자 먹기: 식사 행만 */
+  await pa.evaluate(function (d) { APP.mealDish(d); }, Object.assign(dish('ck_alone', 'jumeokbap'), { day: D2 }));
+  ok(await toPlay(pa) && await sit(pa), '셋째 요리: 놀이방 · 앉기');
+  await tapSpot(pa, '#btn-table');
+  ok(await idle(pa), '혼자 먹기가 끝난다');
+  var s10 = await st(pa);
+  var al = s10.meals[2];
+  ok(al && al.ask === null && al.ate && al.ate.oct === null && al.ate.fx === 'star', '혼자: ask 없음 · ate.oct null');
+  var todayRows = s10.rows.filter(function (r) { return r.day === D2; });   /* 어제 칸은 1분 틱이 넘길 때까지 남아 있을 수 있다 — 오늘 칸만 본다 */
+  ok(todayRows.length === 1 && todayRows[0].text === '주먹밥을 먹었어. 오늘 하루 별이 따라다녀.', "식사 행만 ('" + (todayRows[0] || {}).text + "')");
+  ok(s10.aura.me === 'star' && s10.aura.oct === null, '내 효과만');
+  /* 6. 자는 문어: 칩 없음 · 저장 없음 */
+  await pa.evaluate(function (d) { APP.mealDish(d); }, Object.assign(dish('ck_sleep', 'jeon'), { day: D2 }));
+  await pa.evaluate(function () { APP.octState('sleep'); });
+  await pa.waitForTimeout(500);
+  var s11 = await st(pa), before = JSON.stringify(s11.saved.meals);
+  var r11 = await pa.evaluate(function () { return APP.mealCall(); });
+  var s12 = await st(pa);
+  ok(s11.call.hidden && r11 === false && JSON.stringify(s12.saved.meals) === before && !s12.atTable, '자는 문어: 칩 없음 · 불러도 저장 없음 · 깨우지 않음');
+  await pa.evaluate(function () { APP.octState('idle'); });
+  await A.ctx.close();
+
+  /* 7. 두 탭 · 다른 탭이 쉬는 차례를 끝냄 · 숨김 → 보임 */
+  var ctx2 = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.625, locale: 'ko-KR' });
+  await ctx2.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+  var T1 = await open({ ctx: ctx2 }), T2 = await open({ ctx: ctx2 });
+  var p1 = T1.page, p2 = T2.page;
+  ok(await toPlay(p1) && await sit(p1), '[두 탭] 1: 놀이방 · 앉기');
+  await p1.waitForFunction(function () { return !document.getElementById('btn-call').hidden; }, null, { timeout: 5000 }).catch(function () {});
+  var px26 = await p1.evaluate(function () { var b = document.getElementById('btn-call'), r = b.getBoundingClientRect(), d = window.devicePixelRatio, a = b.querySelector('.call-art').getBoundingClientRect(); return { d: d, v: [r.left, r.top, a.left, a.top].map(function (v) { return +(v * d).toFixed(3); }), w: +(a.width * d).toFixed(2) }; });
+  ok(px26.d === 2.625 && px26.v.every(function (v) { return Math.abs(v - Math.round(v)) < 0.1; }) && Math.abs(px26.w - 80) < 0.1, '[412×915 @2.625] 칩 자리 · 그림 왼쪽 위가 기기 px 에 (레이아웃 단위 1/64 CSS px 반올림 안 — 그리기는 기기 px 에 맞춰진다) · 한 칸 5 기기 px (' + JSON.stringify(px26) + ')');
+  await p1.click('#btn-call');
+  await p1.waitForFunction(function () { var m = APP.meal; return m && (m.stage === 'thinking' || m.stage === 'answer' || m.stage === 'eating'); }, null, { timeout: 10000 }).catch(function () {});
+  /* 다른 탭: 방금 끝난 산책 (깨어 있는 틈 0 → 바로 낮잠) */
+  var other = await p2.evaluate(function () { var S = APP.state, now = Date.now(); S.trips.push({ id: 'trip_eat', status: 'done', kind: 'out', date: window.__ppolTest.today, startedAt: now - 60000, endedAt: now, by: 'demo', events: [] }); S.octopus.state = 'sleep'; APP.save(); return JSON.stringify(S); });
+  await p1.evaluate(function (v) { window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v })); }, other);   /* 그 탭이 쓴 그대로 (저장소 경합 없이) */
+  var tw = await p1.evaluate(function () { return { trip: APP.state.trips.some(function (t) { return t.id === 'trip_eat'; }), st: APP.state.octopus.state, oct: APP.oct.state, at: APP.octAtTable() }; });
+  ok(tw.trip && tw.st === 'sleep' && tw.oct !== 'sleep' && tw.at, '[두 탭] 다른 탭의 쉬는 차례를 받았지만 식탁에선 잠들지 않는다 (' + JSON.stringify(tw) + ')');
+  await p1.evaluate(function () { Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } }); document.dispatchEvent(new Event('visibilitychange')); });
+  await p1.waitForTimeout(400);
+  await p1.evaluate(function () { delete document.hidden; Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return false; } }); document.dispatchEvent(new Event('visibilitychange')); });
+  await idle(p1);
+  var t1 = await st(p1);
+  ok(t1.oct !== 'sleep' && t1.anchor !== 'blanket' || !t1.atTable, '[두 탭] 식탁에 앉은 채 잠들지 않고 담요 자리로 뛰지 않는다 (oct ' + t1.oct + ', anchor ' + t1.anchor + ', atTable ' + t1.atTable + ')');
+  var meal1 = t1.meals.filter(function (m) { return m.dish === 'ck_first'; })[0];
+  ok(meal1 && meal1.ask && (meal1.ate === null ? t1.rows.length === 0 : true), '[두 탭] 숨김 전에 먹지 않았으면 대답만 남고 행은 없다 (' + JSON.stringify(meal1) + ')');
+  /* 일어남 → 문어가 떠남 → 그 뒤에 잠 */
+  await p1.evaluate(function () { if (window.__mealStub) __mealStub.stand(); else return APP.scene.playerStandTable(); });
+  await p1.waitForFunction(function () { return !APP.octAtTable(); }, null, { timeout: 10000 }).catch(function () {});
+  await p1.waitForFunction(function () { return APP.oct.state === 'sleep'; }, null, { timeout: 15000 }).catch(function () {});
+  var t2 = await st(p1);
+  ok(!t2.atTable && t2.oct === 'sleep', '[두 탭] 문어는 집에 간 뒤에 잔다 (oct ' + t2.oct + ')');
+  /* 다른 탭이 먹은 식사의 효과를 본다 */
+  var hasAte = t2.meals.some(function (m) { return m.ate; });
+  if (hasAte) {
+    await poke(p2, p1);
+    var t3 = await st(p2);
+    ok(t3.aura && t3.aura.me, '[두 탭] 다른 탭도 효과를 켠다 (' + JSON.stringify(t3.aura) + ')');
+  } else {
+    await p1.evaluate(function () { APP.octState('idle'); });
+    ok(await sit(p1), '[두 탭] 다시 앉기');
+    await tapSpot(p1, '#btn-table');
+    await idle(p1);
+    await poke(p2, p1);
+    var t4 = await st(p2);
+    ok(t4.aura && t4.aura.me === 'sparkle' && t4.meals.some(function (m) { return m.dish === 'ck_first' && m.ate; }), '[두 탭] 다른 탭이 먹은 식사 · 효과를 받는다 (' + JSON.stringify(t4.aura) + ')');
+  }
+  await ctx2.close();
+
+  /* 8. 모션 줄이기 */
+  var R = await open({ reduced: true, w: 320, h: 568, dpr: 2 });
+  ok(await toPlay(R.page) && await sit(R.page), '[모션 줄이기] 앉기');
+  await R.page.waitForFunction(function () { return !document.getElementById('btn-call').hidden; }, null, { timeout: 5000 }).catch(function () {});
+  var r0 = await st(R.page);
+  ok(!r0.call.hidden && r0.call.y >= 0, '[모션 줄이기 · 320×568] 칩이 보인다');
+  await R.page.click('#btn-call');
+  ok(await idle(R.page), '[모션 줄이기] 식사가 끝난다');
+  var r1 = await st(R.page);
+  ok(r1.meals[0] && r1.meals[0].ate, '[모션 줄이기] 기록');
+  if (r1.stub) ok(r1.calls.some(function (c) { return c[0] === 'come' && c[1] === true; }), '[모션 줄이기] 문어는 바로 앉는다 (instant)');
+  await R.ctx.close();
+
+  /* 9. ?scene=2d: 식탁 UI 없음 · 요리는 기다림 · 에러 0 */
+  var G = await open({ q: '&scene=2d' });
+  await G.page.evaluate(function () { return APP.goRoom('play'); });
+  await G.page.waitForTimeout(800);
+  var g = await G.page.evaluate(function (d) {
+    var ok1 = APP.mealDish(d);
+    return { mode: APP.sceneMode, ok: ok1, table: APP.state.user.table && APP.state.user.table.id, b: ['btn-table', 'btn-seat', 'btn-call'].map(function (id) { return document.getElementById(id).hidden; }), tap: APP.mealTableTap(), call: APP.mealCall() };
+  }, dish('ck_twod'));
+  ok(g.mode === '2d' && g.ok && g.table === 'ck_twod' && g.b.every(Boolean) && g.tap === false && g.call === false, '[2D] 식탁 단추 없음 · 요리는 기록 · 누름은 아무것도 안 함 (' + JSON.stringify(g) + ')');
+  await G.ctx.close();
+  ok(bag.length === 0, '[EAT] 페이지 에러/콘솔 에러 0' + (bag.length ? ': ' + bag.join(' | ') : ''));
+}
+
+/* ── 7차 갈래 자리 (11-21): 새 시나리오 함수는 제 표시 줄 바로 아래에만 ── */
+/* [7-U] */
+/* U7 (11-21 갈래 U): 상태 줄 날 수 'D+N' · (아래에 이어서) 설정 접기 · 스티커 크기 · 전체 화면 놀이 중 장면 멈춤 */
+async function scenarioU7(browser) {
+  console.log('\n== U7. 상태 줄 D+N');
+  var days = ['2026-11-01', '2026-11-03', '2026-11-08'];
+  var RED = '#e8463c', BORN = 1762600000000, bag = []; bag.ignored = [];
+  var rec = { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 3, days: days.slice(), affinity: {}, visits: {}, state: 'idle', color: RED, colors: [{ at: BORN, date: '2026-11-06', color: RED, how: 'first', by: 'player' }] },
+    room: { lantern: 3, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] }, user: { shells: 4, seeds: 1, days: days.slice(), giftDay: '2026-11-08' },
+    settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
+  /* 새 탭: w × h · 기록 (없으면 첫 실행) · 오늘 */
+  async function openApp(w, h, seed, today, q) {
+    var ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: w < 1000, isMobile: w < 1000 });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var page = await ctx.newPage(); watchErrors(page, bag);
+    await page.addInitScript({ content: (seed ? "if (!localStorage.getItem('__seed')) { localStorage.setItem('__seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(seed)) + '); } ' : '') + 'window.__ppolTest = Object.assign(window.__ppolTest || {}, { today: ' + JSON.stringify(today || '2026-11-08') + ' });' });
+    await page.goto('file://' + ROOT + '/index.html?dev=0&intro=0' + (q || ''));
+    await page.waitForFunction(function () { return window.APP && APP.state; }, null, { timeout: 20000 });
+    if (seed) { await page.waitForSelector('#btn-go:not(.away)', { timeout: 20000 }); await page.waitForFunction(function () { return !APP.goResting; }, null, { timeout: 20000 }); }
+    await page.waitForTimeout(400);
+    return { ctx: ctx, page: page };
+  }
+  var o = await openApp(360, 740, rec), page = o.page;
+  async function dayNow() { return page.evaluate(function () { var e = document.getElementById('day-n'), r = e.getBoundingClientRect(), n = document.getElementById('oct-name'), nr = n.getBoundingClientRect(), pr = document.querySelector('#pips .pip-row').getBoundingClientRect(), tg = document.getElementById('brain-tag').getBoundingClientRect();
+    return { txt: e.textContent, aria: e.getAttribute('aria-label'), hidden: e.hidden, w: r.width, l: r.left, r: r.right, vis: r.width > 0 && r.height > 0 && r.right <= innerWidth && r.left >= 0, cut: n.scrollWidth > n.clientWidth, nameR: nr.right, pipsL: pr.left, pipsR: pr.right, pipsW: pr.width, tagR: tg.right, tagW: tg.width, n: APP.dayCount, fs: parseFloat(getComputedStyle(e).fontSize), doc: document.title }; }); }
+  var d0 = await dayNow();
+  console.log('   day:', JSON.stringify(d0));
+  ok(d0.txt === 'D+3' && d0.aria === '들어온 지 3일째' && !d0.hidden && d0.n === 3, "상태 줄 'D+3' · aria '들어온 지 3일째' (가방의 '들어온 날 N일' 과 같은 수)");
+  ok(d0.vis && !d0.cut && d0.pipsW >= 55 && d0.tagW > 0 && d0.l >= d0.tagR - 0.5 && d0.fs >= 12, '360 px: 이름 (안 잘림) · 데모 · 등불 칸 · D+N 이 다 보이고 안 겹친다 (글자 ' + d0.fs + 'px)');
+  ok(d0.doc === '뚜루 · 뽈뽈 문어', "탭 제목 '<이름> · 뽈뽈 문어' (" + d0.doc + ')');
+  /* 설정 구역 접기 (11-21): 선물 상자 · 내 모습만 펼쳐서 열린다 · 제목 줄 (summary) 을 누르면 펼쳐진다 · 닫았다 다시 열어도 그대로 (쪽이 사는 동안) · 꺾쇠는 그림 (글자 없음) */
+  function folds() { return page.evaluate(function () { return [].map.call(document.querySelectorAll('#set-body > details.set-sec'), function (d) { return d.getAttribute('data-sec') + (d.open ? '+' : '-'); }).join(' '); }); }
+  await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
+  var f0 = await folds(), fi = await page.evaluate(function () {
+    var sm = document.querySelector('#set-body details[data-sec="sound"] > summary'), r = sm.getBoundingClientRect(), af = getComputedStyle(sm, '::after'), snd = document.getElementById('set-sound').getBoundingClientRect();
+    return { focus: document.activeElement && document.activeElement.id, h: r.height, h3: !!sm.querySelector('h3#rs-sound'), mark: af.content, clip: af.clipPath !== 'none', mw: parseFloat(af.width), sndH: snd.height, last: document.getElementById('set-body').lastElementChild.className, txt: sm.innerText.trim() };
+  });
+  ok(f0 === 'gift+ color- look+ sound- screen- claude- data- who-', "설정: '문어 선물 상자' · '내 모습' 만 펼쳐져 열린다 (" + f0 + ')');
+  fi.sndH = (await page.isVisible('#set-sound')) ? 1 : 0;
+  ok(fi.focus === 'set-h' && fi.h >= 44 && fi.h3 && fi.txt === '소리' && fi.mark === '\"\"' && fi.clip && fi.mw >= 9 && fi.sndH === 0 && /set-credits/.test(fi.last), '설정: 포커스는 제목 · 접힌 구역의 제목 줄 44px 이상 · 꺾쇠는 그림 (글자 없음) · 접힌 칸은 안 보임 · 맨 아래 링크는 구역 밖 ' + JSON.stringify(fi));
+  await page.click('#set-body details[data-sec="sound"] > summary'); await page.waitForTimeout(100);
+  await page.focus('#set-body details[data-sec="gift"] > summary'); await page.keyboard.press('Enter'); await page.waitForTimeout(100);
+  var f1 = await folds(); await page.click('#set-sound'); await page.click('#set-sound');   /* 펼친 구역의 칸은 눌린다 (켰다 끈다) */
+  await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
+  var f2 = await folds();
+  ok(f1 === 'gift- color- look+ sound+ screen- claude- data- who-' && f2 === f1, '설정: 제목 줄을 누르면 (키보드 Enter 도) 펼쳐지고 접힌다 · 닫았다 다시 열어도 그대로 (' + f1 + ' → ' + f2 + ')');
+  await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  /* 포스터 스티커 (11-21 주인: "너무 작아서 안 보여"): 앨범 카드 32 CSS px (예전 16) · 크게 보기 앞면 1.5배 (300 단위 포스터: 방 그림 있음 32 → 48 · 없음 64 → 96) — 아트 1px = 기기 px 정수 · 장면 칸 안 */
+  await page.evaluate(function () { APP.state.trips.push({ id: 'u7-poster', date: '2026-11-08', seq: 1, seed: 77, status: 'done', kind: 'out', startedAt: 1, endedAt: 2, events: [], receipt: null, poster: { title: '시험 포스터', type: 'poster', line: '시험', scene: 'home', stickerPos: { x: 70, y: 28, rot: 0 } } }); APP.state.room.posterOrder.push('u7-poster'); APP.save(); APP.renderAll(); });
+  function stk(sel) { return page.evaluate(function (sel) { var e = document.querySelector(sel); if (!e) return null; var r = e.getBoundingClientRect(), sv = e.ownerSVGElement.getBoundingClientRect(), d = devicePixelRatio; return { css: r.width, per: r.width * d / 16, inside: r.left >= sv.left - 0.5 && r.right <= sv.right + 0.5 && r.top >= sv.top - 0.5 && r.bottom <= sv.bottom + 0.5, units: +e.getAttribute('data-ss'), k: sv.width / e.ownerSVGElement.viewBox.baseVal.width }; }, sel); }
+  await page.click('#btn-album'); await page.waitForSelector('#album-sheet[open]'); await page.waitForTimeout(500);
+  var sc = await stk('#album .pcard[data-trip="u7-poster"] .stk image');
+  await page.click('#album .pcard[data-trip="u7-poster"]'); await page.waitForSelector('#poster-dialog[open]'); await page.waitForTimeout(1500);
+  var sf = await stk('#pd-front .stk image');
+  console.log('   stickers:', JSON.stringify({ card: sc, front: sf }));
+  ok(sc && Math.abs(sc.css - 32) < 0.01 && Math.abs(sc.per - Math.round(sc.per)) < 0.01 && sc.inside, '앨범 카드 스티커 32 CSS px (아트 1px = 기기 px 정수 · 카드 안)');
+  ok(sf && (sf.units === 48 || sf.units === 96) && sf.css >= 44 && Math.abs(sf.per - Math.round(sf.per)) < 0.01 && sf.inside, '크게 보기 앞면 스티커: ' + (sf && sf.units) + ' 단위 (예전 32 · 64 의 1.5배) · 그려진 크기 ' + (sf && sf.css.toFixed(1)) + ' CSS px 가 기기 px 정수 배 · 포스터 안');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+  if (await page.$('#album-sheet[open]')) { await page.keyboard.press('Escape'); await page.waitForTimeout(400); }
+  /* 전체 화면 놀이 (달리기 · 부엌) 가 열린 동안 3D 장면은 그리지 않는다 (계산은 1 초 10 번 — 귀가 같은 흐름은 끝난다) · 닫으면 시계가 뛰지 않고 잇는다 (11-21) */
+  if (await page.evaluate(function () { return APP.sceneMode === '3d' && typeof APP.scene.setCovered === 'function'; })) {
+    function clk() { return page.evaluate(function () { var c = APP.scene.clock(); return { t: c.time, n: c.frames, d: c.draws, cov: APP.scene.covered() }; }); }
+    await page.evaluate(function () { return APP.goRoom('play'); });
+    await page.waitForFunction(function () { var m = APP.scene.motion(); return APP.room === 'play' && !m.trans && m.dq === ''; }, null, { timeout: 30000 }); await page.waitForTimeout(600);
+    var c0 = await clk(); await page.waitForTimeout(700); var c1 = await clk();
+    await page.evaluate(function () { document.getElementById('btn-machine').click(); }); await page.waitForSelector('#runner-dlg[open]', { timeout: 15000 }); await page.waitForTimeout(300);
+    var c2 = await clk(); await page.waitForTimeout(1200); var c3 = await clk();
+    await page.evaluate(function () { RUNNER.close(); }); await page.waitForFunction(function () { return APP.scene.clock().frames > 0 && !APP.scene.covered(); }, null, { timeout: 5000 }); await page.waitForTimeout(700);
+    var c4 = await clk();
+    console.log('   covered:', JSON.stringify([c0, c1, c2, c3, c4]));
+    ok(!c0.cov && c1.d > c0.d && c2.cov && c3.cov && c3.d === c2.d && c3.n > c2.n, '달리기 창이 열린 동안 장면은 그리지 않는다 (그리기 ' + c2.d + ' → ' + c3.d + ') · 시뮬레이션은 돈다 (' + c2.n + ' → ' + c3.n + ' — 창을 연 채 산책이 끝나야 한다) · 평소엔 그린다 (' + c0.d + ' → ' + c1.d + ')');
+    ok(!c4.cov && c4.d > c3.d && c4.t - c3.t < (c4.n - c3.n) * 0.1 + 1e-6, '닫으면 다시 그리고 시계는 뛰지 않는다 (+' + (c4.t - c3.t).toFixed(2) + ' s · ' + (c4.n - c3.n) + ' 프레임 · 그리기 +' + (c4.d - c3.d) + ')');
+    await page.evaluate(function () { var o = document.getElementById('cook-overlay'); o.showModal(); }); await page.waitForTimeout(200);
+    var k0 = await clk(); await page.waitForTimeout(800); var k1 = await clk();
+    await page.evaluate(function () { document.getElementById('cook-overlay').close(); }); await page.waitForTimeout(600);
+    var k2 = await clk();
+    ok(k0.cov && k1.d === k0.d && !k2.cov && k2.d > k1.d, '부엌 창이 열린 동안에도 그리기 0 · 닫으면 다시 그린다 (' + [k0.d, k1.d, k2.d].join(' → ') + ')');
+    await page.evaluate(function () { return APP.goRoom('attic'); });
+    await page.waitForFunction(function () { var m = APP.scene.motion(); return !APP.room && !m.trans && m.dq === ''; }, null, { timeout: 30000 });
+  }
+  /* 열어 둔 탭에서 날이 바뀌면 같이 오른다 (dailyGift) */
+  await page.evaluate(function () { window.__ppolTest.today = '2026-11-09'; APP.dailyGift(); });
+  var d1 = await dayNow();
+  ok(d1.txt === 'D+4' && d1.aria === '들어온 지 4일째', "날이 바뀌면 'D+4' (" + d1.txt + ')');
+  await o.ctx.close();
+  /* 첫 날을 세기 전 (기록 없음 · 이름 짓기 전) 엔 아무것도 안 보인다 */
+  var o2 = await openApp(360, 740, null);
+  var d2 = await o2.page.evaluate(function () { var e = document.getElementById('day-n'); return { hidden: e.hidden, txt: e.textContent, w: e.getBoundingClientRect().width, aria: e.getAttribute('aria-label') }; });
+  ok(d2.hidden && d2.txt === '' && d2.w === 0 && d2.aria === null, '첫 날을 세기 전: D+N 안 보임 (' + JSON.stringify(d2) + ')');
+  await o2.ctx.close();
+  /* 넓은 화면: 바 안에 한 줄로 */
+  var o3 = await openApp(1280, 800, rec);
+  var d3 = await o3.page.evaluate(function () { var e = document.getElementById('day-n').getBoundingClientRect(), s = document.getElementById('status').getBoundingClientRect(); return { inBar: e.top >= s.top && e.bottom <= s.bottom && e.right <= s.right, txt: document.getElementById('day-n').textContent }; });
+  ok(d3.inBar && d3.txt === 'D+3', '1280 px: D+N 이 바 안 (' + JSON.stringify(d3) + ')');
+  await o3.ctx.close();
+  /* 빈 화면 채우기 (11-21): 실내 (다락 · 위층 · 놀이방) 의 허공에 먼 풍경 — 마당 (바깥) 에는 없음 · 드로콜은 ?vista=0 과 같다 · 돌려 보면 몇 px 밀린다 · 모션 줄이기면 물결이 멈춘다 */
+  var o4 = await openApp(360, 740, rec, '2026-11-08'), p4 = o4.page;
+  if (await p4.evaluate(function () { return APP.sceneMode === '3d' && typeof APP.scene.vista === 'function' && !!window.VISTA; })) {
+    async function settle(pg, room) { await pg.evaluate(function (r) { return APP.goRoom(r); }, room); await pg.waitForFunction(function (r) { var m = APP.scene.motion(); return (APP.room || 'attic') === r && !m.trans && m.dq === ''; }, room, { timeout: 30000 }); await pg.waitForTimeout(700); }
+    function vis(pg) { return pg.evaluate(function () { var v = APP.scene.vista(), st = APP.scene.stats(); return { shown: v.shown, w: v.w, h: v.h, t: st.target, frame: v.frame, paints: v.paints, off: v.off, calls: st.calls, key: v.key }; }); }
+    /* 화면 구석 (허공) 의 색: 풍경이 깔렸으면 한 가지 색이 아니다 */
+    function corners(pg) { return pg.evaluate(function () { var c = document.querySelector('#scene canvas'), r = c.getBoundingClientRect(), n = {}, k = 0; for (var y = 4; y < r.height; y += 9) [3, r.width - 4].forEach(function (x) { if (APP.scene.voidAt(r.left + x, r.top + y)) k++; }); return { voids: k }; }); }
+    var va = await vis(p4), ca = await corners(p4);
+    ok(va.shown && va.w === va.t[0] + 40 && va.h === va.t[1] && /\|(day|dusk|night|dawn)\|/.test(va.key) && ca.voids > 20, '다락: 허공에 먼 풍경 (그림 = 렌더 타깃 ' + va.t.join('×') + ' + 좌우 여백 · 가장자리 허공 ' + ca.voids + ' 점) ' + va.key);
+    await p4.evaluate(function () { APP.scene.setYaw(90, true); }); await p4.waitForTimeout(500);
+    var vy = await vis(p4); await p4.evaluate(function () { APP.scene.setYaw(0, true); }); await p4.waitForTimeout(300);
+    ok(va.off === 0 && vy.off !== 0 && Math.abs(vy.off) <= 20, '방을 돌리면 풍경이 반대쪽으로 몇 px 밀린다 (0° ' + va.off + ' → 90° ' + vy.off + ' 아트 px)');
+    var f0 = va.frame; await p4.waitForTimeout(1500); var vb = await vis(p4);
+    ok(vb.frame !== f0 && vb.paints > va.paints && vb.paints - va.paints <= 8, '물결은 1 초에 두세 칸만 다시 그린다 (1.5 s 에 ' + (vb.paints - va.paints) + ' 번)');
+    await settle(p4, 'loft'); var vl = await vis(p4); await settle(p4, 'attic'); await settle(p4, 'play'); var vp = await vis(p4); await settle(p4, 'attic');
+    ok(vl.shown && vp.shown, '위층 · 놀이방에도 풍경');
+    if (await p4.evaluate(function () { return !document.getElementById('btn-yard').hidden || true; })) { await settle(p4, 'yard'); var vyd = await vis(p4); ok(!vyd.shown, '마당 (바깥) 에는 풍경을 깔지 않는다 (땅이 화면 끝까지)'); await settle(p4, 'attic'); }
+    await p4.evaluate(function () { APP.scene.setReducedMotion(true); }); await p4.waitForTimeout(700); var r0 = await vis(p4); await p4.waitForTimeout(1200); var r1 = await vis(p4);
+    ok(r0.shown && r0.frame === 0 && r1.frame === 0 && r1.paints === r0.paints, '모션 줄이기: 물결이 멈춘다 (다시 그리지 않음)');
+    var o5 = await openApp(360, 740, rec, '2026-11-08', '&vista=0'), v5 = await vis(o5.page);
+    ok(!v5.shown && v5.calls === va.calls, '?vista=0 이면 끔 (예전 하늘 띠) · 드로콜은 켰을 때와 같다 (' + va.calls + ' = ' + v5.calls + ')');
+    await o5.ctx.close();
+  }
+  await o4.ctx.close();
+  /* 11-24 보이는 글자는 16 px 이상 — 픽셀 글꼴을 끈 (data-font=system) 화면 · 시트 전부 (HUD · 등불 말풍선 · 알림 · 설정 (다 펼침) · 앨범 · 오늘의 산책 · 가방 · 옷장) */
+  var sysRec = JSON.parse(JSON.stringify(rec)); sysRec.settings.pixelFont = false;
+  var o6 = await openApp(360, 740, sysRec), p6 = o6.page;
+  function small(tag) { return p6.evaluate(function (tag) {
+    var out = [], w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), n;
+    while ((n = w.nextNode())) {
+      var e = n.parentElement; if (!n.nodeValue.trim() || !e || e.closest('svg, .sr-only')) continue;
+      var r = e.getBoundingClientRect(); if (!r.width || !r.height) continue;
+      var p = e, vis = true; while (p) { var c = getComputedStyle(p); if (c.display === 'none' || c.visibility === 'hidden' || (p.tagName === 'DIALOG' && !p.open) || (p.tagName === 'DETAILS' && !p.open && !e.closest('summary'))) { vis = false; break; } p = p.parentElement; }
+      if (vis && parseFloat(getComputedStyle(e).fontSize) < 15.99) out.push(tag + ':' + (e.id || e.className || e.tagName) + ' ' + getComputedStyle(e).fontSize + ' «' + n.nodeValue.trim().slice(0, 8) + '»');
+    }
+    return out; }, tag); }
+  var sm = [].concat(await small('hud'));
+  await p6.click('#pips'); await p6.waitForTimeout(200); sm = sm.concat(await small('tip'));
+  for (var sh of [['set', function () { APP.openSettings(); [].forEach.call(document.querySelectorAll('#set-body details'), function (d) { d.open = true; }); }], ['album', function () { document.getElementById('btn-album').click(); }],
+    ['today', function () { var b = document.getElementById('btn-today'); if (b) b.click(); }], ['bag', function () { document.getElementById('btn-bag').click(); }], ['look', function () { APP.openLook(); }]]) {
+    await p6.evaluate(function () { [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); }); }); await p6.waitForTimeout(300);
+    await p6.evaluate(sh[1]); await p6.waitForTimeout(700); sm = sm.concat(await small(sh[0]));
+  }
+  ok(sm.length === 0, '픽셀 글꼴을 끈 화면 · 시트에 16 px 밑 글자 없음 (' + sm.length + ' · ' + sm.slice(0, 4).join(' / ') + ')');
+  await o6.ctx.close();
+  /* 11-24 모션 줄이기: '산책 갈래?' 를 빠르게 두 번 (110 ms) 톡 → 둘째는 데려오기가 아니다 (SKIP_GUARD 600 ms 는 모션과 상관없이) */
+  var rmRec = JSON.parse(JSON.stringify(rec)); rmRec.settings.motion = 'reduce';
+  var o7 = await openApp(360, 740, rmRec), p7 = o7.page;
+  await p7.route(/wikipedia\.org/, function (r) { return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); });   /* 나가는 산책의 위키 요청은 밖으로 보내지 않는다 */
+  await p7.emulateMedia({ reducedMotion: 'reduce' }); await p7.waitForTimeout(2600);
+  var dt = await p7.evaluate(function () { return new Promise(function (res) { var g = document.getElementById('btn-go'); g.click(); setTimeout(function () { g.click(); }, 110);
+    setTimeout(function () { res({ away: g.classList.contains('away'), running: APP.state.trips.filter(function (t) { return t.status === 'running'; }).length }); }, 450); }); });
+  ok(dt.away && dt.running === 1, '모션 줄이기: 빠른 두 번 톡의 둘째는 산책을 끝내지 않는다 (' + JSON.stringify(dt) + ')');
+  await o7.ctx.close();
+  /* 11-24 (주인: 거실에서 포스터를 누르면 화면이 검어졌다 깜빡인다): 벽 포스터를 손가락으로 톡 → 포스터 창이 열린 채 남고, 톡 뒤 프레임 (화면 그대로 떠서) 에 앞뒤보다 어두운 장이 없다.
+     원인은 장면이 pointerup 처리 안에서 창을 열어 closedby="any" 가 그 손 뗌으로 2 ms 뒤 닫던 것 · 창 뒤 막이 한 번에 깔리던 것 */
+  var pRec = JSON.parse(JSON.stringify(rec)); pRec.room.lantern = 5; pRec.room.posterOrder = ['u7w1']; pRec.trips = [{ id: 'u7w1', date: '2026-11-07', seq: 1, seed: 71, status: 'done', kind: 'out', startedAt: 1, endedAt: 2, events: [], receipt: null, poster: { title: '시험 포스터', type: 'poster', line: '시험 한 줄', scene: 'home' } }];
+  var o8 = await openApp(360, 740, pRec), p8 = o8.page; await p8.waitForTimeout(1500);
+  var wp = await p8.evaluate(function () { if (APP.sceneMode !== '3d') return null; for (var y = 60; y < innerHeight - 140; y += 5) for (var x = 8; x < innerWidth - 8; x += 5) { var r = APP.scene.pickAt(x, y); if (r && r.kind === 'poster') return [x, y]; } return null; });
+  if (wp) {
+    var cdp8 = await o8.ctx.newCDPSession(p8), fr8 = [];
+    cdp8.on('Page.screencastFrame', function (f) { fr8.push(f.data); cdp8.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(function () {}); });
+    await cdp8.send('Page.startScreencast', { format: 'png', everyNthFrame: 1 }); await p8.waitForTimeout(300);
+    await p8.evaluate(function () { window.__pdlog = []; var d = document.getElementById('poster-dialog'); new MutationObserver(function () { window.__pdlog.push(d.open); }).observe(d, { attributes: true, attributeFilter: ['open'] }); });
+    await p8.touchscreen.tap(wp[0], wp[1]); await p8.waitForTimeout(1600); await cdp8.send('Page.stopScreencast');
+    var pd = await p8.evaluate(function () { return { open: document.getElementById('poster-dialog').open, log: window.__pdlog }; });
+    var lum = []; for (var fi = 0; fi < fr8.length; fi++) lum.push(await p8.evaluate(function (src) { return new Promise(function (res) { var im = new Image(); im.onload = function () { var c = document.createElement('canvas'); c.width = im.width; c.height = im.height; var g = c.getContext('2d'); g.drawImage(im, 0, 0); var d = g.getImageData(0, 0, c.width, c.height).data, s = 0, n = 0; for (var k = 0; k < d.length; k += 28) { s += 0.2126 * d[k] + 0.7152 * d[k + 1] + 0.0722 * d[k + 2]; n++; } res(s / n / 255); }; im.src = 'data:image/png;base64,' + src; }); }, fr8[fi]));
+    var dip = 0; for (var li = 1; li < lum.length - 1; li++) dip = Math.max(dip, Math.min(lum[li - 1], lum[li + 1]) - lum[li]);
+    ok(pd.open && pd.log.join() === 'true', '벽 포스터 톡 → 포스터 창이 열린 채 (열림 기록 ' + JSON.stringify(pd.log) + ' — 예전엔 true,false: 2 ms 뒤 닫힘)');
+    ok(lum.length >= 5 && dip < 0.04, '톡 뒤 ' + lum.length + ' 장: 앞뒤보다 어두운 장 없음 (가장 깊은 꺼짐 ' + dip.toFixed(3) + ' · 밝기 ' + lum.map(function (v) { return v.toFixed(2); }).join(' ') + ')');
+  }
+  await o8.ctx.close();
+  ok(bag.length === 0, 'U7: 페이지 오류 없음 (' + bag.join(' | ').slice(0, 200) + ')');
+}
+
+
+/* [7-T] */
+async function scenarioEatServe(browser) {
+  console.log('\n== EAT (7차 T). 부엌 → 식탁: 들고 가기 (부르기 · 식탁에 두기) · 끊김 · 숨은 탭 · 모션 줄이기 · 2D · 새 요리 · 레시피');
+  var bag = []; bag.ignored = [];
+  var BORN = 1762600000000, D1 = '2026-11-21';
+  var haveSpr = false;   /* 갈래 A 가 그림을 채웠나 (바탕 파일은 비어 있다 — get 이 null) */
+  try { var CS0 = require(path.join(ROOT, 'js/cook-sprites.js')); haveSpr = !!(CS0 && CS0.get('table.gyeran', 0) && CS0.get('dish.gyeran', 0)); } catch (e) { haveSpr = false; }
+  /* 갈래 A 의 그림 파일이 아직 없으면 (이 갈래만 있을 때) 작은 대역 그림으로 — 접시 (아래 넓은 줄) 위에 음식 상자 */
+  var FAKE = "(function(){function mk(w,h,f){var d=new Uint8ClampedArray(w*h*4);for(var y=0;y<h;y++)for(var x=0;x<w;x++){var c=f(x,y);if(c){var k=(y*w+x)*4;d[k]=c[0];d[k+1]=c[1];d[k+2]=c[2];d[k+3]=255;}}return{w:w,h:h,d:d};}" +
+    "function t(){return mk(16,12,function(x,y){if(y>=8&&y<=10)return[235,237,233];if(y>=3&&y<8&&x>=4&&x<=11)return[244,212,122];return null;});}" +
+    "function b(){return mk(80,56,function(x,y){if(y>=40&&y<=50&&x>=4&&x<=75)return[235,237,233];if(y>=12&&y<40&&x>=18&&x<=61)return[244,212,122];return null;});}" +
+    "var S={};['jeon','gyeran','jumeokbap','kkochi','cake'].forEach(function(n){S['table.'+n]=t();S['dish.'+n]=b();});" +
+    "window.COOK_SPR={get:function(id){return S[id]||null;},ids:function(){return Object.keys(S);},info:function(id){var a=S[id];return a?{w:a.w,h:a.h,frames:1,ax:a.w===16?8:40,ay:a.w===16?10:44}:null;}};window.__fakeSpr=true;})();";
+  function dish(id, recipe) { return { ppolCook: 'result', v: 1, id: id, recipe: recipe, seed: 5, look: { band: 1 }, day: D1 }; }
+  function REC(user) {
+    return { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 2, days: ['2026-11-19', '2026-11-20'], affinity: {}, visits: {}, state: 'idle', color: '#4a86d8',
+      colors: [{ at: BORN, date: '2026-11-06', color: '#4a86d8', how: 'first', by: 'player' }] }, room: { lantern: 2, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
+      settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: '#4a86d8', flipped: false, pixelFont: true, albumSeen: 0 }, user: user || { table: null, meals: [] } };
+  }
+  async function open(o) {
+    o = o || {};
+    var ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: o.dpr || 2, locale: 'ko-KR', reducedMotion: o.reduced ? 'reduce' : 'no-preference' });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var page = await ctx.newPage(); watchErrors(page, bag);
+    if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+    await page.addInitScript({ content: "if (!localStorage.getItem('__sv_seed')) { localStorage.setItem('__sv_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(REC(o.user))) + '); ' +
+      (o.book ? "localStorage.setItem('ppolppol_cook_v0', " + JSON.stringify(JSON.stringify(o.book)) + '); ' : '') + "} window.__ppolTest = { today: '" + D1 + "' };" });
+    await routeWiki(page, 'ok');
+    if (!haveSpr || o.noSpr) await page.route(/\/js\/cook-sprites\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: o.noSpr ? '/* no pictures */' : FAKE }); });
+    await page.goto(INDEX + '?intro=0' + (o.q || ''));
+    await page.waitForFunction(function () { return window.APP && APP.scene && document.documentElement.classList.contains('booted'); }, null, { timeout: 30000 });
+    return { ctx: ctx, page: page };
+  }
+  async function toPlay(pg) { await pg.evaluate(function () { return APP.goRoom('play'); }); var r = await pg.waitForFunction(function () { return APP.room === 'play' && !document.getElementById('btn-table').hidden; }, null, { timeout: 20000 }).then(function () { return true; }, function () { return false; }); await pg.waitForTimeout(500); return r; }
+  function st(pg) { return pg.evaluate(function () {
+    var i = APP.scene.tableInfo ? APP.scene.tableInfo() : null, u = APP.state.user || {}, mc = document.getElementById('meal-close'), p = APP.scene.player ? APP.scene.player() : null;
+    return { carry: i && i.carry, me: i && i.me, oct: i && i.oct, dish: i && i.dish ? i.dish.id : null, sprite: i && i.sprite, pieces: i && i.pieces, aura: i && i.aura, meal: APP.meal && APP.meal.stage, busy: APP.mealBusy(), table: u.table ? u.table.id : null,
+      meals: (u.meals || []).map(function (m) { return { dish: m.dish, ask: m.ask ? m.ask.action + '/' + m.ask.by : null, ate: m.ate ? { oct: m.ate.oct, fx: m.ate.fx } : null }; }), close: !!mc && !mc.hidden, at: p && p.at,
+      rows: [].map.call(document.querySelectorAll('#log .lrow[data-meal] .ltext'), function (x) { return x.textContent; }), call: !document.getElementById('btn-call').hidden };
+  }); }
+  function until(pg, fn, ms, arg) { return pg.waitForFunction(fn, arg === undefined ? null : arg, { timeout: ms || 15000 }).then(function () { return true; }, function () { return false; }); }
+  function idle(pg, ms) { return until(pg, function () { return !APP.mealBusy(); }, ms || 30000); }
+
+  /* 1. 문어 부르기: 들기 → 걷기 → 내려놓기 → 앉기 → 부르기 길 → 먹기 → 방울 */
+  var A = await open({}), pa = A.page;
+  ok(await toPlay(pa), '놀이방');
+  var c0 = await pa.evaluate(function () { return APP.cookCtx(); });
+  ok(c0.canCall === true && c0.unlocked.join() === 'jeon2,gyeran,jumeokbap2', 'ctx: 깨어 있는 문어 · 놀이방 → canCall true · 처음 레시피 셋 (' + JSON.stringify(c0) + ')');
+  await pa.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_sv1', 'gyeran'));
+  var a0 = await st(pa);
+  ok(a0.table === 'ck_sv1' && a0.dish === 'ck_sv1', '새 요리 (계란말이) 가 기록 · 식탁에');
+  ok(a0.sprite === true, '식탁 위 요리는 작은 그림 (COOK_SPR table.gyeran)' + (haveSpr ? '' : ' — 대역 그림'));
+  var seen = [], pos0 = null;
+  ok(await pa.evaluate(function () { return APP.cookServe('call'); }) === true, "cookServe('call') — 부엌의 끝 단추처럼");
+  for (var i = 0; i < 300; i++) {
+    var q = await pa.evaluate(function () { var t = APP.scene.tableInfo(), p = APP.scene.player ? APP.scene.player() : null; return { c: t.carry, m: APP.meal && APP.meal.stage, b: APP.mealBusy(), at: p && p.at, me: t.me }; });
+    if (q.c && seen.indexOf(q.c) < 0) { seen.push(q.c); if (q.c === 'hold') pos0 = q.at; if (q.c === 'walk') await pa.screenshot({ path: path.join(SHOTS, 'eat-serve-walk.png') }); }
+    if (q.c === 'hold' && !seen.blocked) { seen.blocked = await pa.evaluate(function () { var r = APP.openMachine(); document.getElementById('btn-cook').click(); return { machine: r, cook: document.getElementById('cook-overlay').open, tap: APP.mealTableTap(), call: APP.mealCall(), hid: document.getElementById('btn-seat').hidden && document.getElementById('btn-call').hidden, stage: APP.meal && APP.meal.stage }; }); }
+    if (!q.c && q.m !== 'serving') break;
+    await pa.waitForTimeout(30);
+  }
+  ok(seen.join() === 'hold,walk,put,sit' || seen.join() === 'hold,walk,sit', '들기 → 걷기 → 내려놓기 → 앉기 (' + seen.join() + ')');
+  ok(pos0 && Math.abs(pos0[0] - 1.3) < 0.05 && Math.abs(pos0[2] + 1.8) < 0.05, '처음엔 조리대 앞에 선다 (' + JSON.stringify(pos0) + ')');
+  var bl = seen.blocked || {};
+  ok(bl.stage === 'serving' && bl.machine === false && bl.cook === false && bl.tap === false && bl.call === false && bl.hid, '들고 가는 동안 오락기 · 조리대 · 식탁 · 부르기는 아무것도 안 한다 (' + JSON.stringify(bl) + ')');
+  ok(await until(pa, function () { var m = APP.meal; return !!m && m.stage !== 'serving'; }, 8000), '앉으면 부르기 길로 이어진다');
+  var a1 = await st(pa);
+  ok(a1.me === 'seated' && a1.meals.length === 1 && a1.meals[0].ask === 'eat/demo-rules' && a1.meals[0].ate === null, '앉았다 · 대답이 저장됐다 (처음 = 먹기 · 데모 규칙)');
+  ok(await until(pa, function () { return APP.meal && APP.meal.stage === 'eating' && !document.getElementById('meal-close').hidden; }, 20000), '먹는 동안 큰 요리 그림이 보인다');
+  var cl = await pa.evaluate(function () { var el = document.getElementById('meal-close'), cv = el.querySelector('canvas'), r = cv.getBoundingClientRect(), b = el.getBoundingClientRect(), d = window.devicePixelRatio, sc = document.getElementById('scene').getBoundingClientRect(), i = APP.scene.tableInfo().geom;
+    return { w: cv.width, h: cv.height, cssW: r.width, dev: [r.left * d, r.top * d, r.width * d], n: cv.width / 80, text: el.textContent.trim(), hid: el.getAttribute('aria-hidden'), pe: getComputedStyle(el).pointerEvents, bottom: b.bottom - sc.top, left: b.left - sc.left, right: sc.right - b.right, pix: getComputedStyle(cv).imageRendering }; });
+  ok(cl.w % 80 === 0 && cl.h === cl.w / 80 * 56 && cl.n === 4 && Math.abs(cl.cssW - 160) < 0.01 && cl.dev.every(function (v) { return Math.abs(v - Math.round(v)) < 0.05; }) && cl.pix === 'pixelated', '큰 그림: 한 칸 = 4 기기 px (360 @2 → 160 CSS px) · 기기 px 위 (' + JSON.stringify(cl) + ')');
+  ok(cl.text === '' && cl.hid === 'true' && cl.pe === 'none' && cl.left >= 8 && cl.right >= 8, '큰 그림: 글자 0 · 누름을 받지 않는다 · 장면 안');
+  var spots = await pa.evaluate(function () { var b = document.getElementById('meal-close').getBoundingClientRect(), t = document.getElementById('btn-table').getBoundingClientRect(); return { panel: b.bottom, table: t.top }; });
+  ok(spots.panel <= spots.table, '큰 그림은 식탁 자리 (두 캐릭터) 를 가리지 않는다 (' + JSON.stringify(spots) + ')');
+  var ink0 = await pa.evaluate(function () { var cv = document.querySelector('#meal-close canvas'), d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data, n = 0; for (var i = 3; i < d.length; i += 4) if (d[i] > 0) n++; return n; });
+  await pa.screenshot({ path: path.join(SHOTS, 'eat-serve-close.png') });
+  ok(await idle(pa), '식사가 끝난다');
+  var a2 = await st(pa);
+  ok(a2.meals[0].ate && a2.meals[0].ate.oct === true && a2.meals[0].ate.fx === 'bubble' && a2.table === null, '기록: 같이 먹음 · 효과 bubble · 식탁 비움');
+  ok(a2.aura.me === 'bubble' && a2.aura.oct === 'bubble', '효과: 둘 다 방울 (' + JSON.stringify(a2.aura) + ')');
+  ok(a2.rows.join('|') === '뚜루도 같이 먹기로 했어. 데모 규칙|계란말이를 같이 먹었어. 오늘 하루 둘 다 방울이 따라다녀.', '로그 행 (' + a2.rows.join('|') + ')');
+  ok(!a2.close && a2.pieces === 0 && a2.sprite === true, '끝나면 큰 그림은 사라지고 식탁엔 그 요리의 빈 그릇 그림 (11-22: 회색 둥근 접시로 안 바뀐다)');
+  var au = await pa.evaluate(function () { var x = APP.scene.auraInfo('me'); return { fx: x.fx, n: x.n, parts: x.parts, vis: x.visible }; });
+  ok(au.fx === 'bubble' && au.vis && au.n > 0 && au.n <= 64, '방울 알갱이가 그려진다 (' + JSON.stringify(au) + ')');
+  ok(ink0 > 0, '큰 그림에 그림이 있다 (' + ink0 + ' px)');
+  /* 앉은 채 둘째 요리 (딸기 케이크) 를 식탁에 두기: 걷지 않고 식탁에 · 혼자 먹으면 색종이 */
+  await pa.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_sv2', 'cake'));
+  await pa.evaluate(function () { return APP.cookServe('table'); });
+  ok(await idle(pa, 5000), "[앉은 채 · 'table'] 바로 끝난다");
+  var a3 = await st(pa);
+  ok(a3.me === 'seated' && a3.dish === 'ck_sv2' && a3.table === 'ck_sv2' && a3.meals.length === 1, '[앉은 채] 걷지 않는다 · 요리는 식탁에 · 먹지 않았다');
+  await A.ctx.close();
+
+  /* 2. 식탁에 두기: 내려놓고 서 있다 · 부르지 않는다 */
+  var B = await open({ w: 412, h: 915 }), pb = B.page;
+  await toPlay(pb);
+  await pb.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_tb1', 'cake'));
+  await pb.evaluate(function () { return APP.cookServe('table'); });
+  ok(await until(pb, function () { return APP.scene.tableInfo().carry === 'walk'; }, 5000), "['table'] 든 채 걷는다");
+  ok(await idle(pb, 15000), "['table'] 끝난다");
+  await pb.waitForTimeout(600);
+  var b1 = await st(pb);
+  ok(b1.me === 'none' && b1.oct === 'none' && b1.dish === 'ck_tb1' && b1.table === 'ck_tb1' && b1.meals.length === 0 && !b1.carry && !b1.meal, "['table'] 요리는 식탁에 · 서 있다 · 문어를 부르지 않았다 (" + JSON.stringify({ me: b1.me, oct: b1.oct, meals: b1.meals.length }) + ')');
+  ok(b1.at && Math.abs(b1.at[0] - 0.21) < 0.1 && Math.abs(b1.at[2] + 0.30) < 0.1, "['table'] 식탁 옆 통로에 선다 (" + JSON.stringify(b1.at) + ')');
+  var free = await pb.evaluate(function () { return APP.scene.playerInputAllowed ? APP.scene.playerInputAllowed() : null; });
+  ok(free !== false, "['table'] 바로 움직일 수 있다");
+  /* 3. 걷는 중 스틱 → 그 자리에서 끝: 요리는 식탁에 · 부르지 않는다 */
+  await pb.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_tb2', 'jumeokbap2'));
+  await pb.evaluate(function () { return APP.cookServe('call'); });
+  ok(await until(pb, function () { return APP.scene.tableInfo().carry === 'walk'; }, 5000), '[끊김] 걷는 중');
+  await pb.waitForTimeout(250);
+  await pb.evaluate(function () { APP.scene.setPlayerInput({ x: 1, y: 0 }); });
+  ok(await idle(pb, 3000), '[끊김] 스틱을 밀면 바로 끝난다');
+  await pb.evaluate(function () { APP.scene.setPlayerInput(null); });
+  await pb.waitForTimeout(500);
+  var b2 = await st(pb);
+  ok(b2.dish === 'ck_tb2' && b2.table === 'ck_tb2' && !b2.carry && b2.me === 'none' && b2.oct === 'none' && b2.meals.length === 0, '[끊김] 요리는 식탁에 · 캐릭터는 선 자리 · 부르지 않았다 (' + JSON.stringify({ dish: b2.dish, me: b2.me, oct: b2.oct, at: b2.at }) + ')');
+  ok(b2.at && Math.hypot(b2.at[0] - 0.21, b2.at[2] + 0.30) > 0.3, '[끊김] 식탁까지 가지 않았다 (' + JSON.stringify(b2.at) + ')');
+  /* 4. 숨은 탭 → 끝 상태 */
+  await pb.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_tb3', 'kkochi2'));
+  await pb.evaluate(function () { return APP.cookServe('call'); });
+  await until(pb, function () { return !!APP.scene.tableInfo().carry; }, 3000);
+  await pb.evaluate(function () { Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } }); document.dispatchEvent(new Event('visibilitychange')); });
+  await pb.waitForTimeout(300);
+  var b3 = await st(pb);
+  await pb.evaluate(function () { delete document.hidden; Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return false; } }); document.dispatchEvent(new Event('visibilitychange')); });
+  ok(!b3.busy && !b3.carry && b3.dish === 'ck_tb3' && b3.table === 'ck_tb3' && b3.meals.length === 0, '[숨은 탭] 바로 끝 상태 (요리는 식탁에 · 부르지 않았다)');
+  /* 새로고침: 기다리는 요리 그대로 */
+  await pb.reload(); await pb.waitForFunction(function () { return window.APP && APP.scene && document.documentElement.classList.contains('booted'); }, null, { timeout: 30000 });
+  await toPlay(pb);
+  var b4 = await st(pb);
+  ok(b4.table === 'ck_tb3' && b4.dish === 'ck_tb3' && !b4.busy, '[새로고침] 기다리는 요리가 식탁에');
+  /* 방을 옮기면 끝 */
+  await pb.evaluate(function () { return APP.cookServe('table'); });
+  await until(pb, function () { return APP.scene.tableInfo().carry === 'hold'; }, 3000);
+  await pb.evaluate(function () { window.__svRoom = Promise.resolve(APP.goRoom('attic')).then(function (r) { window.__svRoomDone = r; }); });
+  ok(await idle(pb, 8000), '[방 옮김] 들고 가기가 끝난다');
+  var b5 = await st(pb);
+  ok(!b5.carry && b5.table === 'ck_tb3', '[방 옮김] 요리는 기록에 그대로');
+  /* 독립 점검 (11-21): 드는 박자 (hold) 에 문을 누르면 문까지 걷는 걸음을 들고 가기가 덮어써서 방이 안 바뀌고 방 단추가 영영 숨었다 → 그 걸음을 그대로 두고 끝 상태로 */
+  ok(await until(pb, function () { return !!window.__svRoomDone && window.__svRoomDone.ok === true && APP.scene.view() === 'attic' && !APP.goResting; }, 20000), '[방 옮김 · 드는 박자] 방이 정말 바뀐다 (문 작업이 풀린다)');
+  ok(await toPlay(pb), '[방 옮김] 놀이방으로 돌아올 수 있다');
+  var b6 = await pb.evaluate(function () { var i = APP.scene.tableInfo(); return { cook: !document.getElementById('btn-cook').hidden, dish: i.dish && i.dish.id, input: APP.scene.playerInputAllowed(), busy: APP.mealBusy() }; });
+  ok(b6.cook && b6.dish === 'ck_tb3' && b6.input && !b6.busy, '[방 옮김] 돌아오면 조리대 단추 · 식탁의 요리 · 움직임 그대로 (' + JSON.stringify(b6) + ')');
+  await B.ctx.close();
+
+  /* 5. 그림 파일이 없을 때 (COOK_SPR 없음): 덮개 접시로 들고 가고, 큰 그림은 없다 */
+  var N = await open({ noSpr: true }), pn = N.page;
+  await toPlay(pn);
+  await pn.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_ns1', 'gyeran'));
+  await pn.evaluate(function () { return APP.cookServe('call'); });
+  ok(await until(pn, function () { return APP.scene.tableInfo().carry === 'walk' && APP.scene.tableInfo().sprite === false; }, 5000), '[그림 없음] 예전 덮개 접시를 들고 걷는다');
+  ok(await until(pn, function () { return APP.meal && APP.meal.stage === 'eating'; }, 25000), '[그림 없음] 먹기까지 이어진다');
+  ok(await pn.evaluate(function () { return document.getElementById('meal-close').hidden; }), '[그림 없음] 큰 그림 칸은 안 보인다');
+  ok(await idle(pn), '[그림 없음] 식사가 끝난다');
+  /* 옛 요리 (jeon) 는 그대로: 그림 아닌 예전 모양 · 들고 갈 수 있다 */
+  await pn.evaluate(function () { return APP.scene.playerStandTable(); }); await pn.waitForTimeout(900);
+  await N.ctx.close();
+  var L = await open({ user: { table: { v: 1, id: 'ck_old1', recipe: 'kkochi', seed: 5, look: { band: 1, plate: 0 }, day: D1, at: 1 }, meals: [] } }), pl = L.page;
+  await toPlay(pl);
+  var l0 = await st(pl);
+  ok(l0.dish === 'ck_old1' && l0.sprite === false, '[옛 요리] 기다리던 과일 꼬치 (kkochi) 가 예전 모양으로 식탁에');
+  await pl.evaluate(function () { return APP.cookServe('table'); });
+  ok(await idle(pl, 15000), '[옛 요리] 들고 가기도 된다');
+  ok((await st(pl)).dish === 'ck_old1', '[옛 요리] 식탁에');
+  await L.ctx.close();
+
+  /* 6. 모션 줄이기: 걸음 없이 — 'call' 은 앉아서 부른다 */
+  var R = await open({ reduced: true, w: 320, h: 568 }), pr = R.page;
+  await toPlay(pr);
+  await pr.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_rd1', 'jeon2'));
+  var walked = false;
+  await pr.evaluate(function () { window.__sawCarry = false; var iv = setInterval(function () { if (APP.scene.tableInfo().carry) window.__sawCarry = true; }, 16); setTimeout(function () { clearInterval(iv); }, 4000); return APP.cookServe('call'); });
+  ok(await until(pr, function () { return APP.scene.tableInfo().me === 'seated'; }, 3000), '[모션 줄이기] 바로 앉아 있다');
+  ok(await idle(pr), '[모션 줄이기] 부르기 · 식사가 끝난다');
+  var r1 = await st(pr); walked = await pr.evaluate(function () { return window.__sawCarry; });
+  ok(!walked && r1.meals.length === 1 && r1.meals[0].ate && r1.meals[0].ate.fx === 'sparkle' && r1.aura.me === 'sparkle', '[모션 줄이기] 걷는 연출 없음 · 해초전 (jeon2) 기록 · 반짝이');
+  ok(r1.rows[r1.rows.length - 1].indexOf('해초전을') === 0, '[모션 줄이기] 식사 행 (' + r1.rows[r1.rows.length - 1] + ')');
+  await R.ctx.close();
+
+  /* 7. 2D: 식탁이 없다 — canCall false · serve 는 기록만 */
+  var G = await open({ q: '&scene=2d' }), pg = G.page;
+  await pg.evaluate(function () { return APP.goRoom('play'); }); await pg.waitForTimeout(800);
+  var g = await pg.evaluate(function (d) { APP.cookMsgTest(d); var c = APP.cookCtx(), r = APP.cookServe('call'); return { mode: APP.sceneMode, can: c.canCall, unl: c.unlocked.length, r: r, table: APP.state.user.table && APP.state.user.table.id, busy: APP.mealBusy(), meals: APP.state.user.meals.length }; }, dish('ck_2d', 'cake'));
+  ok(g.mode === '2d' && g.can === false && g.unl === 3 && g.table === 'ck_2d' && !g.busy && g.meals === 0, '[2D] canCall false · 요리는 기록에 기다린다 · 연출 없음 (' + JSON.stringify(g) + ')');
+  await G.ctx.close();
+
+  /* 8. 레시피: 처음 셋 · 카페 세 번째에 선물 (한 번) · 저장 · 옛 수첩이 있으면 과일 꼬치 */
+  var P = await open({}), pp = P.page;
+  var rc = await pp.evaluate(function () {
+    var out = { u0: APP.recipesUnlocked().join(), eats: [] };
+    for (var i = 0; i < 4; i++) out.eats.push(APP.recipeEat('cake'));
+    out.other = APP.recipeEat('coffee'); out.u1 = APP.recipesUnlocked().join();
+    out.saved = (JSON.parse(localStorage.getItem('ppolppol_v2')).user || {}).recipes;
+    return out;
+  });
+  ok(rc.u0 === 'jeon2,gyeran,jumeokbap2' && rc.eats.map(function (e) { return e.n + ':' + e.gift; }).join() === '1:false,2:false,3:true,4:false' && rc.other.n === 0 && rc.u1 === 'jeon2,gyeran,jumeokbap2,cake', '레시피: 셋 → 케이크 세 번째에 선물 한 번 → 넷 (' + JSON.stringify(rc.eats) + ' · ' + rc.u1 + ')');
+  ok(rc.saved && rc.saved.cake && rc.saved.cake.n === 4 && rc.saved.cake.got === D1, '레시피가 저장됐다 (' + JSON.stringify(rc.saved) + ')');
+  await pp.reload(); await pp.waitForFunction(function () { return window.APP && APP.scene && document.documentElement.classList.contains('booted'); }, null, { timeout: 30000 });
+  ok(await pp.evaluate(function () { return APP.recipesUnlocked().join(); }) === 'jeon2,gyeran,jumeokbap2,cake', '새로고침 뒤에도 열려 있다');
+  var ex = await pp.evaluate(function () { APP.state.user.recipes.future = { n: 2, got: null, lv: 5 }; APP.save(); return !!JSON.parse(localStorage.getItem('ppolppol_v2')).user.recipes.future; });
+  await pp.reload(); await pp.waitForFunction(function () { return window.APP && APP.scene && document.documentElement.classList.contains('booted'); }, null, { timeout: 30000 });
+  var keep = await pp.evaluate(function () { APP.recipeEat('kkochi2'); return (JSON.parse(localStorage.getItem('ppolppol_v2')).user || {}).recipes; });
+  ok(ex && keep.future && keep.future.lv === 5 && keep.cake.n === 4 && keep.kkochi2.n === 1, '모르는 레시피 칸 (나중 판) 은 그대로 남는다 (' + JSON.stringify(keep) + ')');
+  await P.ctx.close();
+  /* 9. 계약 C12: 다른 갈래가 쓰는 장면 함수 — 내 캐릭터가 든 그림 · 한 자리의 그림 (모르는 그림이면 false · null 이면 치움) */
+  var C12 = await open({}), pc = C12.page;
+  var c12 = await pc.evaluate(function () {
+    var s = APP.scene, out = { fn: typeof s.playerCarry === 'function' && typeof s.spriteProp === 'function' };
+    out.carry = s.playerCarry('table.cake', 0); out.bad = s.playerCarry('no.such', 0); out.afterBad = s.debugSprites().carry;
+    out.carry2 = s.playerCarry('table.gyeran', 0);
+    out.prop = s.spriteProp('t', { x: 0.5, y: 0, z: 0.5 }, 'dish.cake', 0); out.propBad = s.spriteProp('u', { x: 0, z: 0 }, 'no.such', 0);
+    return out;
+  });
+  await pc.waitForTimeout(400);
+  var c12b = await pc.evaluate(function () { var s = APP.scene, a = s.debugSprites(); s.playerCarry(null); s.spriteProp('t', null); return { a: a, b: s.debugSprites() }; });
+  ok(c12.fn && c12.carry === true && c12.bad === false && c12.afterBad === null && c12.carry2 === true && c12.prop === true && c12.propBad === false, '[C12] playerCarry · spriteProp: 있는 그림 true · 모르는 그림 false (' + JSON.stringify(c12) + ')');
+  ok(c12b.a.carry && c12b.a.carry.id === 'table.gyeran' && c12b.a.carry.visible && c12b.a.carry.n > 0 && c12b.a.props.t && c12b.a.props.t.visible && !c12b.a.props.u, '[C12] 든 그림 · 놓인 그림이 그려진다 (' + JSON.stringify(c12b.a) + ')');
+  ok(c12b.b.carry === null && Object.keys(c12b.b.props).length === 0, '[C12] null 로 치운다');
+  await C12.ctx.close();
+  var O = await open({ book: { v: 1, day: D1, dayN: 1, seen: ['tap'], pot: null, book: [{ id: 'ck_o1', recipe: 'jeon', seed: 1, swaps: [], look: {}, day: '2026-11-18', madeAt: 1 }] } }), po = O.page;
+  var ob = await po.evaluate(function () { var cook0 = localStorage.getItem('ppolppol_cook_v0'), u = APP.recipesUnlocked().join(), e = [APP.recipeEat('kkochi2'), APP.recipeEat('kkochi2'), APP.recipeEat('kkochi2')]; return { u: u, gifts: e.filter(function (x) { return x.gift; }).length, saved: (JSON.parse(localStorage.getItem('ppolppol_v2')).user || {}).recipes, same: cook0 === localStorage.getItem('ppolppol_cook_v0') }; });
+  ok(ob.u === 'jeon2,gyeran,jumeokbap2,kkochi2' && ob.gifts === 0 && ob.saved.kkochi2.old === true && ob.same, '옛 수첩이 있던 사람: 과일 꼬치가 열려 있다 · 다시 선물하지 않는다 · 부엌 저장은 읽기만 (' + JSON.stringify(ob) + ')');
+  await po.evaluate(function () { localStorage.removeItem('ppolppol_cook_v0'); });
+  ok(await po.evaluate(function () { return APP.recipesUnlocked().join(); }) === 'jeon2,gyeran,jumeokbap2,kkochi2', '수첩이 없어져도 과일 꼬치는 남는다 (recipes.kkochi2.old)');
+  await O.ctx.close();
+  ok(bag.length === 0, '[EAT 7차] 페이지 에러/콘솔 에러 0' + (bag.length ? ': ' + bag.join(' | ') : ''));
+}
+
+
+/* [7-P] */
+/* P7 (11-21 내 캐릭터): 새 사람의 기본 모습 · 옛 기록의 모습 그대로 · 옷장 목록 (태그 · 값 · 가진 것) · 가게 물건은 가져야 입는다 · 옷장의 잠긴 칸 · 뛰는 속도 */
+async function scenarioPlayer7(browser) {
+  console.log('\n== P7. 내 캐릭터: 기본 모습 · 옷장 목록 · 잠긴 칸 · 뛰기');
+  var O = 'http://ppolppol.example';
+  var s = await newPage(browser, 'ok');
+  var page = s.page;
+  await routeRepo(page, O);
+  await page.goto(O + '/index.html?dev=0');
+  await page.waitForSelector('#name-dialog[open]', { timeout: 20000 });
+  await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
+  await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  var OLD = ['bob', 'short', 'long', 'twin', 'pony', 'wave', 'dress', 'knit', 'hoodie', 'overall', 'raincoat', 'hanbok', 'uniform', 'varsity', 'flannel', 'flat', 'boot', 'sneaker', 'loafer', 'none', 'ribbon', 'beret', 'glasses', 'catears', 'strawhat'];
+  var TAGS = ['cute', 'cool', 'cosy', 'sporty', 'neat', 'sea', 'flower', 'star', 'warm', 'fresh', 'c-red', 'c-orange', 'c-yellow', 'c-green', 'c-blue', 'c-purple', 'c-pink', 'c-brown', 'c-white', 'c-black'];
+  var a = await page.evaluate(function (q) {
+    var p = APP.state.settings.player, w = APP.wardrobe(), all = [], bad = [];
+    w.cats.forEach(function (c) { c.items.forEach(function (i) { all.push(c.key + ':' + i.id);
+      if (!Array.isArray(i.tags) || i.tags.some(function (t) { return q.TAGS.indexOf(t) < 0; }) || i.tags.filter(function (t) { return t.indexOf('c-') === 0; }).length > 1 || typeof i.name !== 'string' || !i.name) bad.push(c.key + ':' + i.id);
+      if (q.OLD.indexOf(i.id) >= 0 && (i.shop !== null || !i.owned)) bad.push('old ' + c.key + ':' + i.id);
+      if (i.shop && !(i.shop.price >= 4 && i.shop.price <= 36)) bad.push('price ' + i.id);   /* 11-24 가게 갈래 S: 첫날 조개로도 하나는 사게 야구모자 4 · 목도리 5 */
+      if (i.award ? i.owned || i.shop : !!i.shop === i.owned) bad.push('owned ' + i.id); }); });   /* 11-24: 주간 상은 값 없이도 받아야 가진다 (새 사람은 아직 없다) */
+    var shop = []; w.cats.forEach(function (c) { c.items.forEach(function (i) { if (i.shop) shop.push(c.key + ':' + i.id); }); });
+    var P = APP.playerParts();
+    return { look: [p.hair, p.outfit, p.shoes, p.acc, p.body, p.brow].join(), scene: APP.sceneMode === '3d' ? APP.scene.player().look.outfit : 'octee', keys: w.cats.map(function (c) { return c.key + c.items.length; }).join(), bad: bad, shop: shop,
+      wearing: APP.wearing().map(function (x) { return x.cat + ':' + x.id; }).join(), wtags: APP.wearing().every(function (x) { return Array.isArray(x.tags); }),
+      n: [P.body.length, P.brow.length, P.eyes.length, P.hair.length, P.outfit.length, P.shoes.length, P.acc.length].join(),
+      refuse: APP.setPlayerPart('outfit', 'suit'), still: APP.state.settings.player.outfit, user: !!(APP.state.user && APP.state.user.owned && Object.keys(APP.state.user.owned).length),
+      sp: APP.sceneMode === '3d' && APP.scene.playerSpeeds ? APP.scene.playerSpeeds() : null, mode: APP.sceneMode, thumb: (function () { var c = APP.itemThumb('acc', 'cap', 64); return c ? c.width + 'x' + c.height : null; })() };
+  }, { OLD: OLD, TAGS: TAGS });
+  ok(a.look === 'tousle,octee,sneaker,none,a,soft' && a.scene === 'octee', 'P7 새로 시작한 사람의 기본 모습: 부스스 · 문어 티 · 운동화 · 장식 없음 · 몸 a · 둥근 눈썹 (' + a.look + ')');
+  ok(a.keys === 'hair13,outfit17,shoes6,acc14' && a.n === '2,4,10,13,17,6,14' && !a.bad.length, 'P7 옷장 목록: 머리 13 · 옷 17 · 신발 6 · 장식 14 (11-24 주간 상 둘) (몸 2 · 눈썹 4 · 눈 10) · 물건마다 이름 · 정해진 낱말만 · 색 갈래는 하나 · 예전 것은 전부 그냥 가진 것 ' + JSON.stringify([a.keys, a.n, a.bad]));
+  ok(a.shop.join() === 'outfit:sailor,outfit:fisher,outfit:windbreak,outfit:cardigan,outfit:suit,shoes:hightop,acc:cap,acc:headphones,acc:scarf,acc:bag', 'P7 가게 물건 열 가지 (조개 4~36) ' + a.shop.join());
+  ok(a.wearing === 'hair:tousle,outfit:octee,shoes:sneaker,acc:none' && a.wtags, 'P7 wearing(): 지금 입은 머리 · 옷 · 신발 · 장식과 낱말 (' + a.wearing + ')');
+  ok(a.refuse === false && a.still === 'octee' && !a.user, 'P7 아직 없는 가게 옷은 입을 수 없다 (setPlayerPart false · 옷 그대로 · 가진 것 기록 없음)');
+  if (a.mode === '3d') ok(a.sp && a.sp.walk === 2.2 && Math.abs(a.sp.run - 3.74) < 0.01 && a.thumb === '64x64', 'P7 scene.playerSpeeds() 걷기 2.2 · 뛰기 3.74 · itemThumb 64 px 그림 ' + JSON.stringify([a.sp, a.thumb]));
+  /* 옷장의 잠긴 칸: 옷 갈래에 다섯 · 누르면 한 줄 · 입은 옷은 그대로. 가지면 (ownItem) 풀리고 입을 수 있다 · 새로 열어도 남는다 */
+  await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
+  await page.click('#set-look-open'); await page.waitForSelector('#look-sheet[open]');
+  await page.click('#look-tab-outfit'); await page.waitForTimeout(300);
+  var lk = await page.evaluate(function () {
+    var L = [].slice.call(document.querySelectorAll('#look-items .look-tile.locked')), t = L[0], r = t.getBoundingClientRect(), amt = t.querySelector('.shell-amt');
+    var cs = getComputedStyle(t, '::before');
+    return { n: L.length, ids: L.map(function (b) { return b.dataset.id; }).join(), price: amt ? amt.textContent.replace(/\D+/g, '') : '', pics: L.filter(function (b) { return b.querySelector('canvas, img'); }).length, name: (t.querySelector('.look-name') || {}).textContent || '', mark: parseFloat(cs.width) > 0, h: Math.round(r.height), title: !!t.getAttribute('title'), emoji: /\p{Extended_Pictographic}/u.test(t.innerText) };
+  });
+  await page.evaluate(function () { document.querySelector('#look-items .look-tile.locked[data-id="suit"]').click(); });
+  await page.waitForTimeout(200);
+  var lk2 = await page.evaluate(function () { return { toast: document.getElementById('toast').textContent, outfit: APP.state.settings.player.outfit, own: APP.ownItem('outfit', 'suit'), left: document.querySelectorAll('#look-items .look-tile.locked').length, wear: APP.setPlayerPart('outfit', 'suit'), now: APP.state.settings.player.outfit, key: APP.state.user.owned['outfit:suit'], unknown: APP.ownItem('outfit', 'nope') }; });
+  ok(lk.n === 5 && lk.ids === 'sailor,fisher,windbreak,cardigan,suit' && lk.price === '' && lk.pics === 0 && lk.name === '세일러' && lk.mark && lk.h >= 44 && !lk.title && !lk.emoji, 'P7 옷장 옷 갈래: 잠긴 칸 다섯 — 11-24 (주인: "미리 보여주지 말고 이름만") 그림 · 값 없이 이름과 자물쇠 표시 · 44px 이상 · 이모지 없음 ' + JSON.stringify(lk));
+  ok(lk2.toast === '마을 옷가게에서 팔아.' && lk2.outfit === 'octee', 'P7 잠긴 칸을 누르면 한 줄 («' + lk2.toast + '») · 옷은 그대로');
+  ok(lk2.own === true && lk2.left === 4 && lk2.wear === true && lk2.now === 'suit' && /^\d{4}-\d\d-\d\d$/.test(lk2.key || '') && lk2.unknown === false, 'P7 ownItem 뒤: 잠긴 칸 넷 · 입을 수 있다 · S.user.owned 에 산 날 · 모르는 물건은 false ' + JSON.stringify(lk2));
+  /* 11-24 주간 상 (종이 왕관 · 황제 망토): 받기 전엔 장식 갈래의 잠긴 칸 (한 줄은 달리기 상) · 받으면 옷장을 열 때 내 옷장에 들어와 입을 수 있다 (문어의 답과 따로) */
+  var aw = await page.evaluate(async function () {
+    document.getElementById('look-tab-acc').click(); await new Promise(function (r) { setTimeout(r, 200); });
+    var q = function () { return [].map.call(document.querySelectorAll('#look-items .look-tile.locked'), function (b) { return b.dataset.id; }).join(); }, before = q();
+    document.querySelector('#look-items .look-tile[data-id="emperor_cape"]').click(); await new Promise(function (r) { setTimeout(r, 100); });
+    var t0 = document.getElementById('toast').textContent, acc0 = APP.state.settings.player.acc;
+    localStorage.setItem('ppolppol_runner', JSON.stringify({ net: { awards: { paper_crown: [], emperor_cape: ['2026-W47'] } } }));
+    document.getElementById('look-sheet').close(); APP.openLook(); document.getElementById('look-tab-acc').click(); await new Promise(function (r) { setTimeout(r, 200); });
+    var after = q(), key = (APP.state.user.owned || {})['acc:emperor_cape'];
+    document.querySelector('#look-items .look-tile[data-id="emperor_cape"]').click(); await new Promise(function (r) { setTimeout(r, 100); });
+    var acc1 = APP.state.settings.player.acc; localStorage.removeItem('ppolppol_runner'); APP.setPlayerPart('acc', acc0); document.getElementById('look-tab-outfit').click();
+    return { before: before, toast: t0, acc0: acc0, after: after, key: key, acc1: acc1 };
+  });
+  ok(/paper_crown/.test(aw.before) && /emperor_cape/.test(aw.before) && aw.toast === '다락방 달리기 주간 상으로 받아.' && aw.acc0 !== 'emperor_cape' && /paper_crown/.test(aw.after) && !/emperor_cape/.test(aw.after) && /^\d{4}-\d\d-\d\d$/.test(aw.key || '') && aw.acc1 === 'emperor_cape', 'P7 주간 상: 받기 전엔 잠긴 칸 («' + aw.toast + '») · 받으면 내 옷장에 (받은 날) 들어와 입을 수 있다 ' + JSON.stringify(aw));
+  await page.reload();
+  await page.waitForFunction(function () { return window.APP && APP.state && APP.scene; }, null, { timeout: 20000 });
+  var re = await page.evaluate(function () { var k = 'ppolppol_v2', o = JSON.parse(localStorage.getItem(k)); return { outfit: APP.state.settings.player.outfit, owned: APP.isOwned('outfit', 'suit'), saved: o.user && o.user.owned && !!o.user.owned['outfit:suit'] }; });
+  ok(re.outfit === 'suit' && re.owned && re.saved, 'P7 새로 열어도 산 옷 · 입은 옷 그대로 ' + JSON.stringify(re));
+  /* 옛 기록 (눈썹 · 몸 칸이 없던 때의 모습 · 모르는 값이 든 owned): 모습은 그대로, 빈 칸만 예전 기본 (눈썹 없음 · 몸 a), 모르는 열쇠는 지우지 않는다 */
+  await page.addInitScript({ content: "(function () { var v = sessionStorage.getItem('__inj'); if (v) { sessionStorage.removeItem('__inj'); localStorage.setItem('ppolppol_v2', v); } })();" });   /* 앱이 뜨기 전에 넣는다 (쪽에서 그냥 쓰면 떠날 때의 저장이 덮는다) */
+  await page.evaluate(function () { var k = 'ppolppol_v2', o = JSON.parse(localStorage.getItem(k)); o.settings.player = { hair: 'twin', bangs: 'full', hairColor: 'pink', skin: 'honey', eyes: 'smile', eyeColor: 'sea', nose: 'dot', mouth: 'open', cheek: 'freckle', outfit: 'hanbok', shoes: 'boot', acc: 'beret' }; o.user.owned['outfit:later-thing'] = '2027-01-01'; sessionStorage.setItem('__inj', JSON.stringify(o)); });
+  await page.reload();
+  await page.waitForFunction(function () { return window.APP && APP.state && APP.scene; }, null, { timeout: 20000 });
+  var od = await page.evaluate(function () { var p = APP.state.settings.player; APP.setPlayerPart('shoes', 'flat'); var o = JSON.parse(localStorage.getItem('ppolppol_v2')); return { look: [p.hair, p.bangs, p.hairColor, p.skin, p.eyes, p.eyeColor, p.nose, p.mouth, p.cheek, p.outfit, p.shoes, p.acc, p.brow, p.body].join(), later: o.user.owned['outfit:later-thing'], suit: !!o.user.owned['outfit:suit'] }; });
+  ok(od.look === 'twin,full,pink,honey,smile,sea,dot,open,freckle,hanbok,boot,beret,none,a' && od.later === '2027-01-01' && od.suit, 'P7 옛 기록: 저장된 모습 그대로 + 눈썹 없음 · 몸 a · 모르는 owned 열쇠는 저장 뒤에도 남는다 ' + JSON.stringify(od));
+  /* C11 입어 보기 · 마네킹 (11-21): 입어 보면 장면은 바로 바뀌고 저장은 그대로 · 방을 나오면 (ppol:room null) 벗는다 · wear 는 저장하고 입어 보기를 끝낸다 · 마네킹은 받은 자리에 선다 */
+  var c11 = await page.evaluate(async function () {
+    var sc = APP.scene, threeD = APP.sceneMode === '3d', r = {};
+    r.was = APP.state.settings.player.outfit;
+    r.on = APP.tryOn('outfit', 'sailor'); r.trying = JSON.stringify(APP.trying()); r.scene = threeD ? sc.player().look.outfit : 'sailor';
+    r.saved = JSON.parse(localStorage.getItem('ppolppol_v2')).settings.player.outfit; r.state = APP.state.settings.player.outfit;
+    document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: null } }));
+    r.offT = JSON.stringify(APP.trying()); r.offScene = threeD ? sc.player().look.outfit : r.state;
+    APP.tryOn('acc', 'headphones'); r.wear = APP.wear('acc', 'sqglasses'); r.afterWear = JSON.stringify(APP.trying()); r.acc = APP.state.settings.player.acc; APP.wear('acc', 'none');
+    if (threeD) {
+      r.mq = sc.mannequins('clothes', [{ slot: 'mq0', parts: { outfit: 'sailor' }, pos: [-0.6, 0, 1.6, 0] }, { slot: 'mq1', parts: null, sold: true, pos: [0.3, 0, 1.9, 0] }, { slot: 'mq9', parts: { outfit: 'suit' } }]).map(function (q) { return q.ok; }).join();
+      r.mqInfo = sc.mannequinInfo('clothes').map(function (q) { return q.slot + ':' + (q.parts ? q.parts.outfit : 'bare') + ':' + q.sold; }).join();
+      r.pose = await sc.playerPose('bow'); r.badPose = await sc.playerPose('nope');
+      sc.mannequins('clothes', []); r.gone = sc.mannequinInfo('clothes').length;
+    }
+    return r;
+  });
+  ok(c11.on && c11.trying === '{"outfit":"sailor"}' && c11.scene === 'sailor' && c11.saved === c11.was && c11.state === c11.was, 'P7 C11 입어 보기: 장면은 세일러 · 저장 · 상태는 입던 옷 그대로 (가게 물건도 입어 볼 수 있다) ' + JSON.stringify(c11));
+  ok(c11.offT === '{}' && c11.offScene === c11.was && c11.wear === true && c11.afterWear === '{}' && c11.acc === 'sqglasses', 'P7 C11 방을 나오면 다 벗는다 · wear 는 그 갈래만 저장하고 그 갈래의 입어 보기를 끝낸다');
+  if (c11.mq !== undefined) ok(c11.mq === 'true,true,false' && c11.mqInfo === 'mq0:sailor:false,mq1:bare:true' && c11.pose === true && c11.badPose === false && c11.gone === 0, 'P7 C11 마네킹: 자리 있는 둘은 서고 (옷 · 민몸 + 팔림) 자리 없는 것은 false · 몸짓 bow 끝남 · 모르는 몸짓 false · 빈 목록이면 다 치움 ' + JSON.stringify([c11.mq, c11.mqInfo, c11.pose, c11.gone]));
+  /* 11-24 (검토): 베레모는 밤갈색 머리면 초록으로 그려진다 → 옷장 목록 · 입은 것의 색 꼬리표도 초록 (콘테스트 색 심사가 읽는다) · 금발이면 빨강 */
+  var bt = await page.evaluate(function () {
+    if (APP.sceneMode !== '3d') return null;
+    function fam(t) { return (t || []).filter(function (q) { return q.indexOf('c-') === 0; }).join(); }
+    function ward() { var r = null; APP.wardrobe().cats.forEach(function (c) { if (c.key === 'acc') c.items.forEach(function (i) { if (i.id === 'beret') r = i.tags; }); }); return r; }
+    APP.setPlayerPart('acc', 'beret'); APP.setPlayerPart('hairColor', 'brown');
+    var a = { ward: fam(ward()), worn: fam((APP.wearing().filter(function (x) { return x.cat === 'acc'; })[0] || {}).tags) };
+    APP.setPlayerPart('hairColor', 'blonde');
+    var b = { ward: fam(ward()), worn: fam((APP.wearing().filter(function (x) { return x.cat === 'acc'; })[0] || {}).tags) };
+    APP.setPlayerPart('acc', 'none');
+    return [a, b];
+  });
+  if (bt) ok(bt[0].ward === 'c-green' && bt[0].worn === 'c-green' && bt[1].ward === 'c-red' && bt[1].worn === 'c-red', 'P7 베레모 색 꼬리표 = 그려진 색: 밤갈색 머리 → 초록 · 금발 → 빨강 (옷장 목록 · 입은 것) ' + JSON.stringify(bt));
+  ok(s.bag.length === 0, '[P7] 페이지 에러/콘솔 에러 0' + (s.bag.length ? ' → ' + s.bag.join(' | ') : ''));
+  await s.ctx.close();
+}
+
+
+/* [7-W] */
+
+
+/* [7-V] */
+
+
+/* [7-S] */
+/* 11-24 다섯째 바퀴 · 가게: 사는 건 계산대 목록에서만 (2D 시트에서도 같은 목록). 담기는 아무것도 쓰지 않고, '사기' 한 번에 계산, 닫으면 담은 것은 버린다 */
+async function scenarioShop7(browser) {
+  console.log('\n== S7. 가게 계산대 목록');
+  var BORN = 1762600000000, RED = '#e8463c', bag = []; bag.ignored = [];
+  var rec = { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 3, days: ['2026-11-21'], affinity: {}, visits: {}, state: 'idle', color: RED, colors: [{ at: BORN, date: '2026-11-21', color: RED, how: 'first', by: 'player' }] },
+    room: { lantern: 3, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] }, user: { shells: 10, seeds: 1, days: ['2026-11-21'], giftDay: '2026-11-21', later: { keep: 1 } },
+    settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
+  var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', hasTouch: true, isMobile: true });
+  await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+  var page = await ctx.newPage(); watchErrors(page, bag);
+  await page.addInitScript({ content: "if (!localStorage.getItem('__seed')) { localStorage.setItem('__seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(rec)) + "); } window.__ppolTest = { today: '2026-11-21' };" });
+  await page.goto('file://' + ROOT + '/index.html?dev=0&intro=0&scene=2d');
+  await page.waitForSelector('#btn-go:not(.away)', { timeout: 20000 }); await page.waitForTimeout(500);
+  var opened = await page.evaluate(function () { return APP.openShop('goods'); });
+  var r0 = await page.evaluate(function () { var L = document.getElementById('shop-list'); return { list: !!L, rows: L ? L.querySelectorAll('.ls-item').length : 0, purse: L ? L.querySelector('.ls-purse').textContent.replace(/\s+/g, ' ') : '', buyOff: L ? L.querySelector('.ls-buy').disabled : null }; });
+  ok(opened && r0.list && r0.rows === 4 && /10/.test(r0.purse) && r0.buyOff, "잡화점: 목록 네 줄 · 위에 조개 10 · 담기 전엔 '사기' 를 못 누름");
+  await page.waitForTimeout(700);
+  await page.click('#shop-list .ls-item[data-key="seed"] .ls-plus'); await page.click('#shop-list .ls-item[data-key="seed"] .ls-plus');
+  var r1 = await page.evaluate(function () { return { cart: APP.shopList.cart.seed, shells: APP.state.user.shells, left: document.querySelector('#shop-list .ls-purse').textContent }; });
+  ok(r1.cart === 2 && r1.shells === 10 && /담으면 6 남아/.test(r1.left), '담기: 씨앗 둘 · 담으면 6 남아 · 조개는 아직 그대로');
+  await page.click('#shop-list .ls-buy');
+  var r2 = await page.evaluate(function () { var u = APP.state.user; return { shells: u.shells, seeds: u.seeds, keep: u.later && u.later.keep, paid: /냈어/.test(document.getElementById('shop-list').textContent) }; });
+  ok(r2.shells === 6 && r2.seeds === 3 && r2.keep === 1 && r2.paid, "'사기' 한 번에 계산 · 같은 자리가 영수증 (모르는 값 그대로)");
+  await page.waitForTimeout(1700); await page.waitForTimeout(700);
+  await page.click('#shop-list .ls-item[data-key="seed"] .ls-plus');
+  await page.click('#shop-close'); await page.waitForTimeout(200);
+  ok(await page.evaluate(function () { return APP.state.user.shells === 6 && APP.state.user.seeds === 3 && !APP.shopList; }), '닫으면 담은 것은 버린다 (조개 그대로)');
+  reportErrors(bag, 'S7'); await ctx.close();
+}
+
+
+/* [7-C] */
+
+
+/* [7-N] */
+
+
+/* [7-F] */
+
+
+/* [7-K] */
+
 
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
@@ -6508,11 +8713,38 @@ async function scenarioGarden(browser) {
       ['W', function () { return scenarioWake(browser); }], ['V', function () { return scenarioDevPanel(browser); }], ['P', function () { return scenarioPlayer(browser); }],
       ['L', function () { return scenarioAlbumIcon(browser); }], ['N', function () { return scenarioNotes(browser); }], ['M', function () { return scenarioReactions(browser); }],
       ['O', function () { return scenarioFirstColor(browser); }], ['Y', function () { return scenarioSalon(browser); }],   /* 미용실: 첫 실행 몸 색은 글자 O 의 둘째 묶음 (O 의 첫 묶음 = 한 화면 배치 scenarioLayoutOne 은 아래 줄 — SMOKE_ONLY=O 면 둘 다 돈다, 따로 try/catch) · Y = 미용실 */
-      ['R', function () { return scenarioRunner(); }], ['S', function () { return scenarioWave7(browser); }], ['J', function () { return scenarioWave8(browser); }], ['U', function () { return scenarioGlyphs(browser); }],
+      ['R', function () { return scenarioRunner(); }], ['FM', function () { return scenarioFirst(browser); }], ['S', function () { return scenarioWave7(browser); }], ['J', function () { return scenarioWave8(browser); }], ['U', function () { return scenarioGlyphs(browser); }],
       ['T', function () { return scenarioTapLine(browser); }], ['K', function () { return scenarioBringBack(browser); }], ['O', function () { return scenarioLayoutOne(browser); }],
       ['Q', function () { return scenarioWeek(browser); }],   /* Q = 이번 주 할 일 · 선물 상자 (검증 11-11) */
+      ['Z', function () { return scenarioSceneTap(browser); }],   /* 11-15 장면 톡 (재봉틀 첫 톡 · 관성 중 톡 · 조리대 → 부엌) */
       ['Z', function () { return scenarioLoft(browser); }],   /* 11-12 위층 문어 (계단 · 돌아다니기 · 거울 길 · 비켜서기 · 거울 한 줄 · 방석 · 가구 배치 · 시트 올림) */
-      ['X', function () { return scenarioGarden(browser); }]];   /* X = 바깥 텃밭 · 살림 다시 그리기 (검증 11-11) */
+      ['X', function () { return scenarioGarden(browser); }],   /* X = 바깥 텃밭 · 살림 다시 그리기 (검증 11-11) */
+      ['EAT', function () { return scenarioEat(browser); }],   /* EAT = 11-18 식탁 (부르기 · 데모 대답 · 효과 · 두 탭 · 2D) — lane D 가 없으면 tools/meal-stub-scene.js 대역 */
+      /* [7-U] 목록 줄: ['U7', function () { return scenario…(browser); }], */
+      ['U7', function () { return scenarioU7(browser); }],
+
+      /* [7-T] 목록 줄: ['T7', function () { return scenario…(browser); }], */
+      ['EAT', function () { return scenarioEatServe(browser); }],   /* 11-21 7차 T: 부엌 → 식탁 (들고 가기 · 새 요리 · 레시피) — SMOKE_ONLY=EAT 면 식탁 시나리오 둘 다 */
+
+      /* [7-P] 목록 줄: ['P7', function () { return scenario…(browser); }], */
+      ['P7', function () { return scenarioPlayer7(browser); }],
+
+      /* [7-W] 목록 줄: ['W7', function () { return scenario…(browser); }], */
+
+      /* [7-V] 목록 줄: ['V7', function () { return scenario…(browser); }], */
+
+      /* [7-S] 목록 줄: ['S7', function () { return scenario…(browser); }], */
+      ['S7', function () { return scenarioShop7(browser); }],
+
+      /* [7-C] 목록 줄: ['C7', function () { return scenario…(browser); }], */
+
+      /* [7-N] 목록 줄: ['N7', function () { return scenario…(browser); }], */
+
+      /* [7-F] 목록 줄: ['F7', function () { return scenario…(browser); }], */
+
+      /* [7-K] 목록 줄: ['K7', function () { return scenario…(browser); }], */
+
+      ['CAM', function () { return scenarioTurn(browser); }]];   /* CAM = 11-15 돌려 보기 (두 손가락 360° · 벽 자르기) — SMOKE_ONLY=CAM */
     for (var sc of all) {   /* 한 시나리오가 터져도 (부하 큰 기계의 시간 초과 등) 뒤 시나리오는 돈다 — 터진 것은 실패 하나로 센다 */
       if (only.length && only.indexOf(sc[0]) < 0) continue;
       try { await sc[1](); } catch (e) { fails++; console.error('\nCRASH in ' + sc[0] + ': ' + (e && e.stack || e)); }

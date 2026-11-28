@@ -202,7 +202,7 @@ var AUDIO = (function () {
     var pf = pre[id] && pre[id].f === f ? pre[id].p : null;   /* 첫 손길 전에 받아 둔 바이트 (prefetchCook) */
     delete pre[id];
     var entry = { p: null, buf: null, bytes: 0, used: ++useTick };
-    entry.p = (s.made ? Promise.resolve().then(function () { return makeSound(id, s.made); }) : (pf || fetchBuf(s.files[f], s.base)).then(decode).catch(function (e) {
+    entry.p = (s.made ? Promise.resolve().then(function () { return s.make ? s.make() : makeSound(id, s.made); }) : (pf || fetchBuf(s.files[f], s.base)).then(decode).catch(function (e) {
       if (f !== 'ogg' || !s.files.m4a) throw e;
       /* Opus 를 못 읽는 브라우저 (iOS Safari 18.4 미만) → AAC 로 한 번 더, 이후 전부 AAC */
       return fetchBuf(s.files.m4a, s.base).then(decode).then(function (b) { fmt = 'm4a'; return b; });
@@ -796,6 +796,11 @@ var AUDIO = (function () {
     else if (a === 'swap_posters' || a === 'rearrange') play(sa.tidy);
     else if (a && a !== 'nap' && a !== 'nothing') play(sa.hum);
   }
+  /* 반응을 고른 이가 모델 · 사람인가 (app.js reactionOf 와 같은 규칙: reactionBy 가 먼저, 없으면 차례의 by) */
+  function reactionGiven(trip, e) {
+    var b = (trip && trip.reactionBy) || (e && e.reactionBy) || ({ mcp: 'model', human: 'human' })[trip && trip.by] || null;
+    return b === 'model' || b === 'human';
+  }
   function onRow(d) {
     var e = d.ev || {}, trip = d.trip || {};
     if (d.skip) gs.skipping = true;
@@ -810,7 +815,8 @@ var AUDIO = (function () {
       case 'wrap_up': {
         var r = e.reaction || trip.reaction, m = r && ev(['moods', r]);
         gs.wrapReaction = r || null;   /* 곧 올 잠(state sleep)이 반응을 안 실어 오면 이걸로 자장가를 정한다 (D-1) */
-        if (m) { moodAt = now(); play(m); }   /* 기분 징글이 곧 문어 목소리 — 그 말풍선엔 블립을 얹지 않는다 */
+        /* 11-15 (주인 정직 기본값): 기분 효과음은 모델 · 사람이 직접 고른 반응에만. 데모 규칙이 고른 반응엔 내지 않는다 (말풍선 블립은 보통 목소리로) */
+        if (m && reactionGiven(trip, e)) { moodAt = now(); play(m); }   /* 기분 징글이 곧 문어 목소리 — 그 말풍선엔 블립을 얹지 않는다 */
         return;
       }
       case 'stay_home': {
@@ -893,7 +899,7 @@ var AUDIO = (function () {
     if (t - petT > 1.5) { petN = 0; play('pet_squish'); }
     petT = t; petN = Math.min(petN + 1, 5);
     play('pet_stroke_' + petN, { at: t + 0.06 });
-    if (petN === 4) play('pet_happy', { at: t + 0.3 });
+    /* 11-15: 넷째 쓰다듬기의 '뀨' (pet_happy) 는 뺐다 — 기쁨을 말하는 소리라 (주인 C3 b). 눌림 · 쓸기 소리는 몸이 눌리는 소리라 남는다 */
   }
   function onLantern(d) {
     var n = Math.max(0, Math.min(8, d.n | 0));
@@ -950,8 +956,9 @@ var AUDIO = (function () {
   var COOK_EARLY = 0.3;     /* 잠금이 풀리기 전에 온 한 번짜리 act: 풀린 뒤 이만큼(초) 안이면 튼다 */
   var COOK_FIRST = ['pick', 'tap', 'step'];   /* 켜 둔 채 부엌 페이지를 열면 첫 손길 전에 바이트만 받아 두는 소리 */
   var COOK_NEXT = {         /* 이 act 다음에 곧 쓸 소리를 미리 받는다 (해초전 순서). open = 부엌 층을 처음 받았을 때 */
-    open: COOK_FIRST, tap: ['sizzle:heat_on', 'sizzle:0'], sizzle: ['sizzle:1', 'sizzle:2', 'flip'], flip: ['cut', 'done'],
-    stir: ['stir', 'place', 'lift', 'clink'], simmer: ['stir', 'clink']
+    open: COOK_FIRST.concat(['cut']), tap: ['sizzle:heat_on', 'sizzle:0'], sizzle: ['sizzle:1', 'sizzle:2', 'flip'], flip: ['cut', 'done'],
+    stir: ['stir', 'place', 'lift', 'clink'], simmer: ['stir', 'clink'],
+    cut: ['place', 'step', 'done']   /* 11-18: 과일 꼬치는 썰기로 시작하고 (open 에 cut), 썰고 나서 꽂기(place) · 뚝(step) · 접시(done) — 뒤집기가 없다 */
   };
   var FM = null, fmP = null, fmRetry = 0;
   var CK = { band: null, hid: false, at: -1e9, fresh: false, warmed: false, pending: 0, q: Promise.resolve(), bed: 0, early: null, flip: null, log: [] };
@@ -1104,6 +1111,60 @@ var AUDIO = (function () {
     if (s.loop) { if (!(slots.cook && !slots.cook.dead && slots.cook.id === s.id) && loading.cook !== s.id) ckLoop(s.id, COOK_FADE.heat, 'start'); return; }   /* 보글 (조각 2) */
     ckShot(g, { gain: typeof m === 'object' && num(m.gain) ? m.gain : 1 });
   }
+  /* 11-18 ding (알맞게 익은 순간, 뒤집기 단계마다 한 번): 파일 없이 여기서 만든다 (문 끼익처럼) — 새 파일 · 새 출처 · 받기 없음.
+     C6 1046.5 Hz (1.0, tau 0.32 s) + C7 2093 Hz (0.35, tau 0.18 s) + 2888 Hz (0.15, tau 0.08 s) · 2 ms 어택 · 0.9 s · 끝 30 ms 페이드 ·
+     한 극 LPF 7 kHz · 크기는 문 끼익과 같은 RMS 맞춤으로 cook_step 쯤 (rel −16) · 피크 −3 dBFS 아래. 부엌 한 번짜리 길(ckShot: 효과음 · 부엌 덕킹)로 튼다.
+     켜져 있고 풀렸을 때만 (active) — 꺼져 있으면 버퍼도 ctx 도 만들지 않는다. foley/manifest.json 을 못 받아도 운다 (그것을 기다리지 않는다) */
+  var DING = { id: 'cook_ding', dur: 0.9, rel: -16, lpf: 7000, parts: [[1046.5, 1.0, 0.32], [2093, 0.35, 0.18], [2888, 0.15, 0.08]] };
+  function makeDing() {
+    var sr = ctx.sampleRate, n = Math.ceil(DING.dur * sr), y = new Float32Array(n), atk = Math.round(0.002 * sr), i, k;
+    for (i = 0; i < n; i++) {
+      var t = i / sr, v = 0;
+      for (k = 0; k < DING.parts.length; k++) { var p = DING.parts[k]; v += p[1] * Math.exp(-t / p[2]) * Math.sin(2 * Math.PI * p[0] * t); }
+      y[i] = v * (i < atk ? i / atk : 1);
+    }
+    var a = 1 - Math.exp(-2 * Math.PI * DING.lpf / sr), z = 0;
+    for (i = 0; i < n; i++) { z += a * (y[i] - z); y[i] = z; }
+    var g = dbg(-20 + DING.rel) / activeRms(y, sr), pk = 0, f = Math.round(0.03 * sr);
+    for (i = 0; i < n; i++) pk = Math.max(pk, Math.abs(y[i] * g));
+    if (pk > dbg(-3)) g *= dbg(-3) / pk;
+    for (i = 0; i < n; i++) y[i] *= g * (i >= n - f ? (n - i) / f : 1);
+    var buf = ctx.createBuffer(1, n, sr);
+    buf.getChannelData(0).set(y);
+    return buf;
+  }
+  function ckDing(e) {
+    if (Date.now() - e.wall > COOK_LATE * 1000) return;   /* 다른 한 번짜리와 같은 늦음 규칙 */
+    if (!byId[DING.id]) byId[DING.id] = { id: DING.id, kind: 'sfx', made: DING, make: makeDing, duration: DING.dur, min_gap_ms: 300, duck_db: 0 };   /* 목록을 다시 읽으면 지워지니 부를 때마다 */
+    ckShot(DING.id);
+  }
+  /* 11-21 7차 붓기 · 문지르기 (새 단계): ding 처럼 파일 없이 만든다 — 새 파일 · 새 출처 · 받기 없음. 걸러 낸 잡음 한 토막
+     (붓기 0.45 s · 300~1400 Hz · 9 Hz 로 꿀렁 / 문지르기 0.16 s · 1.8~5.2 kHz), 고정 시드 LCG 라 늘 같은 소리. 붓기는 누르고 있는 동안
+     부엌이 0.4 s 마다 다시 보낸다 (루프가 아니라 손을 떼면 0.45 s 안에 끝난다). 크기 rel −22 (ding −16 보다 작게) · 피크 −3 dBFS 아래 */
+  var SYN = { pour: { id: 'cook_pour', dur: 0.45, rel: -22, lo: 300, hi: 1400, am: 9 }, scrub: { id: 'cook_scrub', dur: 0.16, rel: -22, lo: 1800, hi: 5200, am: 0 } };
+  function makeSyn(S) {
+    return function () {
+      var sr = ctx.sampleRate, n = Math.ceil(S.dur * sr), y = new Float32Array(n), sd = 0x2545f491, lp = 0, hp = 0, i;
+      var a1 = 1 - Math.exp(-2 * Math.PI * S.hi / sr), a2 = 1 - Math.exp(-2 * Math.PI * S.lo / sr);
+      for (i = 0; i < n; i++) {
+        sd = (Math.imul(sd, 1664525) + 1013904223) | 0;
+        var w = (sd >>> 8) / 8388608 - 1; lp += a1 * (w - lp); hp += a2 * (lp - hp);
+        y[i] = (lp - hp) * Math.sin(Math.PI * i / n) * (S.am ? 0.7 + 0.3 * Math.sin(2 * Math.PI * S.am * i / sr) : 1);
+      }
+      var g = dbg(-20 + S.rel) / activeRms(y, sr), pk = 0;
+      for (i = 0; i < n; i++) pk = Math.max(pk, Math.abs(y[i] * g));
+      if (pk > dbg(-3)) g *= dbg(-3) / pk;
+      for (i = 0; i < n; i++) y[i] *= g;
+      var buf = ctx.createBuffer(1, n, sr);
+      buf.getChannelData(0).set(y);
+      return buf;
+    };
+  }
+  function ckSyn(e, S) {
+    if (Date.now() - e.wall > COOK_LATE * 1000) return;
+    if (!byId[S.id]) byId[S.id] = { id: S.id, kind: 'sfx', made: S, make: makeSyn(S), duration: S.dur, min_gap_ms: 100, duck_db: 0 };
+    ckShot(S.id);
+  }
   /* 들어오는 대로 불(band)을 기억하고, 켜져 있으면 바로 (부엌 층을 아직 받는 중이면 받은 뒤에 같은 차례로) */
   function onCook(d) {
     var act = typeof d.act === 'string' ? d.act : '';
@@ -1117,7 +1178,9 @@ var AUDIO = (function () {
       CK.hid = CK.band !== null && !!document.hidden;   /* 탭이 숨어서 멈춘 지글: 돌아와 다시 오는 sizzle 은 불 켜기가 아니다 */
       CK.band = null; CK.early = null;
     }
-    if (!active()) { if (act !== 'sizzle' && act !== 'quiet' && pref.on && !reason) CK.early = e; return; }   /* 첫 손길(팬 들기)이 잠금을 풀기 전에 왔다 */
+    if (!active()) { if (act !== 'sizzle' && act !== 'quiet' && act !== 'ding' && !SYN[act] && pref.on && !reason) CK.early = e; return; }   /* 첫 손길(팬 들기)이 잠금을 풀기 전에 왔다 */
+    if (act === 'ding') { ckDing(e); return; }
+    if (SYN[act]) { ckSyn(e, SYN[act]); return; }   /* 11-21: 붓기 · 문지르기도 파일이 없다 */   /* 11-18 ding: 파일이 없으니 부엌 층(foley 목록)을 기다리지 않는다 */
     if (FM && !CK.pending) { cookAct(e); return; }
     CK.pending++;
     CK.q = CK.q.then(loadFoley).then(guard(function (ok) { CK.pending--; if (ok) cookAct(e); }), function () { CK.pending--; });

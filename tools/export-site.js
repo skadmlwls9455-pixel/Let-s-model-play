@@ -28,6 +28,7 @@ var TAKE = [
   ['index.html',   '본 게임. 주소 /'],
   ['cook.html',    '부엌. /cook.html · /cook.html?sound=1'],
   ['credits.html', "'만든 것들': 남의 소리 · 글꼴 · three.js 크레딧과 저작권 줄. 설정 맨 아래와 부엌 조리대에서 간다"],
+  ['manifest.webmanifest', '홈 화면에 두기 (PWA) 목록: 이름 · 아이콘 (assets/icons/app/) · 세로 · 바탕색. index.html 이 가리킨다'],
   ['css/',         '화면 모양'],
   ['js/',          '게임 스크립트'],
   ['assets/',      '그림. 목록은 assets/manifest.json'],
@@ -48,7 +49,10 @@ var LEAVE = [
   ['foley/listen.html',     '부엌 소리를 들어 보는 개발용 쪽'],
   ['js/play.js',            '컵 놀이 시제품 (play.html) 전용. 본 게임에 이으면 이 줄과 아래 두 줄 · PRIVATE 의 play.html 을 같이 본다'],
   ['css/play.css',          '컵 놀이 시제품 (play.html) 전용'],
-  ['js/play-stickers.js',   '달리기 · 헤엄 반응 스티커. 아직 어느 쪽도 싣지 않는 스크립트 — 게임에 이으면 이 줄을 지운다']
+  ['js/play-stickers.js',   '달리기 · 헤엄 반응 스티커. 아직 어느 쪽도 싣지 않는 스크립트 — 게임에 이으면 이 줄을 지운다'],
+  ['js/next/',              '6차 갈래가 만드는 새 모듈 (헤엄 · 도감 · 줍기 · 손님 · 사진 · 집 방문 · 가구 표). 아직 본 게임이 싣지 않는다 — 이을 때는 파일을 옮기지 않고 자리 그대로 index.html 에 싣고 이 줄을 지운다 (wip/round6-world/README.md 6절)'],
+  ['css/next/',             '6차 갈래 새 모듈의 화면 모양. 위와 같다'],
+  ['assets/next/',          '6차 갈래 새 모듈의 그림 (갈래마다 자기 manifest.json). 이을 때 자리 그대로 싣고 이 줄을 지운다']
 ];
 
 /* ── 싣는 폴더 안에서 실어도 되는 종류. 여기 없는 종류가 있으면 (LEAVE 에도 없으면) 멈춘다 — 모르는 것을 말없이 싣지도, 말없이 빼지도 않는다.
@@ -79,7 +83,9 @@ var PRIVATE = [
   ['api/',              'Vercel 함수. Vercel 이 저장소 뿌리에서 따로 만든다 (/api/... 주소는 그대로)'],
   ['library/',          '문어가 읽는 책 · 카드. api/mcp 함수가 읽는다 (vercel.json includeFiles) — 브라우저는 읽지 않는다'],
   ['play.html',         '컵 놀이 시제품. 본 게임 어디에서도 가지 않는다 (docs/PLAY_PROTO.md). 시험은 저장소에서 그대로 돈다'],
+  ['next/',             '6차 갈래의 시험용 쪽 (next/swim.html 처럼 갈래마다 하나). 본 게임 어디에서도 가지 않는다 — 개발용으로 남는다 (본 게임에는 모듈이 창으로 들어간다, wip/round6-world/README.md 6절)'],
   ['README.md',         '저장소 설명'],
+  ['HANDOFF.md',        '다음 세션 인계 메모'],
   ['package.json',      'npm 설정 (함수 의존성 · 시험 명령)'],
   ['package-lock.json', 'npm 잠금 파일'],
   ['vercel.json',       '배포 설정'],
