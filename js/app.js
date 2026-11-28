@@ -5899,8 +5899,9 @@ var APP = (function () {
     e.stopImmediatePropagation(); e.preventDefault();
     scene.villageGo(b.id).then(function (ok) { if (!ok) return; b._vilGo = true; b.click(); b._vilGo = false; });
   }, true);
-  /* 11-24 문어 집 넷 · 미용실 (주인 결정): 문 단추는 V 가 단다. 그 집 문어가 집에 있으면 (저녁 · 밤) 들어가고, 없으면 잠김 — 사실 한 줄 ('문이 잠겨 있다. 지금은 ○○에 있다.').
+  /* 11-24 문어 집 넷 · 미용실 (주인 결정): 문 단추는 V 가 단다. 그 집 문어가 집에 있으면 (저녁 · 밤) 들어가고, 없으면 잠김 — 사실 한 줄 ('문이 잠겨 있어. 지금은 ○○에 있어.' — VILLAGE.lockedLine).
      미용 의자 (방 안) 는 앉기 / 일어나기 — 앉으면 장면이 'ppol:salon-seat' 을 보낸다 (목록은 S · 색은 P) */
+  if (window.VILLAGE && VILLAGE.ROOMS) Object.keys(VILLAGE.ROOMS).forEach(function (k) { if (!INSIDE_NAME[k] && VILLAGE.ROOMS[k].name) INSIDE_NAME[k] = VILLAGE.ROOMS[k].name; });   /* 방 안의 #scene 이름 (화면 낭독기): 집 넷 · 미용실도 제 이름으로 — 없으면 '가게 안' 으로 읽혔다 (11-28 검토) */
   var VIL_HOME_DOORS = { 'btn-in-home-1': 'home1', 'btn-in-home-2': 'home2', 'btn-in-home-3': 'home3', 'btn-in-home-4': 'home4', 'btn-in-salon': 'salon' };
   document.addEventListener('click', function (e) {
     var b = e.target && e.target.closest ? e.target.closest('button.scene-spot') : null; if (!b || !scene) return;
