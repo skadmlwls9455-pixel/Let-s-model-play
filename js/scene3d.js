@@ -1744,6 +1744,7 @@ var SCENE3D = (function () {
        → 바닥을 0.1 m 칸으로 나눠 칸마다 '가장 가까운 가구 · 계단까지의 틈' 을 재 두고 (navBuild — 가구 배치 열쇠가 바뀌면 다시), A* 로 간다 (navPlan):
          · 틈 ≥ 0.42 m (몸 반지름 OCT_PAD) 은 그냥 · 0.2 ~ 0.42 m 는 비싸게 (가구에 붙어 가지 않되, 상자 옆 자리 · 좁은 틈에서 출발 · 도착은 된다) · 0.2 m 아래 = 막힘
          · 길이 없으면 가장 낮은 가구부터 하나씩 '넘어도 됨' 으로 다시 → 그 가구 위 칸들이 폴짝 한 번 (높이 = 가구 키 + 0.12 m)
+         · 걸어갈 길이 곧은 거리 × 2 + 1.5 m 보다 멀어도 (리드 11-24) 같은 차례로 폴짝 길을 보고, 1 s 넘게 빠르면 그쪽 (navPlan)
          · 칸 길은 당겨서 줄이고 (곧은 마디가 끝점에서 멀어질수록 틈이 늘어야 — 좁은 자리는 마디 끝으로 남는다) 꺾인 곳은 2차 곡선으로 둥글린다 (틈을 줄이지 않는 데까지)
        걸음 빠르기 · 의식 박자 · 소리는 그대로 — 길만 바뀐다 (길이 길어지면 그만큼 더 걷는다). 다락 · 위층 (문어가 미용실에 올라가 있을 때) */
     var NAV = { key: '', nav: null, builds: 0, last: null, hopNow: false, hopSq: 0, decal: false, warm: 0 }, NAV_CELL = 0.1, NAV_RMIN = 0.2, NAV_HOP_TOP = 0.12;   /* hopNow = 이 프레임에 가구 위로 폴짝 중 (접지 그림자를 줄인다) · hopSq = 그 폴짝의 몸 눌림 (+ 웅크림 · 내려앉음 / − 늘어남) */
@@ -1769,20 +1770,20 @@ var SCENE3D = (function () {
     function navCellOf(nav, x, z) { var s = nav.spec, i = Math.round((x - s.x0) / nav.c), j = Math.round((z - s.z0) / nav.c); i = Math.max(0, Math.min(nav.nx - 1, i)); j = Math.max(0, Math.min(nav.nz - 1, j)); return j * nav.nx + i; }
     function navXZ(nav, id) { var s = nav.spec, i = id % nav.nx, j = (id - i) / nav.nx; return [s.x0 + i * nav.c, s.z0 + j * nav.c]; }
     /* 칸 비용: 틈이 rIn 넘으면 1 · rMin ~ rIn 이면 1 ~ 9 (가구에 붙어 가지 않게) · rMin 아래 = 막힘 (hop 이면 무른 가구는 지나되 비싸게) */
-    function cellCost(nav, id, hop) {   /* hop = 넘어도 되는 가장 높은 가구 키 (0 = 안 넘는다) */
+    function cellCost(nav, id, hop, wt) {   /* hop = 넘어도 되는 가장 높은 가구 키 (0 = 안 넘는다) · wt = 먼 돌아가기 찾기의 값 { band, top, takeoff } (없으면 곁 무게 8 · 가구 위 12) */
       if (nav.hard[id]) return -1;
       var s = nav.spec, d = nav.clr[id];
       if (d >= s.rIn) return 1;
-      if (d >= s.rMin) return 1 + 8 * (s.rIn - d) / (s.rIn - s.rMin);
+      if (d >= s.rMin) return 1 + (wt ? wt.band : 8) * (s.rIn - d) / (s.rIn - s.rMin);
       if (!hop || !(nav.soft[id] > 0) || nav.soft[id] > hop + 1e-6) return -1;
-      return 12;   /* 가구 위 칸은 비싸게 — 넘는 거리를 짧게 */
+      return wt ? wt.top : 12;   /* 가구 위 칸은 비싸게 — 넘는 거리를 짧게 (먼 돌아가기 찾기에선 걸리는 시간대로: 아래 NAV_DETOUR_WT) */
     }
     function heapPush(h, f, id) { h.push([f, id]); var i = h.length - 1; while (i > 0) { var p = (i - 1) >> 1; if (h[p][0] <= h[i][0]) break; var t = h[p]; h[p] = h[i]; h[i] = t; i = p; } }
     function heapPop(h) { var top = h[0], last = h.pop(); if (h.length) { h[0] = last; var i = 0; for (;;) { var l = 2 * i + 1, r = l + 1, m = i; if (l < h.length && h[l][0] < h[m][0]) m = l; if (r < h.length && h[r][0] < h[m][0]) m = r; if (m === i) break; var t = h[m]; h[m] = h[i]; h[i] = t; i = m; } } return top; }
-    function navAStar(nav, sId, gId, hop) {
+    function navAStar(nav, sId, gId, hop, wt) {
       var n = nav.nx * nav.nz, g = new Float32Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), done = new Uint8Array(n), H = [], nx = nav.nx;
-      var gx = gId % nx, gz = (gId - gx) / nx;
-      function hh(id) { var x = id % nx, z = (id - x) / nx, dx = Math.abs(x - gx), dz = Math.abs(z - gz); return (Math.max(dx, dz) + 0.41421356 * Math.min(dx, dz)); }
+      var gx = gId % nx, gz = (gId - gx) / nx, lo = wt ? Math.min(1, wt.top) : 1, tk = wt ? wt.takeoff : 0, rMin = nav.spec.rMin;   /* lo = 가장 싼 칸 값 (어림값이 넘치지 않게) · tk = 바닥 → 가구 위로 뛰어오르기 값 */
+      function hh(id) { var x = id % nx, z = (id - x) / nx, dx = Math.abs(x - gx), dz = Math.abs(z - gz); return lo * (Math.max(dx, dz) + 0.41421356 * Math.min(dx, dz)); }
       g[sId] = 0; heapPush(H, hh(sId), sId);
       var D = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.41421356], [1, -1, 1.41421356], [-1, 1, 1.41421356], [-1, -1, 1.41421356]];
       while (H.length) {
@@ -1792,9 +1793,10 @@ var SCENE3D = (function () {
         for (var k = 0; k < 8; k++) {
           var vx = ux + D[k][0], vz = uz + D[k][1]; if (vx < 0 || vz < 0 || vx >= nx || vz >= nav.nz) continue;
           var v = vz * nx + vx; if (done[v]) continue;
-          var cv = v === gId ? 1 : cellCost(nav, v, hop); if (cv < 0) continue;   /* 도착 칸은 늘 들어간다 (자리는 앵커가 정한다) */
-          if (k >= 4) { var a = uz * nx + vx, b = vz * nx + ux; if (cellCost(nav, a, hop) < 0 || cellCost(nav, b, hop) < 0) continue; }   /* 모서리 자르기 없음 */
-          var cu = u === sId ? 1 : Math.max(1, cellCost(nav, u, hop)), nd = g[u] + D[k][2] * (cu + cv) / 2;
+          var cv = v === gId ? 1 : cellCost(nav, v, hop, wt); if (cv < 0) continue;   /* 도착 칸은 늘 들어간다 (자리는 앵커가 정한다) */
+          if (k >= 4) { var a = uz * nx + vx, b = vz * nx + ux; if (cellCost(nav, a, hop, wt) < 0 || cellCost(nav, b, hop, wt) < 0) continue; }   /* 모서리 자르기 없음 */
+          var cu = u === sId ? 1 : Math.max(lo, cellCost(nav, u, hop, wt)), nd = g[u] + D[k][2] * (cu + cv) / 2;
+          if (tk && v !== gId && nav.clr[v] < rMin && !(nav.clr[u] < rMin)) nd += tk;   /* 먼 돌아가기 찾기: 폴짝 한 번 (0.68 s) 의 값을 뛰어오르는 칸에서 */
           if (nd < g[v]) { g[v] = nd; prev[v] = u; heapPush(H, nd + hh(v), v); }
         }
       }
@@ -1852,12 +1854,46 @@ var SCENE3D = (function () {
         return best;
       }
       var s0 = navCellOf(nav, from[0], from[1]), g0 = navCellOf(nav, to[0], to[1]), sId = dock(s0), gId = dock(g0);
-      var cells = navAStar(nav, sId, gId, 0), mode = 'walk', hopLim = 0;
-      if (!cells) {   /* 막혔다: 가장 낮은 가구부터 하나씩 넘어도 되게 (주인 11-24: '막히면 가장 낮은 가구 위로 폴짝') */
-        var hs = s.rects.filter(function (r) { return !r.hard && r.h > 0; }).map(function (r) { return r.h; }).sort(function (a, b) { return a - b; }).filter(function (h, i, A) { return !i || h > A[i - 1] + 1e-6; });   /* 같은 키는 한 번만 */
-        for (var q0 = 0; q0 < hs.length && !cells; q0++) { cells = navAStar(nav, sId, gId, hs[q0]); mode = 'hop'; hopLim = hs[q0]; }
+      var hs = s.rects.filter(function (r) { return !r.hard && r.h > 0; }).map(function (r) { return r.h; }).sort(function (a, b) { return a - b; }).filter(function (h, i, A) { return !i || h > A[i - 1] + 1e-6; });   /* 넘어도 되는 키 — 낮은 것부터 · 같은 키는 한 번만 */
+      var cells = navAStar(nav, sId, gId, 0), q0;
+      if (cells) {
+        var w = navShape(nav, from, to, cells, sId, s0, gId, g0, 0);
+        /* [7-W] 리드 11-24 (주인 결정 '막히면 폴짝' 의 '막힘' 을 '너무 먼 돌아가기' 까지): 걷는 길이 곧은 거리 × 2 + 1.5 m 보다 길면
+           폴짝 길도 찾는다 — 가장 낮은 가구부터 (막혔을 때와 같은 규칙), 걸리는 시간이 1 s 넘게 짧아지는 첫 높이에서. 아니면 걷는다.
+           이 찾기의 칸 값은 걸리는 시간대로 (NAV_DETOUR_WT): 보통 값 (가구 위 12) 이면 가구 곁 좁은 통로를 지나는 걷기 길이나 9 m 돌아가는 쪽이 싸게 나와
+           넘는 길을 놓치거나 (검토: 무작위 배치에서 넘어야 할 길의 25 %) 더 높은 가구를 넘었다 */
+        if (navLen(from, w.pts) > 2 * Math.hypot(to[0] - from[0], to[1] - from[1]) + NAV_DETOUR_M) {
+          var tw = navTime(from, w), lim = Infinity;
+          for (q0 = 0; q0 < hs.length && hs[q0] <= lim + 1e-6; q0++) {
+            var c2 = navAStar(nav, sId, gId, hs[q0], NAV_DETOUR_WT); if (!c2) continue;
+            var h2 = navShape(nav, from, to, c2, sId, s0, gId, g0, hs[q0]);
+            if (!(h2.hops.length && navTime(from, h2) + NAV_DETOUR_SAVE < tw)) continue;
+            if (navHopClean(nav, from, h2)) { h2.detour = true; return h2; }
+            if (lim === Infinity) lim = Math.max(hs[q0] + NAV_DETOUR_DH, NAV_DETOUR_LOW);   /* 가장 낮은 빠른 폴짝이 가구 틈에 끼면 (꼭 해야 하는 폴짝이 아니니) 0.35 m 안쪽으로 높은 것 · 1.2 m 까지의 낮은 것까지만 더 보고, 없으면 걷는다 */
+          }
+        }
+        return w;
       }
-      if (!cells) return { pts: [to.slice()], hops: [], ok: false, mode: 'none' };
+      for (q0 = 0; q0 < hs.length; q0++) { cells = navAStar(nav, sId, gId, hs[q0]); if (cells) return navShape(nav, from, to, cells, sId, s0, gId, g0, hs[q0]); }   /* 막혔다: 가장 낮은 가구부터 하나씩 넘어도 되게 (주인 11-24: '막히면 가장 낮은 가구 위로 폴짝') */
+      return { pts: [to.slice()], hops: [], ok: false, mode: 'none' };
+    }
+    var NAV_DETOUR_M = 1.5, NAV_DETOUR_SAVE = 1.0;   /* 먼 돌아가기: 곧은 거리 × 2 + 1.5 m 넘게 걸을 때만 폴짝 길을 보고, 1 s 넘게 빨라야 고른다 */
+    var NAV_DETOUR_WT = { band: 8, top: 0.264, takeoff: 8.16 };   /* 그 찾기의 칸 값 = 걸리는 시간 (걷는 칸 0.1 m ÷ 1.2 m/s = 1): 가구 위 칸 0.22 s/m → 0.264 · 뛰어오르기 0.68 s → 8.16 · 가구 곁 무게는 보통 그대로 */
+    var NAV_DETOUR_CLR = 0.3, NAV_DETOUR_DH = 0.35, NAV_DETOUR_LOW = 1.2;   /* 먼 돌아가기 폴짝은 뛰는 · 내리는 자리가 가구에서 0.3 m 넘게 트여야 (좁은 틈에 끼어 웅크리면 몸이 가구에 묻혀 보였다 — 검토) · 그게 아니면 0.35 m 안쪽으로 높은 것이나 1.2 m 까지의 낮은 것 (소품 · 작은 소파 · 기본 크기 상자) 까지만 — 큰 상자로 넘어가지 않게 */
+    function navHopClean(nav, from, r) { var s = nav.spec; return r.hops.every(function (H) { var a = H.i0 > 0 ? r.pts[H.i0 - 1] : from, b = r.pts[H.i1]; return rectsClear(s, a[0], a[1]) >= NAV_DETOUR_CLR && rectsClear(s, b[0], b[1]) >= NAV_DETOUR_CLR; }); }
+    function navLen(from, pts) { var a = from, L = 0; for (var i = 0; i < pts.length; i++) { L += Math.hypot(pts[i][0] - a[0], pts[i][1] - a[1]); a = pts[i]; } return L; }
+    function navTime(from, r) {   /* 길에 걸리는 시간 (s): 걷기 1.2 m/s (moveTo) · 폴짝 묶음마다 planHopT (웅크림 · 공중 · 내려앉음) */
+      var t = 0, a = from, g = 0, gl = 0;
+      for (var i = 0; i < r.pts.length; i++) {
+        var b = r.pts[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]), H = r.hops[g];
+        if (H && i >= H.i0 && i <= H.i1) { gl += l; if (i === H.i1) { t += planHopT(gl); gl = 0; g++; } } else t += l / 1.2;
+        a = b;
+      }
+      return t;
+    }
+    /* 칸 길 → 점 · 폴짝 구간 (navPlan). hopLim = 넘어도 되는 가장 높은 키 (0 = 걷기만) */
+    function navShape(nav, from, to, cells, sId, s0, gId, g0, hopLim) {
+      var s = nav.spec, mode = hopLim > 0 ? 'hop' : 'walk';
       var P = cells.map(function (id) { return navXZ(nav, id); });
       if (sId !== s0) P.unshift(from.slice()); else P[0] = from.slice();   /* 댄 칸은 남긴다 (그 칸까지 곧장 · 거기서부터 길) */
       if (gId !== g0) P.push(to.slice()); else P[P.length - 1] = to.slice();
@@ -1929,7 +1965,7 @@ var SCENE3D = (function () {
       var midY = Math.min(from.y, to.y);   /* 가운데 점은 낮은 쪽 높이 — 담요 (0.12) 로 가는 길은 마지막 마디에서만 올라선다 (예전엔 길 내내 떠서 걸었다) */
       r.pts.forEach(function (q, i) { var p = i === r.pts.length - 1 ? to.clone() : new T.Vector3(q[0], midY, q[1]); plan.pts.push(p); plan.len.push(Math.hypot(p.x - a.x, p.z - a.z)); plan.grp.push(-1); plan.yaw.push(q.length > 2 ? q[2] : null); a = p; });
       r.hops.forEach(function (h, g) { var L = 0; for (var i = h.i0; i <= h.i1; i++) { plan.grp[i] = g; L += plan.len[i]; } plan.groups.push({ i0: h.i0, i1: h.i1, len: L, h: h.h + NAV_HOP_TOP }); });
-      NAV.last = { from: [from.x, from.z], to: [to.x, to.z], mode: r.mode, pts: r.pts.length, hops: r.hops.map(function (h) { return +h.h.toFixed(2); }) };
+      NAV.last = { from: [from.x, from.z], to: [to.x, to.z], mode: r.mode, pts: r.pts.length, hops: r.hops.map(function (h) { return +h.h.toFixed(2); }), detour: !!r.detour };   /* detour = 걸어갈 길은 있었지만 너무 멀어 폴짝을 골랐다 */
       return plan;
     }
     function octRoute(from, to) { return octPlan(from, to).pts; }   /* (예전 이름 — 점만) */
@@ -2879,7 +2915,7 @@ var SCENE3D = (function () {
       if (st.reduced || ctxLost() || dist < 0.05) { oct.pos.copy(to); snapScreen(octG.position.copy(to)); oct.wantYaw = camYaw(); done(); return Promise.resolve(val); }   /* 컨텍스트를 잃으면 프레임이 안 돌아 걸음이 안 끝난다 → 바로 도착 */
       var plan = octPlan(from, to);   /* [7-W] 다섯째 바퀴: 칸 지도 길 (가구를 돌아서 · 막히면 가장 낮은 가구 위로 폴짝) */
       d.set(plan.pts[0].x - from.x, 0, plan.pts[0].z - from.z); if (d.x * d.x + d.z * d.z > 1e-8) oct.wantYaw = Math.atan2(d.x, d.z);
-      var endHop = plan.groups.length && plan.groups[plan.groups.length - 1].i1 === plan.pts.length - 1;   /* 폴짝으로 끝나는 길이면 도착 통통은 건너뛴다 (두 번 연달아 뛰지 않게) */
+      var endHop = false; if (plan.groups.length) { var gl = plan.groups[plan.groups.length - 1], rest = 0; for (var ri = gl.i1 + 1; ri < plan.pts.length; ri++) rest += plan.len[ri]; endHop = rest < 0.3; }   /* 폴짝으로 끝나거나 내린 뒤 0.3 m 안쪽만 걸으면 도착 통통은 건너뛴다 (두 번 연달아 뛰지 않게 — [7-W] 검토: 문 앞 0.14 m 에 내려 한 번 더 통통) */
       var pdur = planDur(plan, 1.2), dur = pdur * st.speed, hopDur = endHop ? 0 : 0.3 * st.speed, hold = anticHold(), k = 0, cancelled = false;   /* hold = 서 있다 출발할 때 120 ms 예비 동작 (뒤뚱 걸음) */
       return new Promise(function (resolve) {
         var land = null;   /* [7-W] 폴짝 중이면 내리는 자리 — 걷기가 끊기면 (새 걸음 · 의식 · 순간 이동) 가구 위 공중에 남지 않고 거기 내려앉는다 */
@@ -2894,7 +2930,7 @@ var SCENE3D = (function () {
           w.gait = false;
           var hk = (kw - dur) / hopDur;
           if (hk < 1) { oct.pos.copy(to); oct.hop = Math.sin(hk * Math.PI) * 0.4; return; }
-          oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(val);
+          oct.pos.copy(to); oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(val);   /* [7-W] 끝은 늘 그 자리에 (도착 통통을 건너뛰면 마지막 프레임이 1 ~ 4 cm 못 미친 채 남았다 — 검토) */
         } };
       });
     }

@@ -665,6 +665,10 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
       sc.setLayout({ sofa: [-1.75, 2.0, 90, 0.7], crate: [0, 2.75, 0, 1.4] }); sc.debugSim(1 / 60, 2); sc.jumpTo('window'); sc.debugSim(1 / 60, 2);
       out.stairTo = await watch(function () { return sc.moveTo('crate'); }, 900); out.stairAt = sc.octNav().at;
       out.stairBack = await watch(function () { return sc.moveTo('window'); }, 900);
+      /* ⑦ 먼 돌아가기 (리드 11-24 — '막히면 폴짝' 의 '막힘' 을 '너무 먼 돌아가기' 까지): 가구 모드 규칙 안 배치 (1.3 배 소파 · 1.5 배 상자) 에서 판자 자리 → 문 (곧은 거리 1.6 m) —
+         상자와 뒷벽 사이 통로를 지도가 막아, 예전엔 방을 한 바퀴 (10.8 m · 9 s) 돌아 걸었다 → 가장 낮은 것부터 넘어 보고 1 s 넘게 빠른 폴짝 길 */
+      sc.setLayout({ sofa: [0.75, 0.75, 0, 1.3], crate: [0.5, -1, 0, 1.5] }); sc.debugSim(1 / 60, 2); sc.jumpTo('board'); sc.debugSim(1 / 60, 2);
+      out.detour = await watch(function () { return sc.moveTo('door'); }, 900);
       /* ① 문을 둘러싼 배치 (가구 모드 규칙 안 — 문 앞 금지 구역 둘레: 상자를 왼쪽 · 소파를 돌려 크게 앞을 막고 오른쪽 벽까지) 에서 출발 */
       sc.setLayout({ crate: [0.78, -1.95, 0, 1], sofa: [2.2, -1.09, 90, 1.2] }); sc.debugSim(1 / 60, 2); sc.jumpTo('center'); sc.debugSim(1 / 60, 2);
       out.depart = await watch(function () { return sc.departCeremony(); }, 900);
@@ -677,6 +681,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     ok(nv.gap.bad === 0 && Math.min.apply(null, nv.tight) < 0.42 && nv.gap.last && nv.gap.last.mode !== 'none', 'L14 문어 둘레로 가구를 바짝 붙여도 (틈 ' + JSON.stringify(nv.tight) + ' m) 문으로 가는 길에 뚫은 프레임 ' + nv.gap.bad + ' · 가장 좁은 틈 ' + nv.gap.minC + ' m · ' + JSON.stringify(nv.gap.last));
     ok(nv.fm === true && nv.moved >= 6 && nv.rebuilt === true && nv.fmWalk.bad === 0 && nv.fmWalk.last && nv.fmWalk.last.mode === 'walk', 'L14 가구 모드로 옮긴 상자 (' + nv.moved + ' 칸 → ' + JSON.stringify(nv.fmLayout) + ' — 창가에서 문으로 가는 곧은 길 위): 칸 지도를 다시 짓고 (' + nv.rebuilt + ') 돌아서 가며 뚫은 프레임 ' + nv.fmWalk.bad + ' · ' + JSON.stringify(nv.fmWalk.last));
     ok(nv.loftUp === true && nv.loft && nv.loft.bad === 0, 'L14 위층 거울로 가는 길도 가구를 안 뚫는다 (뚫은 프레임 ' + (nv.loft && nv.loft.bad) + ' · ' + JSON.stringify(nv.loft && nv.loft.last) + ')');
+    ok(nv.detour.bad === 0 && nv.detour.last && nv.detour.last.mode === 'hop' && nv.detour.last.detour === true && nv.detour.frames <= 300, 'L14 먼 돌아가기 (1.3 배 소파 · 1.5 배 상자): 판자 자리 → 문 (곧은 거리 1.6 m) 을 예전처럼 방을 한 바퀴 (10.8 m · 9 s) 돌지 않고 가장 낮은 것 (' + (nv.detour.last && nv.detour.last.hops) + ' m) 위로 폴짝 · ' + nv.detour.frames + ' 프레임 안에 도착 · 뚫은 프레임 ' + nv.detour.bad + ' · ' + JSON.stringify(nv.detour.last));
     await o.ctx.close();
   } catch (e) {
     fails++; console.error('CRASH ' + (e && e.stack || e));
