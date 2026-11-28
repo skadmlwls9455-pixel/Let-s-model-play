@@ -6489,16 +6489,18 @@ async function scenarioLoft(browser) {
   var seen = {}, guard = 0;
   while (guard++ < 400) {
     await tick(pg, 0.5); s = await S(pg);
-    var ph = s.cer === 'depart' ? '나가는 중' : s.cer === 'return' ? '돌아오는 중' : s.st === 'away' ? '나가 있음' : null;
+    var hw = await pg.evaluate(function () { return APP.homeWaiting === true; });
+    var ph = s.cer === 'depart' ? '나가는 중' : s.cer === 'return' ? '돌아오는 중' : hw ? '귀가 기다림' : s.st === 'away' ? '나가 있음' : null;   /* 11-24: 위층에 있는 동안 돌아오면 귀가 장면은 다락에 내려올 때 (기다림) */
     if (ph && !seen[ph]) {
       seen[ph] = 1;
       if (!s.room && s.stairVis === 'visible') await stair(pg, true);
       allGood = await mirror(ph + ' (' + ((await S(pg)).room || '다락') + ')', { hidden: true, toast: ph === '나가 있음' ? '지금은 산책 나가 있어.' : '' }) && allGood;
+      if (ph === '귀가 기다림') await stair(pg, false);   /* 내려가면 귀가 장면 → 그동안 다시 올라가 '돌아오는 중' 거울 */
     }
     if (seen['돌아오는 중'] && !s.cer && s.st !== 'away') break;
   }
   console.log('   거울 한 줄:', lines.join(' | '));
-  ok(allGood && seen['나가 있음'], '위층의 거울: 문어 상태마다 시트 아니면 사실 한 줄 (깨우지 않음 · 물음 · 행 · 미용실 소리 0) — ' + Object.keys(seen).join(' · '));
+  ok(allGood && seen['나가 있음'] && seen['귀가 기다림'] && seen['돌아오는 중'], '위층의 거울: 문어 상태마다 시트 아니면 사실 한 줄 (깨우지 않음 · 물음 · 행 · 미용실 소리 0) — ' + Object.keys(seen).join(' · '));
   reportErrors(bag, 'Z-3'); await A.ctx.close();
   }
 
@@ -7401,6 +7403,10 @@ async function scenarioGarden(browser) {
   var dep = await pY.evaluate(function () { window.__dep = new Promise(function (r) { APP.scene.departCeremony(r); }); return new Promise(function (res) { requestAnimationFrame(function () { requestAnimationFrame(function () { var b = document.getElementById('btn-yard'), hid = b.hidden, cer0 = APP.scene.ceremony(); Promise.resolve(APP.goRoom('yard')).then(function (r) { res({ cer: cer0, hidden: hid, r: r, view: APP.scene.view() }); }); }); }); }); });
   await pY.evaluate(function () { return window.__dep; });
   ok(dep.cer === 'depart' && !dep.hidden && dep.r && dep.r.ok === true && dep.view === 'yard', '문어 출발 의식 동안에도 마당 문이 보이고 · 마당으로 나간다 (' + JSON.stringify(dep.r) + ')');
+  /* 귀가 의식 동안 (문어가 그 문간으로 들어온다) 은 그대로 막는다 (11-24 검토: 남은 문 잠금도 시험): 마당 현관 단추는 숨고 goRoom('attic') 은 'ceremony' 로 기다리라고 돌려준다 */
+  var ret = await pY.evaluate(function () { window.__ret = new Promise(function (r) { APP.scene.returnCeremony(r); }); return new Promise(function (res) { requestAnimationFrame(function () { requestAnimationFrame(function () { var b = document.getElementById('btn-yard-door'), hid = !b || b.hidden, cer0 = APP.scene.ceremony(); Promise.resolve(APP.goRoom('attic')).then(function (r) { res({ cer: cer0, hidden: hid, r: r, view: APP.scene.view() }); }); }); }); }); });
+  await pY.evaluate(function () { return window.__ret; });
+  ok(ret.cer === 'return' && ret.hidden && ret.r && ret.r.ok === false && ret.r.reason === 'ceremony' && ret.view === 'yard', '문어 귀가 의식 동안엔 마당 현관이 기다린다 (단추 숨음 · ' + JSON.stringify(ret.r) + ')');
   await cY.close();
   reportErrors(bag, 'X');
 }
