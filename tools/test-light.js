@@ -683,6 +683,46 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     ok(nv.loftUp === true && nv.loft && nv.loft.bad === 0, 'L14 위층 거울로 가는 길도 가구를 안 뚫는다 (뚫은 프레임 ' + (nv.loft && nv.loft.bad) + ' · ' + JSON.stringify(nv.loft && nv.loft.last) + ')');
     ok(nv.detour.bad === 0 && nv.detour.last && nv.detour.last.mode === 'hop' && nv.detour.last.detour === true && nv.detour.frames <= 300, 'L14 먼 돌아가기 (1.3 배 소파 · 1.5 배 상자): 판자 자리 → 문 (곧은 거리 1.6 m) 을 예전처럼 방을 한 바퀴 (10.8 m · 9 s) 돌지 않고 가장 낮은 것 (' + (nv.detour.last && nv.detour.last.hops) + ' m) 위로 폴짝 · ' + nv.detour.frames + ' 프레임 안에 도착 · 뚫은 프레임 ' + nv.detour.bad + ' · ' + JSON.stringify(nv.detour.last));
     await o.ctx.close();
+    /* ── L15 (7차 다섯째 바퀴 갈래 W · 갈래 V 알림 11-28) 마을 걸음 · 방 나오기 셋 (넓은 바깥) ──
+       ① 움직임 줄이기에서 옷가게를 나오면 가게 문어 단추 (바깥 자리 · 방 안 자리가 같이 쓰는 btn-npc-clothes) 가 다시 보인다 (예전: 숨은 채 남았다)
+       ② 미용 의자에서 일어나는 폴짝 중에 문 앞에서 바로 나가도 (스틱으로 문 밖 밀기와 같은 길) 미용실 문 밖에 서고 폴짝 약속이 풀린다
+          (예전: 방 안 통로 좌표 그대로 마당 가운데 (−0.3, −0.35) 로 튀었다)
+       ③ 60 fps 걸음이 끝까지 간다: 해변 표지판 옆 → 둔덕 · 숲길 → 마당 안 · 마당 안 → 숲길 (예전: 표지판 둘레를 스쳐 서고 다시 눌러도 섬 · 숲길에서 마당으로는 곧장 걸어 9.5 에서 섬) */
+    o = await open(browser, 8, { hour: 13, weather: 'clear' }, null, '&wide=1'); page = o.page;
+    var vw = await page.evaluate(async function () {
+      var sc = APP.scene, K = Math.SQRT1_2, tick = function () { return new Promise(function (q) { setTimeout(q, 0); }); }, out = {}, D = {};
+      async function pump(p, n) { var v = null, f = 0; p.then(function (q) { v = q; }, function () { v = false; }); await tick(); for (; f < (n || 300) && v === null; f++) { sc.debugSim(0.05, 1); await tick(); } return v; }
+      function xz(s, t) { return [(s + t) * K, (s - t) * K]; }
+      function st() { var a = sc.player().at; return [+((a[0] + a[2]) * K).toFixed(2), +((a[0] - a[2]) * K).toFixed(2)]; }
+      function stand(k) { var q = xz(D[k].stand[0], D[k].stand[1]); sc.debugPlayerAt(q[0], q[1]); sc.wideFocus(); sc.debugSim(0.05, 6); return sc.player().at; }
+      VILLAGE.DOORS.forEach(function (d) { D[d.room] = d; });
+      await pump(APP.goRoom('yard'), 300); sc.debugSim(0.05, 20);
+      sc.setReducedMotion(true); stand('clothes'); sc.debugStep(0.05);
+      var el = document.getElementById('btn-npc-clothes'); out.b0 = !!el && !el.hidden;
+      var e1 = await pump(sc.enterRoom('clothes'), 400); sc.debugSim(0.05, 6);
+      var l1 = await pump(sc.leaveRoom(), 400); sc.debugSim(0.05, 6); sc.debugStep(0.05); sc.debugStep(0.05);
+      out.clothes = { inOk: !!(e1 && e1.ok), outOk: !!(l1 && l1.ok), room: sc.inRoom(), shown: !!el && !el.hidden };
+      sc.setReducedMotion(false);
+      if (!sc.salonSit) out.salon = { skip: true };   /* 미용실 방 (salonSit) 이 아직 없는 가지 */
+      else {
+        var a0 = stand('salon'), e2 = await pump(sc.enterRoom('salon'), 400); sc.debugSim(0.05, 6);
+        var s1 = await pump(sc.salonSit(true), 300), up = null; sc.salonSit(false).then(function (q) { up = q; }); sc.debugSim(1 / 60, 2);
+        var mid = up === null, l2 = await pump(sc.leaveRoom(true), 400); sc.debugSim(0.05, 30); await tick(); var a1 = sc.player().at;
+        out.salon = { inOk: !!(e2 && e2.ok), sat: s1, mid: mid, outOk: !!(l2 && l2.ok), room: sc.inRoom(), place: sc.player().place, sitting: sc.playerSitting(), up: up, at: a1, off: +Math.hypot(a1[0] - a0[0], a1[2] - a0[2]).toFixed(2) };
+      }
+      async function walk(s0, s1) {
+        var p0 = xz(s0[0], s0[1]), p1 = xz(s1[0], s1[1]), done = null, f = 0; sc.debugPlayerAt(p0[0], p0[1]); sc.wideFocus(); sc.debugSim(0.05, 4);
+        sc.playerWalkPath([p1]).then(function (q) { done = q; });
+        for (; f < 1800 && done === null; f++) { sc.debugSim(1 / 60, 1); if (f % 60 === 59) await tick(); }
+        var e = st(); return { end: e, miss: +Math.hypot(e[0] - s1[0], e[1] - s1[1]).toFixed(2), s: +(f / 60).toFixed(1) };
+      }
+      out.sign = await walk([49.4, -0.4], [55.3, 4.7]); out.into = await walk([12, 1.5], [-3, 2]); out.outof = await walk([0, 0], [12, 1.5]);
+      return out;
+    });
+    ok(vw.b0 && vw.clothes.inOk && vw.clothes.outOk && vw.clothes.room === null && vw.clothes.shown, 'L15 움직임 줄이기에서 옷가게를 나오면 가게 문어 단추 (바깥 · 방 안 자리가 같이 쓰는 btn-npc-clothes) 가 다시 보인다 ' + JSON.stringify(vw.clothes));
+    ok(vw.salon.skip || (vw.salon.inOk && vw.salon.sat === true && vw.salon.mid && vw.salon.outOk && vw.salon.place === 'yard' && !vw.salon.sitting && vw.salon.up !== null && vw.salon.off < 1.5), 'L15 미용 의자에서 일어나는 폴짝 중에 문 앞에서 바로 나가도 미용실 문 밖에 선다 ' + (vw.salon.skip ? '(건너뜀 — 미용실 방이 없는 가지)' : '(들어가기 전 자리에서 ' + vw.salon.off + ' m · 앉음 풀림 · 폴짝 약속 풀림) ' + JSON.stringify(vw.salon)));
+    ok([vw.sign, vw.into, vw.outof].every(function (w) { return w.miss < 0.1; }), 'L15 60 fps 걸음이 끝까지 간다: 해변 표지판 옆 → 둔덕 · 숲길 → 마당 안 (울타리 문을 거쳐) · 마당 안 → 숲길 ' + JSON.stringify([vw.sign, vw.into, vw.outof]));
+    await o.ctx.close();
   } catch (e) {
     fails++; console.error('CRASH ' + (e && e.stack || e));
   } finally { await browser.close(); }

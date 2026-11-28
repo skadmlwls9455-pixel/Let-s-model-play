@@ -3520,9 +3520,9 @@ var SCENE3D = (function () {
     function plRouteAll(from, to, boxes, circles) {   /* 11-18 (검증): '상자 하나 돌기' 로 길이 안 나올 때 — 상자 여럿이 겹쳐 막는 자리 (마당 왼쪽 · 집 뒤에서 집 문: 집 몸통 · 현관 옆 · 우체통 · 나무).
                                                        장애물 모서리 (상자는 둘레 +0.05 · 둥근 것은 감싸는 네모의 모서리) 가운데 서로 보이는 것끼리 이어 가장 짧은 길 (다익스트라). 없으면 null → 예전처럼
                                                        (출발 · 도착이 둘레 안 · 가구로 둘러싸인 칸). 넓은 바깥에선 마당 안에서만 (울타리 밖은 걷는 곳이 띠뿐이라 playerWalkTo 가 울타리 문을 먼저 거친다) */
-      var wide = YARD_WIDE && PL.place === 'yard', m = 0.05, e = 0.01, P = [[from.x, from.z], [to.x, to.z]], i, j, band = false;
+      var wide = YARD_WIDE && PL.place === 'yard', m = 0.05, e = 1e-4, P = [[from.x, from.z], [to.x, to.z]], i, j, band = false;   /* e = 둘레 스침 여유 ([7-W] 예전 1 cm — 아래 free) */
       if (wide && (yardOut(from.x, from.z) || yardOut(to.x, to.z))) {
-        if (!yardOut(from.x, from.z) || !yardOut(to.x, to.z)) return null;   /* 울타리 안 ↔ 밖은 playerWalkTo 가 울타리 문을 먼저 거친다 */
+        if (!yardOut(from.x, from.z) || !yardOut(to.x, to.z)) return plRouteGate(from, to, boxes, circles);   /* [7-W] 울타리 안 ↔ 밖: 앞 모서리의 울타리 문을 거쳐 두 구간으로 (예전: null → 곧장 걸어 숲길 소품에 막혀 섰다 — 숲길 (12, 1.5) → 마당 안이 9.5 에서 섬 · 갈래 V 알림) */
         /* [7-W] 다섯째 바퀴 (갈래 V 알림: 숲길에서 집 1 문 2 m 앞에서 멈춤): 울타리 밖 띠에서도 장애물을 돌아간다 — 예전엔 곧장 걸어 숲길 소품 (그루터기 · 통나무) 에 막혀 섰다.
            곧은 길에서 2 m 안의 장애물만 넣고 (마을 · 해변 등록부가 70 개 넘는다), 돌아가는 모서리는 걷는 곳 (WIDE.AREAS) 안이어야 한다 */
         band = true;
@@ -3535,10 +3535,12 @@ var SCENE3D = (function () {
       function corner(x, z) { if ((band ? inBand(x, z) : plInRoom(x, z) && !(wide && yardOut(x, z))) && plPen(x, z, boxes, circles) <= 0) P.push([x, z]); }
       boxes.forEach(function (b) { corner(b[0] - m, b[2] - m); corner(b[1] + m, b[2] - m); corner(b[1] + m, b[3] + m); corner(b[0] - m, b[3] + m); });
       circles.forEach(function (c) { var q = c[2] + m; corner(c[0] - q, c[1] - q); corner(c[0] + q, c[1] - q); corner(c[0] + q, c[1] + q); corner(c[0] - q, c[1] + q); });
-      function free(p, q) {   /* 둘레에 닿기만 하는 선분 (둘레에 붙어 선 출발 자리) 은 막힌 것이 아니다 → 1 cm 안쪽부터 막힌 것으로 */
-        var k, b, c, dx = q[0] - p[0], dz = q[1] - p[1], l2 = dx * dx + dz * dz, t;
-        for (k = 0; k < boxes.length; k++) { b = boxes[k]; if (plSegHits(p[0], p[1], q[0], q[1], [b[0] + e, b[1] - e, b[2] + e, b[3] - e])) return false; }
-        for (k = 0; k < circles.length; k++) { c = circles[k]; t = l2 > 1e-12 ? clamp(((c[0] - p[0]) * dx + (c[1] - p[1]) * dz) / l2, 0, 1) : 0; if (Math.hypot(p[0] + dx * t - c[0], p[1] + dz * t - c[1]) < c[2] - e) return false; }
+      function free(p, q) {   /* [7-W] 선분이 장애물마다 두 끝보다 더 파고들지 않으면 빈 길 — plMove 와 같은 규칙 (파고드는 걸음은 물린다). 둘레에 붙어 선 출발 자리에서 멀어지는 길은 되고,
+                                 두 끝이 밖인데 가운데가 둘레를 스치는 길은 막힌 것 (예전엔 1 cm 스침을 받아 해변 표지판 옆 (49.72, 0.21) 에서 서고 다시 눌러도 섰다 — 갈래 V 알림) */
+        var k, b, c, d, dx = q[0] - p[0], dz = q[1] - p[1], l2 = dx * dx + dz * dz, t;
+        function bp(x, z, b2) { return Math.max(0, Math.min(x - b2[0], b2[1] - x, z - b2[2], b2[3] - z)); }
+        for (k = 0; k < boxes.length; k++) { b = boxes[k]; d = Math.max(bp(p[0], p[1], b), bp(q[0], q[1], b)) + e; if (plSegHits(p[0], p[1], q[0], q[1], [b[0] + d, b[1] - d, b[2] + d, b[3] - d])) return false; }
+        for (k = 0; k < circles.length; k++) { c = circles[k]; d = Math.max(0, c[2] - Math.hypot(p[0] - c[0], p[1] - c[1]), c[2] - Math.hypot(q[0] - c[0], q[1] - c[1])) + e; t = l2 > 1e-12 ? clamp(((c[0] - p[0]) * dx + (c[1] - p[1]) * dz) / l2, 0, 1) : 0; if (Math.hypot(p[0] + dx * t - c[0], p[1] + dz * t - c[1]) < c[2] - d) return false; }
         return true;
       }
       var n = P.length, dist = [], prev = [], done = [];
@@ -3552,6 +3554,12 @@ var SCENE3D = (function () {
       if (dist[1] === Infinity) return null;
       var path = [to]; for (i = prev[1]; i > 0; i = prev[i]) path.unshift(new T.Vector3(P[i][0], 0, P[i][1]));
       return path;
+    }
+    function plRouteGate(from, to, boxes, circles) {   /* [7-W] 다섯째 바퀴 (갈래 V 알림): 마당 네모 안 ↔ 울타리 밖 걸음 — 앞 모서리의 울타리 문 안쪽 점 · 바깥 점을 거친다.
+                                                         안쪽 구간은 마당 길 찾기 · 바깥 구간은 띠 길 찾기 (plRouteAll 이 둘 다 같은 쪽 끝이 되게). 한 구간이 길이 없으면 그 구간만 곧장 */
+      var Y = YARD_L - 0.3 - PL_MARGIN, gi = new T.Vector3(Y - 0.1, 0, Y - 0.1), gq = wideXZ(Math.max(WIDE.S_OUT, 2 * Y * Math.SQRT1_2) + 0.3, 0), go = new T.Vector3(gq[0], 0, gq[1]);
+      var inFirst = !yardOut(from.x, from.z), a = inFirst ? gi : go, b = inFirst ? go : gi;
+      return (plRouteAll(from, a, boxes, circles) || [a]).concat([b], plRouteAll(b, to, boxes, circles) || [to]);
     }
     function plWalkTo(to, face) {   /* 점까지 걷기 → Promise<walked:boolean>. face = 도착해 볼 방향(rad, 없으면 걸어온 쪽 그대로 — 11-18 주인). 모션 감소 · 숨은 탭 · 컨텍스트 잃음 · 준비 전 · 5 cm 미만 = 바로.
                                        걸음은 스틱과 같은 plMove(1.8 m/s — 스틱은 2.2 · 범위·장애물 미끄러짐) 로 경유점(plRoute)을 차례로 — 목표 5 cm 안이면 도착(마지막 점은 정확히 그 자리로), 세 프레임 연속 못 움직이면 다음 점으로(마지막이면 거기서 끝) · 길이 × 1.5 + 0.3 s 가 지나면 끝 (Promise 가 걸리지 않게) */
@@ -3575,7 +3583,8 @@ var SCENE3D = (function () {
             var tg = pts[0], dx = tg.x - PL.pos.x, dz = tg.z - PL.pos.z, dd = Math.hypot(dx, dz), step = Math.min(dd, spd * dt / (st.speed || 1));
             if (dd > 1e-6) { PL.wantYaw = Math.atan2(dx, dz); if (plMove(dx / dd * step, dz / dd * step) || plMove(dx / dd * step / 2, dz / dd * step / 2)) stuck = 0; else stuck++; }   /* 한 걸음이 장애물 둘레에 걸리면 반 걸음으로 한 번 더 (큰 dt 에서 둘레 앞까지 붙게) */
             dd = Math.hypot(tg.x - PL.pos.x, tg.z - PL.pos.z);
-            if (dd < 0.05 || stuck >= 3) { if (pts.length > 1) { pts.shift(); stuck = 0; } else arrive(dd < 0.2); }   /* 마지막 점: 5 cm 안이면 도착 · 막혔어도 20 cm 안이면 그 자리로(쉬는 자리처럼 둘레 안에 둔 목표) · 더 멀면 거기서 끝(관통 금지) */
+            if ((pts.length > 1 ? dd < 1e-3 : dd < 0.05) || stuck >= 3) { if (pts.length > 1) { pts.shift(); stuck = 0; } else arrive(dd < 0.2); }   /* 마지막 점: 5 cm 안이면 도착 · 막혔어도 20 cm 안이면 그 자리로(쉬는 자리처럼 둘레 안에 둔 목표) · 더 멀면 거기서 끝(관통 금지).
+                                                                                                                                                  [7-W] 가운데 경유점은 그 점을 밟고 꺾는다 (예전엔 5 cm 앞에서 꺾어 길이 둘레 쪽으로 밀려, 둥근 것을 스치는 길에서 파고들어 섰다 — 해변 표지판 · 갈래 V 알림) */
           } };
       });
     }
@@ -3979,7 +3988,14 @@ var SCENE3D = (function () {
         var s = spotInfo(id), key = !s ? 'off' : s.mode === 'edge' ? 'edge' : (s.mode === 'key' ? 'k' : '') + s.x + ',' + s.y + ',' + s.w + ',' + s.h;
         if (spotLast[id] === key) continue;
         spotLast[id] = key;
-        if (!s) { if (!el.hidden && ae === el) { spotFocus = id; try { spotQuiet = !el.matches(':focus-visible'); } catch (e) { spotQuiet = false; } }   /* :focus-visible 을 모르는 옛 브라우저 = 링 있는 쪽으로 */ el.hidden = true; continue; }
+        if (!s) {
+          if (el._spotBy && el._spotBy !== id) continue;   /* [7-W] 단추 하나를 두 자리가 번갈아 쓴다 (바깥 자리 · 방 안 자리가 같은 btn — 가게 문어 등): 지금 쥔 자리만 숨긴다. 예전엔 움직임 줄이기에서 방을 나오면 바깥 자리가 먼저 다시 보이고 방 안 자리가 뒤따라 숨겨 단추가 숨은 채 남았다 (갈래 V 알림) */
+          if (!el.hidden && ae === el) { spotFocus = id; try { spotQuiet = !el.matches(':focus-visible'); } catch (e) { spotQuiet = false; } }   /* :focus-visible 을 모르는 옛 브라우저 = 링 있는 쪽으로 */
+          var held = el._spotBy === id; el.hidden = true; el._spotBy = null;
+          if (held) for (var j = 0; j < SPOT_KEYS.length; j++) if (SPOT_KEYS[j] !== id && SPOTS[SPOT_KEYS[j]] === el) spotLast[SPOT_KEYS[j]] = null;   /* 쥐고 있던 단추를 놓으면 같은 단추를 쓰는 다른 자리가 다시 본다 (보일 자리면 다시 보인다 · 이미 놓인 단추면 안 건드린다 — 둘 다 꺼진 동안 서로 되풀이하지 않게) */
+          continue;
+        }
+        el._spotBy = id;
         var es = el.style; el.dataset.spot = s.mode;
         if (s.mode !== 'edge') { es.left = s.x + 'px'; es.top = s.y + 'px'; es.width = s.w + 'px'; es.height = s.h + 'px'; es.right = 'auto'; es.bottom = 'auto'; }   /* 'over' · 'key' (11-21: 계단의 안 보이는 키보드 칸) */
         else { es.left = es.top = es.width = es.height = es.right = es.bottom = ''; }   /* 가장자리 단추: 자리는 앱 CSS */
@@ -4021,7 +4037,7 @@ var SCENE3D = (function () {
       if (Date.now() - g.t > 800 || Math.hypot(e.clientX - g.x, e.clientY - g.y) > 30) return;
       e.preventDefault(); e.stopImmediatePropagation();
     }, true);
-    function clearSpots() { SPOT_KEYS.forEach(function (k) { var el = SPOTS[k]; if (!el) return; var es = el.style; es.left = es.top = es.width = es.height = es.right = es.bottom = ''; delete el.dataset.spot; }); SPOTS = {}; spotLast = {}; spotFocus = null; }
+    function clearSpots() { SPOT_KEYS.forEach(function (k) { var el = SPOTS[k]; if (!el) return; var es = el.style; es.left = es.top = es.width = es.height = es.right = es.bottom = ''; delete el.dataset.spot; el._spotBy = null; }); SPOTS = {}; spotLast = {}; spotFocus = null; }   /* [7-W] _spotBy = 그 단추를 지금 쥔 자리 (updateSpots) */
     function setHotspots(map, o) {
       clearSpots(); map = map || {}; o = o || {}; spotEdge = o.edge !== false;
       SPOT_KEYS.forEach(function (k) { if (map[k] && map[k].nodeType === 1) SPOTS[k] = map[k]; });
@@ -6796,6 +6812,7 @@ var SCENE3D = (function () {
       delete container.dataset.inside; IN.key = null; IN.g = null; ZT = null; st.zoomF = IN.zoom0 == null ? 1 : IN.zoom0; IN.zoom0 = null;   /* 바깥 배율은 들어가기 전 그대로 */
       showPlace('yard'); applyZoom(); touchMode(); PLACE.room = 'yard'; container.dataset.room = 'yard';
       if (plG.parent !== YROOM.g) YROOM.g.add(plG); fpClear(YROOM.g);
+      var h0 = PL.hop; PL.sit = false; PL.hop = null; PL.tbl = false; if (h0 && h0.done) h0.done();   /* [7-W] inShow 처럼 앉음 · 폴짝 · 식탁을 푼다 (폴짝을 기다리던 약속은 풀어 준다 — 갈래 V 알림: 앉은 채 · 의자로 뛰는 중에 나가면 바깥에서 그 자세가 이어졌다) */
       plStop(); PL.place = 'yard'; PL.pos.set(b[0], 0, b[1]); PL.faceCam = false; PL.yaw = PL.wantYaw = b[2] == null ? Math.PI / 4 : b[2]; PL.moving = false; PL.pending = ''; plSnap();
       placeCamera(); wideCentreOn(); fitShadow(); dither.still = 0;
     }
